@@ -1,12 +1,13 @@
 extends Node
 
-var fe: float = 10.0
+var fe: float = 1000.0  # TESTE: fe inicial generosa p/ validar loop. Voltar p/ 10.0 no release.
 var santos: int = 0
 var santos_gastos: int = 0
 var reliquias: int = 0
 var fe_total_vida: float = 0.0
 var geradores: Dictionary = {}
 var upgrades_comprados: Array = []
+var dadivas_compradas: Array = []
 var estatisticas: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
 
 const ESTATISTICAS_DEFAULT: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
@@ -21,6 +22,7 @@ func _migrate_save(data: Dictionary) -> Dictionary:
 
 func _ready() -> void:
 	_init_geradores()
+	Economy.recompute_multiplicadores()
 
 func _init_geradores() -> void:
 	for i in range(1, Geradores.count() + 1):
@@ -67,11 +69,45 @@ func buy_prophet(gen_id: int) -> bool:
 	fe -= data.profeta_custo
 	state.tem_profeta = true
 	if state.tempo_restante < 0:
-		state.tempo_restante = data.tempo
+		state.tempo_restante = Economy.get_tempo_ciclo(gen_id)
 	geradores[gen_id] = state
 	EventBus.prophet_changed.emit(gen_id)
 	EventBus.faith_changed.emit(fe)
 	EventBus.toast_requested.emit("Profeta contratado: " + data.profeta_nome)
+	return true
+
+func buy_upgrade(upgrade_id: String) -> bool:
+	if upgrade_id in upgrades_comprados:
+		return false
+	var u: Dictionary = Upgrades.get_data(upgrade_id)
+	if u.is_empty():
+		return false
+	if not Upgrades.requisito_atingido(u):
+		return false
+	if fe < u.custo:
+		return false
+	fe = max(fe - u.custo, 0.0)
+	upgrades_comprados.append(upgrade_id)
+	Economy.recompute_multiplicadores()
+	EventBus.upgrade_purchased.emit(upgrade_id)
+	EventBus.faith_changed.emit(fe)
+	EventBus.toast_requested.emit(u.nome + ": " + u.efeito)
+	return true
+
+func buy_dadiva(dadiva_id: String) -> bool:
+	if dadiva_id in dadivas_compradas:
+		return false
+	var d: Dictionary = Dadivas.get_data(dadiva_id)
+	if d.is_empty():
+		return false
+	if santos < d.custo:
+		return false
+	santos -= d.custo
+	santos_gastos += d.custo
+	dadivas_compradas.append(dadiva_id)
+	Economy.recompute_multiplicadores()
+	EventBus.dadiva_purchased.emit(dadiva_id)
+	EventBus.toast_requested.emit("Dadiva recebida: " + d.nome)
 	return true
 
 func start_cycle(gen_id: int) -> bool:
@@ -82,8 +118,7 @@ func start_cycle(gen_id: int) -> bool:
 		return false
 	if state.tempo_restante >= 0:
 		return false
-	var data: Dictionary = Geradores.get_data(gen_id)
-	state.tempo_restante = data.tempo
+	state.tempo_restante = Economy.get_tempo_ciclo(gen_id)
 	geradores[gen_id] = state
 	return true
 
@@ -105,7 +140,7 @@ func process_tick(delta: float) -> void:
 			fe_mudou = true
 			if state.tem_profeta:
 				# Carrega o excedente negativo em vez de descartá-lo (preserva a taxa real).
-				state.tempo_restante += data.tempo
+				state.tempo_restante += Economy.get_tempo_ciclo(gen_id)
 			else:
 				state.tempo_restante = -1.0
 			EventBus.generator_cycle_complete.emit(gen_id, receita)
@@ -128,8 +163,8 @@ func get_progresso_ciclo(gen_id: int) -> float:
 		return 0.0
 	if state.tempo_restante < 0:
 		return 0.0
-	var data: Dictionary = Geradores.get_data(gen_id)
-	return 1.0 - (state.tempo_restante / data.tempo)
+	var tempo: float = Economy.get_tempo_ciclo(gen_id)
+	return clampf(1.0 - (state.tempo_restante / tempo), 0.0, 1.0)
 
 func can_prestige() -> bool:
 	return Economy.santos_ganhos(fe_total_vida) > 0
@@ -149,6 +184,8 @@ func prestige() -> int:
 			"tempo_restante": -1.0,
 		}
 	upgrades_comprados.clear()
+	# Dadivas persistem (bonus permanente do prestige).
+	Economy.recompute_multiplicadores()
 	EventBus.prestige_done.emit()
 	EventBus.faith_changed.emit(fe)
 	EventBus.toast_requested.emit("Ressurreicao! +" + str(ganhos) + " Santos")
@@ -176,6 +213,7 @@ func get_save_data() -> Dictionary:
 		"feTotalVida": fe_total_vida,
 		"geradores": gens_save,
 		"upgradesComprados": upgrades_comprados,
+		"dadivasCompradas": dadivas_compradas,
 		"estatisticas": estatisticas,
 	}
 
@@ -187,6 +225,7 @@ func load_save_data(data: Dictionary) -> void:
 	reliquias = int(data.get("reliquias", 0))
 	fe_total_vida = float(data.get("feTotalVida", 0.0))
 	upgrades_comprados = data.get("upgradesComprados", [])
+	dadivas_compradas = data.get("dadivasCompradas", [])
 	estatisticas = ESTATISTICAS_DEFAULT.duplicate()
 	var stats_save: Dictionary = data.get("estatisticas", {})
 	estatisticas.prestiges = int(stats_save.get("prestiges", 0))
@@ -201,10 +240,11 @@ func load_save_data(data: Dictionary) -> void:
 				"tem_profeta": bool(saved.get("tem_profeta", false)),
 				"tempo_restante": float(saved.get("tempo_restante", -1.0)),
 			}
+	Economy.recompute_multiplicadores()
 	EventBus.faith_changed.emit(fe)
 
 func apply_offline_production(seconds: float) -> float:
-	var cap: float = 8.0 * 3600.0
+	var cap: float = Economy.get_offline_cap()
 	if seconds > cap:
 		seconds = cap
 	var total: float = 0.0
@@ -213,9 +253,10 @@ func apply_offline_production(seconds: float) -> float:
 		if not state.tem_profeta or state.qtd <= 0:
 			continue
 		var data: Dictionary = Geradores.get_data(gen_id)
-		var ciclos: float = seconds / data.tempo
+		var ciclos: float = seconds / Economy.get_tempo_ciclo(gen_id)
 		var receita: float = data.receita_base * float(state.qtd) * Economy.get_gerador_multiplicador(gen_id) * ciclos
 		total += receita
+	total *= Economy.get_offline_mult()
 	if total > 0:
 		fe += total
 		fe_total_vida += total

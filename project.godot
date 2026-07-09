@@ -20,6 +20,8 @@ config/icon="res://icon.svg"
 
 EventBus="*res://scripts/autoload/EventBus.gd"
 Geradores="*res://scripts/data/Geradores.gd"
+Upgrades="*res://scripts/data/Upgrades.gd"
+Dadivas="*res://scripts/data/Dadivas.gd"
 Economy="*res://scripts/autoload/Economy.gd"
 GameState="*res://scripts/autoload/GameState.gd"
 SaveSystem="*res://scripts/autoload/SaveSystem.gd"
