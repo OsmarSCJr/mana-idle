@@ -8,11 +8,19 @@ var fe_total_vida: float = 0.0
 var geradores: Dictionary = {}
 var upgrades_comprados: Array = []
 var estatisticas: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
-var initialized: bool = false
+
+const ESTATISTICAS_DEFAULT: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
+const SAVE_VERSION: int = 1
+
+# Ponto de entrada para migracoes futuras. Ao subir SAVE_VERSION, tratar aqui
+# a conversao dos campos do save antigo antes de aplicar em load_save_data.
+func _migrate_save(data: Dictionary) -> Dictionary:
+	var v: int = int(data.get("version", 1))
+	# if v < 2: data = _migrate_v1_to_v2(data)
+	return data
 
 func _ready() -> void:
 	_init_geradores()
-	initialized = true
 
 func _init_geradores() -> void:
 	for i in range(1, Geradores.count() + 1):
@@ -22,13 +30,18 @@ func _init_geradores() -> void:
 			"tempo_restante": -1.0,
 		}
 
-func init_geradores() -> void:
-	_init_geradores()
+func is_unlocked(gen_id: int) -> bool:
+	if gen_id <= 1:
+		return true
+	var prev: Dictionary = geradores.get(gen_id - 1, {})
+	return int(prev.get("qtd", 0)) > 0
 
 func buy_generator(gen_id: int, amount: int) -> bool:
 	if not geradores.has(gen_id):
 		return false
 	if amount <= 0:
+		return false
+	if not is_unlocked(gen_id):
 		return false
 	var state: Dictionary = geradores[gen_id]
 	var custo: float = Economy.custo_lote(gen_id, amount, state.qtd)
@@ -37,7 +50,7 @@ func buy_generator(gen_id: int, amount: int) -> bool:
 		if amount <= 0:
 			return false
 		custo = Economy.custo_lote(gen_id, amount, state.qtd)
-	fe -= custo
+	fe = max(fe - custo, 0.0)
 	state.qtd += amount
 	geradores[gen_id] = state
 	EventBus.generator_changed.emit(gen_id)
@@ -58,7 +71,7 @@ func buy_prophet(gen_id: int) -> bool:
 	geradores[gen_id] = state
 	EventBus.prophet_changed.emit(gen_id)
 	EventBus.faith_changed.emit(fe)
-	EventBus.notification.emit("Profeta contratado: " + data.profeta_nome)
+	EventBus.toast_requested.emit("Profeta contratado: " + data.profeta_nome)
 	return true
 
 func start_cycle(gen_id: int) -> bool:
@@ -76,6 +89,7 @@ func start_cycle(gen_id: int) -> bool:
 
 func process_tick(delta: float) -> void:
 	estatisticas.tempo_jogado += delta
+	var fe_mudou: bool = false
 	for gen_id in geradores:
 		var state: Dictionary = geradores[gen_id]
 		if state.qtd <= 0:
@@ -88,13 +102,16 @@ func process_tick(delta: float) -> void:
 			var receita: float = data.receita_base * float(state.qtd) * Economy.get_gerador_multiplicador(gen_id)
 			fe += receita
 			fe_total_vida += receita
+			fe_mudou = true
 			if state.tem_profeta:
-				state.tempo_restante = data.tempo
+				# Carrega o excedente negativo em vez de descartá-lo (preserva a taxa real).
+				state.tempo_restante += data.tempo
 			else:
 				state.tempo_restante = -1.0
 			EventBus.generator_cycle_complete.emit(gen_id, receita)
-			EventBus.faith_changed.emit(fe)
 		geradores[gen_id] = state
+	if fe_mudou:
+		EventBus.faith_changed.emit(fe)
 
 func get_receita_por_segundo() -> float:
 	return Economy.receita_total_por_segundo()
@@ -134,7 +151,7 @@ func prestige() -> int:
 	upgrades_comprados.clear()
 	EventBus.prestige_done.emit()
 	EventBus.faith_changed.emit(fe)
-	EventBus.notification.emit("Ressurreicao! +" + str(ganhos) + " Santos")
+	EventBus.toast_requested.emit("Ressurreicao! +" + str(ganhos) + " Santos")
 	return ganhos
 
 func get_santos_proximo_prestige() -> int:
@@ -150,7 +167,7 @@ func get_save_data() -> Dictionary:
 			"tempo_restante": state.tempo_restante,
 		}
 	return {
-		"version": 1,
+		"version": SAVE_VERSION,
 		"lastSeen": Time.get_unix_time_from_system(),
 		"fe": fe,
 		"santos": santos,
@@ -163,13 +180,17 @@ func get_save_data() -> Dictionary:
 	}
 
 func load_save_data(data: Dictionary) -> void:
+	data = _migrate_save(data)
 	fe = float(data.get("fe", 0.0))
 	santos = int(data.get("santos", 0))
 	santos_gastos = int(data.get("santosGastos", 0))
 	reliquias = int(data.get("reliquias", 0))
 	fe_total_vida = float(data.get("feTotalVida", 0.0))
 	upgrades_comprados = data.get("upgradesComprados", [])
-	estatisticas = data.get("estatisticas", {"prestiges": 0, "tempo_jogado": 0.0})
+	estatisticas = ESTATISTICAS_DEFAULT.duplicate()
+	var stats_save: Dictionary = data.get("estatisticas", {})
+	estatisticas.prestiges = int(stats_save.get("prestiges", 0))
+	estatisticas.tempo_jogado = float(stats_save.get("tempo_jogado", 0.0))
 	var gens_save: Dictionary = data.get("geradores", {})
 	for gen_id_str in gens_save:
 		var gen_id: int = int(gen_id_str)

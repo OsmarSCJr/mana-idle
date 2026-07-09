@@ -24,6 +24,9 @@ var _game_loaded: bool = false
 var _pause_time: float = 0.0
 var _modo_compra: String = "x1"
 var _modo_buttons: Dictionary = {}
+var _last_tick_msec: int = 0
+var _full_update_counter: int = 0
+const FULL_UPDATE_EVERY: int = 3  # atualiza precos/botoes a cada 3 ticks (~3Hz)
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -33,7 +36,7 @@ func _ready() -> void:
 	_setup_signals()
 	_update_all()
 	if not _game_loaded:
-		EventBus.notification.emit("Bem-vindo a Mana Idle! Clique em Haja Luz para comecar.")
+		EventBus.toast_requested.emit("Bem-vindo a Mana Idle! Compre Haja Luz e toque nele para gerar Fe.")
 
 func _build_ui() -> void:
 	var bg: ColorRect = ColorRect.new()
@@ -241,20 +244,35 @@ func _setup_timer() -> void:
 	_tick_timer.timeout.connect(_on_tick)
 	add_child(_tick_timer)
 	_tick_timer.start()
+	_last_tick_msec = Time.get_ticks_msec()
 
 func _setup_signals() -> void:
 	EventBus.faith_changed.connect(func(_a: float): _update_topbar())
 	EventBus.generator_changed.connect(func(id: int): _update_item(id))
 	EventBus.prophet_changed.connect(func(id: int): _update_item(id))
 	EventBus.prestige_done.connect(_update_all)
-	EventBus.notification.connect(_show_notification)
+	EventBus.toast_requested.connect(_show_notification)
 	EventBus.ui_needs_update.connect(_update_all)
 
 func _on_tick() -> void:
-	GameState.process_tick(1.0 / TICK_RATE)
+	# Usa o tempo real decorrido em vez do nominal (imune a hitches/lag do Timer).
+	var now: int = Time.get_ticks_msec()
+	var delta: float = float(now - _last_tick_msec) / 1000.0
+	_last_tick_msec = now
+	if delta <= 0.0:
+		delta = 1.0 / TICK_RATE
+	GameState.process_tick(delta)
 	_update_topbar()
+	# Progresso dos ciclos anima a cada tick (barato); precos/botoes so a cada N ticks.
+	_full_update_counter += 1
+	var do_full: bool = _full_update_counter >= FULL_UPDATE_EVERY
+	if do_full:
+		_full_update_counter = 0
 	for item in _items.values():
-		item.update()
+		if do_full:
+			item.update()
+		else:
+			item.update_progress()
 
 func _update_topbar() -> void:
 	_faith_label.text = NumberFormat.format(GameState.fe)
@@ -307,7 +325,21 @@ func _on_cycle_start(gen_id: int) -> void:
 	GameState.start_cycle(gen_id)
 
 func _on_prestige() -> void:
-	GameState.prestige()
+	var ganhos: int = GameState.get_santos_proximo_prestige()
+	if ganhos <= 0:
+		return
+	var dialog: ConfirmationDialog = ConfirmationDialog.new()
+	dialog.title = "Ressurreicao"
+	dialog.dialog_text = "Renascer agora reseta Fe, geradores e profetas.\n\nVoce ganhara +" + str(ganhos) + " Santos (bonus permanente de +" + str(ganhos * 2) + "% de producao).\n\nConfirmar?"
+	dialog.get_ok_button().text = "Ressuscitar"
+	dialog.get_cancel_button().text = "Ainda nao"
+	dialog.confirmed.connect(func():
+		GameState.prestige()
+		dialog.queue_free()
+	)
+	dialog.canceled.connect(func(): dialog.queue_free())
+	add_child(dialog)
+	dialog.popup_centered()
 
 func _show_notification(msg: String) -> void:
 	_notification_label.text = msg
@@ -337,9 +369,11 @@ func _notification(what: int) -> void:
 	elif what == NOTIFICATION_APPLICATION_RESUMED:
 		if _pause_time > 0:
 			var away: float = Time.get_unix_time_from_system() - _pause_time
-			if away > 60.0:
+			# Credita produzido durante a pausa (o cap de 8h fica em apply_offline_production).
+			if away > 5.0:
 				var ganho: float = GameState.apply_offline_production(away)
-				if ganho > 0:
-					EventBus.notification.emit("Bem-vindo de volta! +" + NumberFormat.format(ganho) + " de Fe")
+				if ganho > 0 and away > 60.0:
+					EventBus.toast_requested.emit("Bem-vindo de volta! +" + NumberFormat.format(ganho) + " de Fe")
+			_last_tick_msec = Time.get_ticks_msec()
 			_pause_time = 0.0
 			_update_all()

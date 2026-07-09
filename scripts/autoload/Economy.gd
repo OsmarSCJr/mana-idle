@@ -43,7 +43,7 @@ func receita_total_por_segundo() -> float:
 	var total: float = 0.0
 	for gen_id in GameState.geradores:
 		var state: Dictionary = GameState.geradores[gen_id]
-		total += receita_por_segundo(gen_id, state.qtd, state.tem_profeta)
+		total += receita_por_segundo(gen_id, state.qtd, state.tem_profeta) * milestone_bonus(state.qtd)
 	return total * get_multiplicador_global()
 
 func santos_ganhos(fe_total: float) -> int:

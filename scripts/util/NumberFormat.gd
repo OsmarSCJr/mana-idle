@@ -15,12 +15,18 @@ static func format(num: float) -> String:
 		return str(int(num))
 
 	var order: int = int(log(num) / log(1000.0))
-	if order >= SUFFIXES.size():
-		order = SUFFIXES.size() - 1
 	if order < 0:
 		order = 0
 
 	var scaled: float = num / pow(1000.0, order)
+
+	# Arredondamento pode empurrar scaled para 1000.0 (ex.: 999.6K -> 1.00M).
+	if scaled >= 999.5 and order < SUFFIXES.size() - 1:
+		order += 1
+		scaled = num / pow(1000.0, order)
+
+	if order >= SUFFIXES.size():
+		order = SUFFIXES.size() - 1
 
 	if scaled >= 100.0:
 		return "%.0f%s" % [scaled, SUFFIXES[order]]
