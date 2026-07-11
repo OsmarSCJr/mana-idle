@@ -7,6 +7,10 @@ const AUTOSAVE_INTERVAL: float = 10.0
 
 var _autosave_timer: Timer
 var _last_save_time: float = 0.0
+var persistence_enabled: bool = true
+
+func set_persistence_enabled(enabled: bool) -> void:
+	persistence_enabled = enabled
 
 func _ready() -> void:
 	_setup_autosave()
@@ -19,7 +23,8 @@ func _setup_autosave() -> void:
 	_autosave_timer.start()
 
 func _on_autosave() -> void:
-	save_game()
+	if persistence_enabled:
+		save_game()
 
 func _read_save_dict(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
@@ -37,6 +42,8 @@ func _read_save_dict(path: String) -> Dictionary:
 	return json.data
 
 func load_game() -> bool:
+	if not persistence_enabled:
+		return false
 	var data: Dictionary = _read_save_dict(SAVE_PATH)
 	if data.is_empty():
 		# Save principal corrompido/ausente: tenta o backup.
@@ -46,6 +53,9 @@ func load_game() -> bool:
 
 	_last_save_time = float(data.get("lastSeen", Time.get_unix_time_from_system()))
 	GameState.load_save_data(data)
+	var study_system := get_node_or_null("/root/StudySystem")
+	if study_system != null:
+		study_system.refresh_unlocks(false)
 
 	var now: float = Time.get_unix_time_from_system()
 	var offline_seconds: float = now - _last_save_time
@@ -53,11 +63,13 @@ func load_game() -> bool:
 	if offline_seconds > 60.0:
 		var ganho: float = GameState.apply_offline_production(offline_seconds)
 		if ganho > 0:
-			EventBus.toast_requested.emit("Bem-vindo de volta! Seus profetas coletaram " + NumberFormat.format(ganho) + " de Fe enquanto voce estava fora.")
+			EventBus.toast_requested.emit("Bem-vindo de volta! Seus profetas coletaram " + NumberFormat.format(ganho) + " de Fé enquanto você estava fora.")
 	EventBus.ui_needs_update.emit()
 	return true
 
 func save_game() -> void:
+	if not persistence_enabled:
+		return
 	var data: Dictionary = GameState.get_save_data()
 	var file: FileAccess = FileAccess.open(SAVE_TMP, FileAccess.WRITE)
 	if file == null:

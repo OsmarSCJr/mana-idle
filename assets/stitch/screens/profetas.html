@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Maná Idle - Profetas</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&amp;family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Use Tailwind Config from Design System -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-variant": "#323252",
+                    "surface-container": "#1c1c3b",
+                    "on-surface-variant": "#d6c4ac",
+                    "tertiary-fixed": "#e9e2d0",
+                    "on-primary-fixed": "#281800",
+                    "on-surface": "#e2dfff",
+                    "on-tertiary-fixed": "#1e1c10",
+                    "on-secondary-fixed-variant": "#434366",
+                    "surface-container-highest": "#323252",
+                    "primary-container": "#f0a500",
+                    "primary-fixed": "#ffddaf",
+                    "tertiary": "#d6cfbd",
+                    "secondary": "#c4c3ec",
+                    "inverse-on-surface": "#2d2d4d",
+                    "outline-variant": "#514533",
+                    "surface-bright": "#363657",
+                    "background": "#10102e",
+                    "primary-fixed-dim": "#ffba44",
+                    "on-background": "#e2dfff",
+                    "error-container": "#93000a",
+                    "outline": "#9f8e79",
+                    "surface-dim": "#10102e",
+                    "error": "#ffb4ab",
+                    "secondary-fixed-dim": "#c4c3ec",
+                    "on-secondary": "#2d2d4e",
+                    "surface-tint": "#ffba44",
+                    "secondary-container": "#434366",
+                    "secondary-fixed": "#e2dfff",
+                    "on-primary": "#442c00",
+                    "on-secondary-fixed": "#181838",
+                    "on-tertiary-container": "#494638",
+                    "on-primary-fixed-variant": "#614000",
+                    "tertiary-fixed-dim": "#ccc6b4",
+                    "surface-container-high": "#272746",
+                    "tertiary-container": "#b9b4a3",
+                    "on-error-container": "#ffdad6",
+                    "on-secondary-container": "#b3b1da",
+                    "on-error": "#690005",
+                    "inverse-primary": "#805600",
+                    "on-tertiary": "#333024",
+                    "surface": "#10102e",
+                    "on-primary-container": "#5f3f00",
+                    "on-tertiary-fixed-variant": "#4a4739",
+                    "primary": "#ffc56c",
+                    "inverse-surface": "#e2dfff",
+                    "surface-container-low": "#181837",
+                    "surface-container-lowest": "#0a0a29"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "panel-margin": "16px",
+                    "xl": "32px",
+                    "base": "8px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "card-gap": "12px",
+                    "md": "16px",
+                    "sm": "12px"
+            },
+            "fontFamily": {
+                    "display-title": ["Noto Serif"],
+                    "label-caps": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Noto Serif"],
+                    "flavor-italic": ["Noto Serif"],
+                    "body-md": ["Inter"],
+                    "headline-lg": ["Noto Serif"]
+            },
+            "fontSize": {
+                    "display-title": ["32px", {"lineHeight": "40px", "letterSpacing": "0.02em", "fontWeight": "700"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "flavor-italic": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background: radial-gradient(circle at center, #1c1c3b 0%, #10102e 100%);
+            overscroll-behavior: none;
+        }
+        .parchment-card {
+            background-color: #fdf6e3;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .parchment-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 100%);
+            pointer-events: none;
+        }
+        .bless-button-glow {
+            box-shadow: 0 0 15px rgba(240, 165, 0, 0.3);
+        }
+        .manager-portrait {
+            border: 2px solid #f0a500;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface antialiased min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-panel-margin py-xs bg-surface-container-high shadow-sm">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<h1 class="font-display-title text-display-title text-primary">Maná Idle</h1>
+</div>
+<div class="flex items-center gap-md">
+<!-- Currency Display -->
+<div class="bg-surface-container-lowest px-md py-xs rounded-full flex items-center gap-xs shadow-inner">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1;">stars</span>
+<span class="font-label-caps text-label-caps text-primary">12.5K Fé</span>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-variant p-xs rounded-full transition-transform active:scale-95">settings</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow pt-20 pb-24 px-panel-margin overflow-y-auto max-w-2xl mx-auto w-full">
+<header class="mb-lg text-center">
+<h2 class="font-headline-lg text-headline-lg text-primary mb-xs">Profetas &amp; Mensageiros</h2>
+<p class="font-flavor-italic text-flavor-italic text-on-surface-variant italic">Contrate servos fiéis para automatizar as bênçãos da criação.</p>
+</header>
+<!-- Prophets List -->
+<div class="flex flex-col gap-card-gap">
+<!-- Prophet Card: Gabriel -->
+<div class="parchment-card p-md rounded-xl flex items-center gap-md border border-outline-variant/20 transition-transform active:scale-[0.98]">
+<div class="relative flex-shrink-0">
+<div class="w-16 h-16 rounded-full overflow-hidden manager-portrait bg-surface-variant">
+<img class="w-full h-full object-cover" data-alt="A serene portrait of Gabriel the Archangel as a stylized 2D character, featuring golden hair, white wings, and a radiant blue robe. The art style is refined flat vector art with a warm parchment-toned background and a soft celestial glow behind his head, matching a biblical idle game aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZ9JAT4DiKFMRfrH7OhKiQuTKhhxHALfUoBeF7XupbtC-1zKUO0kpbebIRCv9VpTGghXvnbUaX9VyydjkZi9tlC-6LhJtYEWc52O-8TlLym8JMqsCm2WgoOE5OYANjDzkTkXfj_NIgXWugRB79VJNgmZrQ5XAQQCSmw3hJF3AXlOmFuQDXMEEdVejZZuSt1yqsMK4c8pGmVyZW5zhvlSVc-i8DMvR__0e6yA7brn81cJkEW1fHlg5kJUfilZRLpgr-xP2mpgZz8Lk"/>
+</div>
+<div class="absolute -bottom-1 -right-1 bg-primary text-on-primary text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">LV 1</div>
+</div>
+<div class="flex-grow min-w-0">
+<h3 class="font-headline-md text-headline-md text-inverse-on-surface truncate">Gabriel</h3>
+<p class="font-label-caps text-label-caps text-primary-container -mt-1">O Mensageiro</p>
+<p class="font-body-md text-body-md text-inverse-on-surface/70 mt-xs italic">Automatiza "Haja Luz"</p>
+</div>
+<div class="flex-shrink-0">
+<button class="bg-primary-container text-on-primary-container font-label-caps text-label-caps px-md py-sm rounded-lg bless-button-glow active:scale-90 transition-all font-bold">
+                        CONTRATAR<br/>
+<span class="text-[10px] opacity-80">500 Fé</span>
+</button>
+</div>
+</div>
+<!-- Prophet Card: Moisés -->
+<div class="parchment-card p-md rounded-xl flex items-center gap-md border border-outline-variant/20 transition-transform active:scale-[0.98]">
+<div class="relative flex-shrink-0">
+<div class="w-16 h-16 rounded-full overflow-hidden manager-portrait bg-surface-variant">
+<img class="w-full h-full object-cover" data-alt="A stylized vector portrait of Moses as a wise leader with a white beard, holding a wooden staff. The design uses high-contrast shadows and a limited color palette of earth tones and parchment creams. The lighting is soft and ambient, evoking a peaceful progression feel for a biblical mobile app." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6N8sbcfBV229vS3Qf45nFKynX1LK3arQ6kj6ObcNtoLa1PN-iEkYlI26aalZ32h-c0uiSFJxFkyLtS-BYnjLieVcqvNPlaqj7gsatcXf5W2Li8kqLMCctmpwN0R9vCzzHxLrJybLklEpR9ZOQsVVu0jpCWGOgxopJebmx-35IIPm9Scr3Sm61noC3TliQpNuJ0TVn7S-S-Bhx4Vh0WPqPRvCrF9Z_b4jnWIm1Dhw_BUYFfS0IvzerfTEkQGswthG_ejk74Q0IXRo"/>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<h3 class="font-headline-md text-headline-md text-inverse-on-surface truncate">Moisés</h3>
+<p class="font-label-caps text-label-caps text-primary-container -mt-1">O Guia</p>
+<p class="font-body-md text-body-md text-inverse-on-surface/70 mt-xs italic">Automatiza "Abrir Mares"</p>
+</div>
+<div class="flex-shrink-0">
+<button class="bg-primary-container text-on-primary-container font-label-caps text-label-caps px-md py-sm rounded-lg bless-button-glow active:scale-90 transition-all font-bold">
+                        CONTRATAR<br/>
+<span class="text-[10px] opacity-80">2.5K Fé</span>
+</button>
+</div>
+</div>
+<!-- Prophet Card: Noé -->
+<div class="parchment-card p-md rounded-xl flex items-center gap-md border border-outline-variant/20 transition-transform active:scale-[0.98]">
+<div class="relative flex-shrink-0">
+<div class="w-16 h-16 rounded-full overflow-hidden manager-portrait bg-surface-variant">
+<img class="w-full h-full object-cover" data-alt="A stylized 2D vector character of Noah, depicted with a friendly smile and holding a small wooden model of the ark. The aesthetic is modern reverence, using clean silhouettes and soft roundedness. Background is a deep navy cosmos framing the character, creating high production value." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzRV4tkM97plQu6hTGZDBDEbOCTjzL60syBB0cWGviwzrA7EIpPKQ7v2igpJ17zDnYjfOPVDjl6bxY9bf-AiYIS9FyNjWBv2RegOyCxYumMaHeXAZceD2pVRvToOA0EleYvVYpI0CNcl4Wjj9Il1UzhBwLgyhkMZcDnvGfw1ZcwKj6UrKt6BNiCG7cEHK0OsF5ojrVRXy9JbA0tKrgB9tIdLgq9pcEpjjDIkUPVzYMP1IToljIbgnXM8ZM0Qcdi4lpScsaHjQJHXk"/>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<h3 class="font-headline-md text-headline-md text-inverse-on-surface truncate">Noé</h3>
+<p class="font-label-caps text-label-caps text-primary-container -mt-1">O Construtor</p>
+<p class="font-body-md text-body-md text-inverse-on-surface/70 mt-xs italic">Automatiza "Arca de Salvação"</p>
+</div>
+<div class="flex-shrink-0">
+<button class="bg-surface-variant text-on-surface-variant font-label-caps text-label-caps px-md py-sm rounded-lg active:scale-90 transition-all font-bold opacity-60 cursor-not-allowed">
+                        CONTRATAR<br/>
+<span class="text-[10px] opacity-80">15K Fé</span>
+</button>
+</div>
+</div>
+<!-- Prophet Card: Elias -->
+<div class="parchment-card p-md rounded-xl flex items-center gap-md border border-outline-variant/20 transition-transform active:scale-[0.98]">
+<div class="relative flex-shrink-0">
+<div class="w-16 h-16 rounded-full overflow-hidden manager-portrait bg-surface-variant">
+<img class="w-full h-full object-cover" data-alt="A majestic vector illustration of Prophet Elijah looking towards the heavens, stylized for a mobile game interface. Bold, clean lines and a warm golden and parchment color scheme. The character feels like a tangible part of a faith-based journey, framed by subtle ambient shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0OpE-PeqWe20wx6QGNNk5ZhP69tfj25uyss9A9BeuN_BMC-DCTckQHNaJ_HAPK7qKuOB7kQlcFtmdNFg8iW4j4emx31VAqORpyBRrgSNPpZ2aESJf2NsET9_YgYH6Hu2Gr2Qb0dn1qCDr0k-I9LOXuAtnihSic9cJVclRfWhnxQOnFHmC3uz687aVDxgF8mrGrQ0kFmzD0ZkE0q6Des27BCeE4_alOmUYp99-sNBxDL60qe2MhpOW257hS49OMcpGoi5p-q3iafQ"/>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<h3 class="font-headline-md text-headline-md text-inverse-on-surface truncate">Elias</h3>
+<p class="font-label-caps text-label-caps text-primary-container -mt-1">O Fiel</p>
+<p class="font-body-md text-body-md text-inverse-on-surface/70 mt-xs italic">Automatiza "Fogo do Céu"</p>
+</div>
+<div class="flex-shrink-0">
+<button class="bg-surface-variant text-on-surface-variant font-label-caps text-label-caps px-md py-sm rounded-lg active:scale-90 transition-all font-bold opacity-60 cursor-not-allowed">
+                        CONTRATAR<br/>
+<span class="text-[10px] opacity-80">50K Fé</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Empty state or footer spacer -->
+<div class="h-12 flex items-center justify-center opacity-30 mt-lg">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center h-16 px-md bg-surface-container border-t border-outline-variant shadow-lg">
+<!-- Tab: Jornada -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant px-sm py-xs rounded-lg transition-all active:scale-90">
+<span class="material-symbols-outlined">auto_stories</span>
+<span class="font-label-caps text-label-caps">Jornada</span>
+</button>
+<!-- Tab: Profetas (ACTIVE) -->
+<button class="flex flex-col items-center justify-center text-primary font-bold after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 px-sm py-xs rounded-lg transition-all active:scale-90">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">groups</span>
+<span class="font-label-caps text-label-caps">Profetas</span>
+</button>
+<!-- Tab: Upgrades -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant px-sm py-xs rounded-lg transition-all active:scale-90">
+<span class="material-symbols-outlined">upgrade</span>
+<span class="font-label-caps text-label-caps">Upgrades</span>
+</button>
+<!-- Tab: Loja -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant px-sm py-xs rounded-lg transition-all active:scale-90">
+<span class="material-symbols-outlined">storefront</span>
+<span class="font-label-caps text-label-caps">Loja</span>
+</button>
+</nav>
+<!-- Micro-interaction script -->
+<script>
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                // Prevent scrolling if at bottom when clicking
+                if (this.classList.contains('cursor-not-allowed')) return;
+                
+                // Add a simple pulse effect to currency top bar if it was a buy action
+                if (this.innerText.includes('CONTRATAR')) {
+                    const currency = document.querySelector('.bg-surface-container-lowest');
+                    currency.classList.add('scale-105', 'bg-primary-container/20');
+                    setTimeout(() => {
+                        currency.classList.remove('scale-105', 'bg-primary-container/20');
+                    }, 200);
+                }
+            });
+        });
+    </script>
+</body></html>

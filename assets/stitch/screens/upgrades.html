@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Maná Idle - Upgrades</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&family=Inter:wght@400;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Serif:wght@100..900&display=swap" rel="stylesheet"/>
+<!-- Shared Components Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-variant": "#323252",
+                    "surface-container": "#1c1c3b",
+                    "on-surface-variant": "#d6c4ac",
+                    "tertiary-fixed": "#e9e2d0",
+                    "on-primary-fixed": "#281800",
+                    "on-surface": "#e2dfff",
+                    "on-tertiary-fixed": "#1e1c10",
+                    "on-secondary-fixed-variant": "#434366",
+                    "surface-container-highest": "#323252",
+                    "primary-container": "#f0a500",
+                    "primary-fixed": "#ffddaf",
+                    "tertiary": "#d6cfbd",
+                    "secondary": "#c4c3ec",
+                    "inverse-on-surface": "#2d2d4d",
+                    "outline-variant": "#514533",
+                    "surface-bright": "#363657",
+                    "background": "#10102e",
+                    "primary-fixed-dim": "#ffba44",
+                    "on-background": "#e2dfff",
+                    "error-container": "#93000a",
+                    "outline": "#9f8e79",
+                    "surface-dim": "#10102e",
+                    "error": "#ffb4ab",
+                    "secondary-fixed-dim": "#c4c3ec",
+                    "on-secondary": "#2d2d4e",
+                    "surface-tint": "#ffba44",
+                    "secondary-container": "#434366",
+                    "secondary-fixed": "#e2dfff",
+                    "on-primary": "#442c00",
+                    "on-secondary-fixed": "#181838",
+                    "on-tertiary-container": "#494638",
+                    "on-primary-fixed-variant": "#614000",
+                    "tertiary-fixed-dim": "#ccc6b4",
+                    "surface-container-high": "#272746",
+                    "tertiary-container": "#b9b4a3",
+                    "on-error-container": "#ffdad6",
+                    "on-secondary-container": "#b3b1da",
+                    "on-error": "#690005",
+                    "inverse-primary": "#805600",
+                    "on-tertiary": "#333024",
+                    "surface": "#10102e",
+                    "on-primary-container": "#5f3f00",
+                    "on-tertiary-fixed-variant": "#4a4739",
+                    "primary": "#ffc56c",
+                    "inverse-surface": "#e2dfff",
+                    "surface-container-low": "#181837",
+                    "surface-container-lowest": "#0a0a29"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "panel-margin": "16px",
+                    "xl": "32px",
+                    "base": "8px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "card-gap": "12px",
+                    "md": "16px",
+                    "sm": "12px"
+            },
+            "fontFamily": {
+                    "display-title": ["Noto Serif"],
+                    "label-caps": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Noto Serif"],
+                    "flavor-italic": ["Noto Serif"],
+                    "body-md": ["Inter"],
+                    "headline-lg": ["Noto Serif"]
+            },
+            "fontSize": {
+                    "display-title": ["32px", {"lineHeight": "40px", "letterSpacing": "0.02em", "fontWeight": "700"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "flavor-italic": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #10102e;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .upgrade-card {
+            background: linear-gradient(135deg, #272746 0%, #1c1c3b 100%);
+            border: 1px solid rgba(255, 197, 108, 0.1);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .upgrade-card:active {
+            transform: scale(0.97);
+        }
+
+        .blessing-glow {
+            box-shadow: 0 0 15px rgba(240, 165, 0, 0.3);
+        }
+
+        .floating-orb {
+            filter: blur(60px);
+            opacity: 0.15;
+            z-index: 0;
+            pointer-events: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface">
+<!-- Background Atmospheric Elements -->
+<div class="fixed inset-0 overflow-hidden">
+<div class="floating-orb absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-primary rounded-full"></div>
+<div class="floating-orb absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary rounded-full"></div>
+</div>
+<!-- Top Navigation Shell -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-panel-margin py-xs bg-surface-container-high shadow-sm h-14">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="auto_awesome">auto_awesome</span>
+<h1 class="font-display-title text-[24px] text-primary">Maná Idle</h1>
+</div>
+<div class="flex items-center gap-md">
+<!-- Currency Pill -->
+<div class="bg-surface-container-highest px-sm py-xs rounded-full flex items-center gap-xs border border-outline-variant">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="stars" style="font-variation-settings: 'FILL' 1;">stars</span>
+<span class="font-bold text-primary text-sm tracking-wide">12.5k Fé</span>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-variant transition-transform active:scale-95">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="relative z-10 pt-20 pb-24 px-panel-margin max-w-lg mx-auto">
+<div class="mb-lg">
+<h2 class="font-headline-lg text-headline-lg text-primary mb-xs">Bênçãos & Upgrades</h2>
+<p class="font-body-md text-on-surface-variant italic">Fortaleça sua jornada espiritual com novos dons sagrados.</p>
+</div>
+<!-- Upgrades Grid -->
+<div class="grid grid-cols-1 gap-card-gap">
+<!-- Upgrade Item 1: Luz Eterna -->
+<div class="upgrade-card p-md rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-md">
+<div class="w-14 h-14 rounded-full bg-surface-container-highest flex items-center justify-center border-2 border-primary/20">
+<span class="material-symbols-outlined text-primary text-[32px]" data-icon="light" style="font-variation-settings: 'FILL' 1;">light</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Luz Eterna</h3>
+<p class="font-body-md text-on-surface-variant text-sm">Gera +100% de Fé</p>
+</div>
+</div>
+<button class="bg-primary-container text-on-primary-container px-md py-sm rounded-lg font-bold shadow-sm blessing-glow active:scale-95 transition-transform">
+                    1k Fé
+                </button>
+</div>
+<!-- Upgrade Item 2: Chuva de Maná -->
+<div class="upgrade-card p-md rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-md">
+<div class="w-14 h-14 rounded-full bg-surface-container-highest flex items-center justify-center border-2 border-primary/20">
+<span class="material-symbols-outlined text-primary text-[32px]" data-icon="bakery_dining" style="font-variation-settings: 'FILL' 1;">bakery_dining</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Chuva de Maná</h3>
+<p class="font-body-md text-on-surface-variant text-sm">Aumenta velocidade em 2x</p>
+</div>
+</div>
+<button class="bg-primary-container text-on-primary-container px-md py-sm rounded-lg font-bold shadow-sm blessing-glow active:scale-95 transition-transform">
+                    5k Fé
+                </button>
+</div>
+<!-- Upgrade Item 3: Sopro de Vida -->
+<div class="upgrade-card p-md rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-md">
+<div class="w-14 h-14 rounded-full bg-surface-container-highest flex items-center justify-center border-2 border-primary/20">
+<span class="material-symbols-outlined text-primary text-[32px]" data-icon="air" style="font-variation-settings: 'FILL' 0;">air</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Sopro de Vida</h3>
+<p class="font-body-md text-on-surface-variant text-sm">Profetas trabalham +15%</p>
+</div>
+</div>
+<button class="bg-primary-container text-on-primary-container px-md py-sm rounded-lg font-bold shadow-sm blessing-glow active:scale-95 transition-transform">
+                    10k Fé
+                </button>
+</div>
+<!-- Upgrade Item 4: Aliança Eterna (Locked Example) -->
+<div class="upgrade-card p-md rounded-xl flex items-center justify-between opacity-60 grayscale-[0.5]">
+<div class="flex items-center gap-md">
+<div class="w-14 h-14 rounded-full bg-surface-container-highest flex items-center justify-center border-2 border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant text-[32px]" data-icon="lock">lock</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Aliança Eterna</h3>
+<p class="font-body-md text-on-surface-variant text-sm">Desbloqueia nível 50</p>
+</div>
+</div>
+<button class="bg-surface-variant text-on-surface-variant px-md py-sm rounded-lg font-bold cursor-not-allowed">
+                    25k Fé
+                </button>
+</div>
+</div>
+<!-- Featured Illustrator Section -->
+<div class="mt-xl">
+<div class="relative w-full h-48 rounded-xl overflow-hidden border border-primary/20 mb-md">
+<img class="w-full h-full object-cover opacity-80" data-alt="A cinematic, high-quality digital illustration of biblical scenery under a vast starry night sky. The style is modern vector art with soft, atmospheric lighting. A warm golden glow radiates from a central point of hope. The color palette consists of deep midnight blue, royal indigo, and shimmering gold accents. The mood is tranquil, reverent, and full of wonder." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsHFptXWKYwY8P3JFdriA4sgP49KS96rkpxvGxPveSNm2aH_5neYvqMyX7qHCb-MJnXpfLe_T4kfue13fJNYbGsSei8ZzPTucsJtUQj3tOdAFMj99wOaiFN6hwKp52oEre7kGZzHRa8DZyTrf7Zj3aR-zkK601mXokPK_2AgFifn2KEkEJoMT4uw-0p5DgbQAb0AvAnbzWkxAsKrBv0TgjNoa3pcOQgR_TOL9u6tPXAv0PHkXuIv6yQWHhhDXWcUE2h8bIW5i6CdM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background to-transparent"></div>
+<div class="absolute bottom-md left-md">
+<span class="bg-primary/20 text-primary px-sm py-1 rounded text-[10px] font-bold uppercase tracking-widest mb-1 inline-block">Evento Especial</span>
+<h4 class="font-headline-md text-on-surface">Expedição ao Deserto</h4>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center h-16 px-md bg-surface-container border-t border-outline-variant shadow-lg">
+<!-- Jornada -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant w-16 h-full transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+<span class="font-label-caps text-label-caps mt-1">Jornada</span>
+</a>
+<!-- Profetas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant w-16 h-full transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="font-label-caps text-label-caps mt-1">Profetas</span>
+</a>
+<!-- Upgrades (ACTIVE) -->
+<a class="flex flex-col items-center justify-center text-primary font-bold after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 w-16 h-full transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="upgrade" style="font-variation-settings: 'FILL' 1;">upgrade</span>
+<span class="font-label-caps text-label-caps">Upgrades</span>
+</a>
+<!-- Loja -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant w-16 h-full transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<span class="font-label-caps text-label-caps mt-1">Loja</span>
+</a>
+</nav>
+<!-- Interactive Logic -->
+<script>
+        // Micro-interaction: Pulsing effect on the currency icon
+        const starsIcon = document.querySelector('[data-icon="stars"]');
+        if (starsIcon) {
+            setInterval(() => {
+                starsIcon.classList.add('scale-110');
+                setTimeout(() => starsIcon.classList.remove('scale-110'), 300);
+            }, 3000);
+        }
+
+        // Upgrade Button Interaction
+        document.querySelectorAll('.upgrade-card button:not(.cursor-not-allowed)').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const rect = btn.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const ripple = document.createElement('span');
+                ripple.style.position = 'absolute';
+                ripple.style.left = `${x}px`;
+                ripple.style.top = `${y}px`;
+                ripple.style.width = '0';
+                ripple.style.height = '0';
+                ripple.style.background = 'rgba(255, 255, 255, 0.4)';
+                ripple.style.borderRadius = '50%';
+                ripple.style.transform = 'translate(-50%, -50%)';
+                ripple.style.transition = 'width 0.6s ease-out, height 0.6s ease-out, opacity 0.6s ease-out';
+                ripple.style.pointerEvents = 'none';
+
+                this.style.position = 'relative';
+                this.style.overflow = 'hidden';
+                this.appendChild(ripple);
+
+                setTimeout(() => {
+                    ripple.style.width = '200px';
+                    ripple.style.height = '200px';
+                    ripple.style.opacity = '0';
+                }, 10);
+
+                setTimeout(() => ripple.remove(), 650);
+            });
+        });
+    </script>
+</body></html>

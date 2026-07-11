@@ -2,6 +2,7 @@ extends Node
 
 # Teste automatizado temporario: valida upgrades, dadivas, prestige e economia.
 func _ready() -> void:
+	SaveSystem.set_persistence_enabled(false)
 	await get_tree().process_frame
 	var ok := true
 
@@ -73,7 +74,8 @@ func _ready() -> void:
 	ok = ok and ganhos == 2 and GameState.santos == santos_antes + 2
 	ok = ok and GameState.upgrades_comprados.is_empty()
 	ok = ok and GameState.dadivas_compradas.size() == 3
-	ok = ok and is_equal_approx(Economy.get_tempo_ciclo(1), 0.6)  # speed resetou
+	# O prestige remove o bônus de velocidade e restaura o tempo-base vigente.
+	ok = ok and is_equal_approx(Economy.get_tempo_ciclo(1), float(Geradores.get_data(1).tempo))
 
 	# 9) Save/load roundtrip preserva dadivas e upgrades
 	GameState.fe = 555.0

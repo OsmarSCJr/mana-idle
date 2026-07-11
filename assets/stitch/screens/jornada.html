@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Maná Idle - Jornada</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&amp;family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#323252",
+                        "surface-container": "#1c1c3b",
+                        "on-surface-variant": "#d6c4ac",
+                        "tertiary-fixed": "#e9e2d0",
+                        "on-primary-fixed": "#281800",
+                        "on-surface": "#e2dfff",
+                        "on-tertiary-fixed": "#1e1c10",
+                        "on-secondary-fixed-variant": "#434366",
+                        "surface-container-highest": "#323252",
+                        "primary-container": "#f0a500",
+                        "primary-fixed": "#ffddaf",
+                        "tertiary": "#d6cfbd",
+                        "secondary": "#c4c3ec",
+                        "inverse-on-surface": "#2d2d4d",
+                        "outline-variant": "#514533",
+                        "surface-bright": "#363657",
+                        "background": "#10102e",
+                        "primary-fixed-dim": "#ffba44",
+                        "on-background": "#e2dfff",
+                        "error-container": "#93000a",
+                        "outline": "#9f8e79",
+                        "surface-dim": "#10102e",
+                        "error": "#ffb4ab",
+                        "secondary-fixed-dim": "#c4c3ec",
+                        "on-secondary": "#2d2d4e",
+                        "surface-tint": "#ffba44",
+                        "secondary-container": "#434366",
+                        "secondary-fixed": "#e2dfff",
+                        "on-primary": "#442c00",
+                        "on-secondary-fixed": "#181838",
+                        "on-tertiary-container": "#494638",
+                        "on-primary-fixed-variant": "#614000",
+                        "tertiary-fixed-dim": "#ccc6b4",
+                        "surface-container-high": "#272746",
+                        "tertiary-container": "#b9b4a3",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#b3b1da",
+                        "on-error": "#690005",
+                        "inverse-primary": "#805600",
+                        "on-tertiary": "#333024",
+                        "surface": "#10102e",
+                        "on-primary-container": "#5f3f00",
+                        "on-tertiary-fixed-variant": "#4a4739",
+                        "primary": "#ffc56c",
+                        "inverse-surface": "#e2dfff",
+                        "surface-container-low": "#181837",
+                        "surface-container-lowest": "#0a0a29"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "panel-margin": "16px",
+                        "xl": "32px",
+                        "base": "8px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "card-gap": "12px",
+                        "md": "16px",
+                        "sm": "12px"
+                    },
+                    "fontFamily": {
+                        "display-title": ["Noto Serif"],
+                        "label-caps": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Noto Serif"],
+                        "flavor-italic": ["Noto Serif"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Noto Serif"]
+                    },
+                    "fontSize": {
+                        "display-title": ["32px", {"lineHeight": "40px", "letterSpacing": "0.02em", "fontWeight": "700"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "flavor-italic": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #10102e;
+            color: #e2dfff;
+            overflow-x: hidden;
+        }
+        .cosmic-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at center, #1c1c3b 0%, #10102e 100%);
+        }
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.5;
+            animation: twinkle var(--duration) infinite ease-in-out;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        .custom-scroll::-webkit-scrollbar {
+            width: 0px;
+        }
+        .blessing-glow {
+            box-shadow: 0 0 15px rgba(240, 165, 0, 0.3);
+        }
+        .progress-bar-fill {
+            background: linear-gradient(90deg, #f0a500 0%, #ffc56c 100%);
+            box-shadow: 0 0 10px rgba(240, 165, 0, 0.5);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="custom-scroll">
+<div class="cosmic-bg" id="starfield"></div>
+<!-- Top App Bar (Resources) -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-panel-margin py-xs bg-surface-container-high shadow-sm h-14">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<h1 class="font-display-title text-headline-md text-primary tracking-tight">Maná Idle</h1>
+</div>
+<div class="flex items-center gap-sm">
+<div class="flex items-center gap-xs px-sm py-1 bg-surface-container-lowest rounded-full border border-outline-variant/30">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">stars</span>
+<span class="font-label-caps text-label-caps text-on-surface">1.5k Fé</span>
+</div>
+<div class="flex items-center gap-xs px-sm py-1 bg-surface-container-lowest rounded-full border border-outline-variant/30">
+<span class="material-symbols-outlined text-secondary text-sm" style="font-variation-settings: 'FILL' 1;">person_pin</span>
+<span class="font-label-caps text-label-caps text-on-surface">12 Santos</span>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-variant p-2 rounded-full transition-all active:scale-95">settings</button>
+</div>
+</header>
+<main class="pt-20 pb-24 px-panel-margin">
+<!-- Era Progress Section -->
+<section class="mb-lg">
+<div class="flex justify-between items-end mb-xs">
+<h2 class="font-headline-md text-headline-md text-tertiary">Era: Gênesis</h2>
+<span class="font-label-caps text-label-caps text-on-surface-variant">75%</span>
+</div>
+<div class="w-full h-3 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="progress-bar-fill h-full w-[75%] relative">
+<div class="absolute right-0 top-0 h-full w-4 bg-white/20 blur-sm"></div>
+</div>
+</div>
+</section>
+<!-- Generator List -->
+<div class="flex flex-col gap-card-gap">
+<!-- Card 1: Active -->
+<div class="bg-tertiary-fixed/95 backdrop-blur-md rounded-xl p-md flex items-center shadow-lg border border-white/10 group">
+<div class="relative">
+<div class="w-14 h-14 rounded-full border-2 border-primary-container bg-primary-container/20 flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-primary-container text-3xl" style="font-variation-settings: 'FILL' 1;">light_mode</span>
+</div>
+<div class="absolute -bottom-1 -right-1 bg-primary text-on-primary font-bold text-[10px] w-6 h-6 rounded-full flex items-center justify-center border-2 border-tertiary-fixed">10</div>
+</div>
+<div class="flex-1 ml-md">
+<h3 class="font-headline-md text-headline-md text-on-primary-fixed leading-none mb-1">Haja Luz</h3>
+<p class="font-flavor-italic text-flavor-italic text-on-tertiary-fixed-variant opacity-80 mb-1">E a luz foi feita.</p>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px] text-primary">auto_graph</span>
+<span class="font-body-md text-body-md text-on-primary-fixed-variant">1.2/s</span>
+</div>
+</div>
+<button class="bg-primary-container text-on-primary-container font-label-caps text-label-caps px-md py-3 rounded-lg blessing-glow hover:brightness-110 active:scale-95 transition-all">
+                    Comprar<br/>(150 Fé)
+                </button>
+</div>
+<!-- Card 2: Progressing -->
+<div class="bg-tertiary-fixed/95 backdrop-blur-md rounded-xl p-md flex items-center shadow-lg border border-white/10">
+<div class="relative">
+<div class="w-14 h-14 rounded-full border-2 border-green-600/50 bg-green-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-green-700 text-3xl" style="font-variation-settings: 'FILL' 1;">park</span>
+</div>
+<div class="absolute -bottom-1 -right-1 bg-green-700 text-white font-bold text-[10px] w-6 h-6 rounded-full flex items-center justify-center border-2 border-tertiary-fixed">5</div>
+</div>
+<div class="flex-1 ml-md">
+<h3 class="font-headline-md text-headline-md text-on-primary-fixed leading-none mb-1">Jardim do Éden</h3>
+<p class="font-flavor-italic text-flavor-italic text-on-tertiary-fixed-variant opacity-80 mb-1">O paraíso terrestre.</p>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px] text-green-700">auto_graph</span>
+<span class="font-body-md text-body-md text-on-primary-fixed-variant">5.0/s</span>
+</div>
+</div>
+<button class="bg-primary-container text-on-primary-container font-label-caps text-label-caps px-md py-3 rounded-lg blessing-glow hover:brightness-110 active:scale-95 transition-all">
+                    Comprar<br/>(1.2k Fé)
+                </button>
+</div>
+<!-- Card 3: Locked -->
+<div class="bg-surface-container-high/60 backdrop-blur-sm rounded-xl p-md flex items-center border border-outline-variant/20 grayscale opacity-70">
+<div class="w-14 h-14 rounded-full border-2 border-outline bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-3xl">lock</span>
+</div>
+<div class="flex-1 ml-md">
+<h3 class="font-headline-md text-headline-md text-on-surface-variant leading-none mb-1">Arca de Noé</h3>
+<p class="font-flavor-italic text-flavor-italic text-on-surface-variant opacity-60">Prepare-se para o dilúvio.</p>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">lock_open</span>
+<span class="font-body-md text-body-md text-on-surface-variant">Alcance Era 2</span>
+</div>
+</div>
+<div class="bg-surface-container text-on-surface-variant/40 font-label-caps text-label-caps px-md py-3 rounded-lg border border-outline-variant/30 flex items-center justify-center cursor-not-allowed">
+                    Bloqueado
+                </div>
+</div>
+<!-- Placeholder Card for visual weight -->
+<div class="bg-surface-container-high/20 rounded-xl h-24 border border-dashed border-outline-variant/30 flex items-center justify-center">
+<span class="font-flavor-italic text-on-surface-variant/40">Mistérios futuros aguardam...</span>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center h-16 px-md bg-surface-container border-t border-outline-variant shadow-lg">
+<!-- Jornada (Active) -->
+<a class="flex flex-col items-center justify-center text-primary font-bold after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 transition-all scale-100" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">auto_stories</span>
+<span class="font-label-caps text-label-caps">Jornada</span>
+</a>
+<!-- Outros tabs -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant p-2 rounded-lg transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-label-caps text-label-caps">Profetas</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant p-2 rounded-lg transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">upgrade</span>
+<span class="font-label-caps text-label-caps">Upgrades</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant p-2 rounded-lg transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">storefront</span>
+<span class="font-label-caps text-label-caps">Loja</span>
+</a>
+</nav>
+<script>
+        // Simple starfield generation
+        const starfield = document.getElementById('starfield');
+        const starCount = 60;
+
+        for (let i = 0; i < starCount; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            const size = Math.random() * 2 + 1 + 'px';
+            star.style.width = size;
+            star.style.height = size;
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
+            starfield.appendChild(star);
+        }
+
+        // Click effect for "Buy" buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                if (this.innerText.includes('Bloqueado')) return;
+                
+                const ripple = document.createElement('div');
+                ripple.className = 'absolute bg-white/30 rounded-full animate-ping pointer-events-none';
+                ripple.style.width = '40px';
+                ripple.style.height = '40px';
+                ripple.style.left = (e.clientX - this.getBoundingClientRect().left - 20) + 'px';
+                ripple.style.top = (e.clientY - this.getBoundingClientRect().top - 20) + 'px';
+                this.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 1000);
+            });
+        });
+    </script>
+</body></html>

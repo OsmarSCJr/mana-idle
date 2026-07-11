@@ -22,8 +22,11 @@ EventBus="*res://scripts/autoload/EventBus.gd"
 Geradores="*res://scripts/data/Geradores.gd"
 Upgrades="*res://scripts/data/Upgrades.gd"
 Dadivas="*res://scripts/data/Dadivas.gd"
+EstudosBiblicos="*res://scripts/data/EstudosBiblicos.gd"
+Conhecimentos="*res://scripts/data/Conhecimentos.gd"
 Economy="*res://scripts/autoload/Economy.gd"
 GameState="*res://scripts/autoload/GameState.gd"
+StudySystem="*res://scripts/autoload/StudySystem.gd"
 SaveSystem="*res://scripts/autoload/SaveSystem.gd"
 
 [display]
@@ -38,4 +41,5 @@ window/handheld/orientation=1
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.102, 0.102, 0.18, 1)

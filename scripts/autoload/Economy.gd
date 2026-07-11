@@ -14,6 +14,7 @@ var _global_prod: float = 1.0        # upgrades globais + dadivas
 var _santo_bonus_extra: float = 0.0  # aditivo por Santo (dadiva Comunhao)
 var _offline_mult: float = 1.0
 var _offline_cap_mult: float = 1.0
+var _offline_cap_bonus: float = 0.0
 var _x100_unlocked: bool = false
 
 func recompute_multiplicadores() -> void:
@@ -24,6 +25,7 @@ func recompute_multiplicadores() -> void:
 	_santo_bonus_extra = 0.0
 	_offline_mult = 1.0
 	_offline_cap_mult = 1.0
+	_offline_cap_bonus = 0.0
 	_x100_unlocked = false
 
 	for uid in GameState.upgrades_comprados:
@@ -59,6 +61,63 @@ func recompute_multiplicadores() -> void:
 			"discount":
 				for i in range(1, Geradores.count() + 1):
 					_custo_gen[i] = _custo_gen.get(i, 1.0) * d.mult
+
+	# Conhecimentos sao permanentes e comprados com Sabedoria.
+	for knowledge_id in GameState.conhecimentos_comprados:
+		var knowledge: Dictionary = Conhecimentos.get_data(knowledge_id)
+		if knowledge.is_empty():
+			continue
+		var effect: Dictionary = knowledge.get("effect", {})
+		var value := float(effect.get("value", 1.0))
+		match str(effect.get("type", "")):
+			"offline_mult":
+				_offline_mult *= value
+			"offline_cap_seconds":
+				_offline_cap_bonus += value
+			"discount_global":
+				for i in range(1, Geradores.count() + 1):
+					_custo_gen[i] = _custo_gen.get(i, 1.0) * value
+			"global_prod":
+				_global_prod *= value
+
+	# Paginas Iluminadas concedem um bonus pequeno apenas a sua era.
+	var pages: Array = GameState.estudo_progresso.get("paginasIluminadas", [])
+	for page_id in pages:
+		var first := 0
+		var last := -1
+		match str(page_id):
+			"genesis":
+				first = 1
+				last = 4
+			"exodus", "exodus_conquest", "exodo":
+				first = 5
+				last = 8
+			"kingdom", "reino":
+				first = 9
+				last = 12
+			"christ_birth":
+				first = 13
+				last = 16
+			"christ_ministry":
+				first = 17
+				last = 20
+			"christ_resurrection":
+				first = 21
+				last = 24
+			"early_church":
+				first = 25
+				last = 28
+			"expansion_reformation":
+				first = 29
+				last = 32
+			"revelation_renewal":
+				first = 33
+				last = 36
+		for gen_id in range(first, last + 1):
+			_prod_gen[gen_id] = _prod_gen.get(gen_id, 1.0) * 1.02
+
+	if "igreja_apocalipse" in GameState.aventuras_concluidas:
+		_global_prod *= 2.0
 
 # Aplica mult a um gerador, a uma era inteira ou a todos, conforme o alvo do upgrade.
 func _apply_gen_mult(cache: Dictionary, u: Dictionary, mult: float) -> void:
@@ -125,7 +184,10 @@ func santos_ganhos(fe_total: float) -> int:
 	return int(sqrt(fe_total / PRESTIGE_DIVISOR))
 
 func get_multiplicador_santos() -> float:
-	return 1.0 + float(GameState.santos) * (SANTO_BONUS + _santo_bonus_extra)
+	var value_per_saint := SANTO_BONUS + _santo_bonus_extra
+	if "vida_cristo" in GameState.aventuras_concluidas:
+		value_per_saint *= 1.5
+	return 1.0 + float(GameState.santos) * value_per_saint
 
 func get_multiplicador_global() -> float:
 	return get_multiplicador_santos() * _global_prod
@@ -134,7 +196,7 @@ func get_offline_mult() -> float:
 	return _offline_mult
 
 func get_offline_cap() -> float:
-	return OFFLINE_CAP_BASE * _offline_cap_mult
+	return OFFLINE_CAP_BASE * _offline_cap_mult + _offline_cap_bonus
 
 func profeta_disponivel(gen_id: int) -> bool:
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
@@ -147,6 +209,16 @@ func profeta_pode_comprar(gen_id: int) -> bool:
 		return false
 	var data: Dictionary = Geradores.get_data(gen_id)
 	return GameState.fe >= data.profeta_custo
+
+# Marcos que valem a pena mirar: profeta aos 25 e bonus x2 de milestone_bonus.
+const MILESTONE_ALVOS: Array[int] = [25, 50, 100, 200, 300, 400]
+
+func next_milestone(qtd: int) -> int:
+	for alvo in MILESTONE_ALVOS:
+		if qtd < alvo:
+			return alvo
+	# Alem de 400 nao ha bonus novos; segue de 100 em 100 como meta.
+	return (floori(qtd / 100.0) + 1) * 100
 
 func milestone_bonus(qtd: int) -> float:
 	var mult: float = 1.0

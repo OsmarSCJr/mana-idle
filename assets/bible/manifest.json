@@ -1,0 +1,694 @@
+{
+    "schema_version":  1,
+    "id":  "porbr2018",
+    "name":  "Bíblia Livre",
+    "abbreviation":  "BLIVRE",
+    "language":  "pt-BR",
+    "source_version":  "2025-12-12",
+    "imported_at_utc":  "2026-07-10T16:46:39Z",
+    "source":  {
+                   "format":  "USFM",
+                   "url":  "https://ebible.org/Scriptures/porbr2018_usfm.zip",
+                   "archive_sha256":  "3a078742d80db425cae511695973ce77095b14bfcf169339880e187bd2394770"
+               },
+    "attribution":  {
+                        "translation":  "Bíblia Livre",
+                        "abbreviation":  "BLIVRE",
+                        "language":  "pt-BR",
+                        "copyright":  "Copyright © 2018 Diego Santos, Mario Sérgio e Marco Teles",
+                        "version":  "2025-12-12",
+                        "license":  "Creative Commons Atribuição 4.0",
+                        "license_url":  "https://creativecommons.org/licenses/by/4.0/",
+                        "source_url":  "https://ebible.org/porbr2018/",
+                        "download_url":  "https://ebible.org/Scriptures/porbr2018_usfm.zip",
+                        "credit":  "Todas as Escrituras em português citadas são da Bíblia Livre (BLIVRE), Copyright © 2018 Diego Santos, Mario Sérgio e Marco Teles. Licença Creative Commons Atribuição 4.0. Reprodução permitida desde que devidamente mencionados fonte e autores.",
+                        "modified":  false
+                    },
+    "totals":  {
+                   "books":  66,
+                   "chapters":  1189,
+                   "verses":  31102
+               },
+    "books":  [
+                  {
+                      "order":  1,
+                      "code":  "GEN",
+                      "name":  "Gênesis",
+                      "long_name":  "Gênesis",
+                      "short_name":  "Gn",
+                      "testament":  "old",
+                      "chapters":  50,
+                      "file":  "books/GEN.json"
+                  },
+                  {
+                      "order":  2,
+                      "code":  "EXO",
+                      "name":  "Êxodo",
+                      "long_name":  "Livro do Êxodo",
+                      "short_name":  "Ex",
+                      "testament":  "old",
+                      "chapters":  40,
+                      "file":  "books/EXO.json"
+                  },
+                  {
+                      "order":  3,
+                      "code":  "LEV",
+                      "name":  "Levítico",
+                      "long_name":  "Levítico",
+                      "short_name":  "Lv",
+                      "testament":  "old",
+                      "chapters":  27,
+                      "file":  "books/LEV.json"
+                  },
+                  {
+                      "order":  4,
+                      "code":  "NUM",
+                      "name":  "Números",
+                      "long_name":  "Números",
+                      "short_name":  "Nm",
+                      "testament":  "old",
+                      "chapters":  36,
+                      "file":  "books/NUM.json"
+                  },
+                  {
+                      "order":  5,
+                      "code":  "DEU",
+                      "name":  "Deuteronômio",
+                      "long_name":  "Deuteronômio",
+                      "short_name":  "Dt",
+                      "testament":  "old",
+                      "chapters":  34,
+                      "file":  "books/DEU.json"
+                  },
+                  {
+                      "order":  6,
+                      "code":  "JOS",
+                      "name":  "Josué",
+                      "long_name":  "Livro de Josué",
+                      "short_name":  "Js",
+                      "testament":  "old",
+                      "chapters":  24,
+                      "file":  "books/JOS.json"
+                  },
+                  {
+                      "order":  7,
+                      "code":  "JDG",
+                      "name":  "Juízes",
+                      "long_name":  "Livro dos Juízes",
+                      "short_name":  "Jz",
+                      "testament":  "old",
+                      "chapters":  21,
+                      "file":  "books/JDG.json"
+                  },
+                  {
+                      "order":  8,
+                      "code":  "RUT",
+                      "name":  "Rute",
+                      "long_name":  "Rute",
+                      "short_name":  "Rt",
+                      "testament":  "old",
+                      "chapters":  4,
+                      "file":  "books/RUT.json"
+                  },
+                  {
+                      "order":  9,
+                      "code":  "1SA",
+                      "name":  "1 Samuel",
+                      "long_name":  "Primeiro Livro de Samuel",
+                      "short_name":  "1Sm",
+                      "testament":  "old",
+                      "chapters":  31,
+                      "file":  "books/1SA.json"
+                  },
+                  {
+                      "order":  10,
+                      "code":  "2SA",
+                      "name":  "2 Samuel",
+                      "long_name":  "Segundo Livro de Samuel",
+                      "short_name":  "2Sm",
+                      "testament":  "old",
+                      "chapters":  24,
+                      "file":  "books/2SA.json"
+                  },
+                  {
+                      "order":  11,
+                      "code":  "1KI",
+                      "name":  "1 Reis",
+                      "long_name":  "Primeiro Livro dos Reis",
+                      "short_name":  "1Rs",
+                      "testament":  "old",
+                      "chapters":  22,
+                      "file":  "books/1KI.json"
+                  },
+                  {
+                      "order":  12,
+                      "code":  "2KI",
+                      "name":  "2 Reis",
+                      "long_name":  "Segundo Livro dos Reis",
+                      "short_name":  "2Rs",
+                      "testament":  "old",
+                      "chapters":  25,
+                      "file":  "books/2KI.json"
+                  },
+                  {
+                      "order":  13,
+                      "code":  "1CH",
+                      "name":  "1 Crônicas",
+                      "long_name":  "Primeiro Livro de Crônicas",
+                      "short_name":  "1Cr",
+                      "testament":  "old",
+                      "chapters":  29,
+                      "file":  "books/1CH.json"
+                  },
+                  {
+                      "order":  14,
+                      "code":  "2CH",
+                      "name":  "2 Crônicas",
+                      "long_name":  "Segundo Livro de Crônicas",
+                      "short_name":  "2Cr",
+                      "testament":  "old",
+                      "chapters":  36,
+                      "file":  "books/2CH.json"
+                  },
+                  {
+                      "order":  15,
+                      "code":  "EZR",
+                      "name":  "Esdras",
+                      "long_name":  "Esdras",
+                      "short_name":  "Esd",
+                      "testament":  "old",
+                      "chapters":  10,
+                      "file":  "books/EZR.json"
+                  },
+                  {
+                      "order":  16,
+                      "code":  "NEH",
+                      "name":  "Neemias",
+                      "long_name":  "Neemias",
+                      "short_name":  "Ne",
+                      "testament":  "old",
+                      "chapters":  13,
+                      "file":  "books/NEH.json"
+                  },
+                  {
+                      "order":  17,
+                      "code":  "EST",
+                      "name":  "Ester",
+                      "long_name":  "Ester",
+                      "short_name":  "Est",
+                      "testament":  "old",
+                      "chapters":  10,
+                      "file":  "books/EST.json"
+                  },
+                  {
+                      "order":  18,
+                      "code":  "JOB",
+                      "name":  "Jó",
+                      "long_name":  "Jó",
+                      "short_name":  "Jo",
+                      "testament":  "old",
+                      "chapters":  42,
+                      "file":  "books/JOB.json"
+                  },
+                  {
+                      "order":  19,
+                      "code":  "PSA",
+                      "name":  "Salmos",
+                      "long_name":  "Livro dos Salmos",
+                      "short_name":  "Sl",
+                      "testament":  "old",
+                      "chapters":  150,
+                      "file":  "books/PSA.json"
+                  },
+                  {
+                      "order":  20,
+                      "code":  "PRO",
+                      "name":  "Provérbios",
+                      "long_name":  "Provérbios de Salomão",
+                      "short_name":  "Prv",
+                      "testament":  "old",
+                      "chapters":  31,
+                      "file":  "books/PRO.json"
+                  },
+                  {
+                      "order":  21,
+                      "code":  "ECC",
+                      "name":  "Eclesiastes",
+                      "long_name":  "Livro do Eclesiastes ou Pregador",
+                      "short_name":  "Ec",
+                      "testament":  "old",
+                      "chapters":  12,
+                      "file":  "books/ECC.json"
+                  },
+                  {
+                      "order":  22,
+                      "code":  "SNG",
+                      "name":  "Cantares",
+                      "long_name":  "Cantares de Salomão",
+                      "short_name":  "Ct",
+                      "testament":  "old",
+                      "chapters":  8,
+                      "file":  "books/SNG.json"
+                  },
+                  {
+                      "order":  23,
+                      "code":  "ISA",
+                      "name":  "Isaías",
+                      "long_name":  "Isaías",
+                      "short_name":  "Is",
+                      "testament":  "old",
+                      "chapters":  66,
+                      "file":  "books/ISA.json"
+                  },
+                  {
+                      "order":  24,
+                      "code":  "JER",
+                      "name":  "Jeremias",
+                      "long_name":  "Jeremias",
+                      "short_name":  "Jr",
+                      "testament":  "old",
+                      "chapters":  52,
+                      "file":  "books/JER.json"
+                  },
+                  {
+                      "order":  25,
+                      "code":  "LAM",
+                      "name":  "Lamentações",
+                      "long_name":  "Lamentações de Jeremias",
+                      "short_name":  "Lm",
+                      "testament":  "old",
+                      "chapters":  5,
+                      "file":  "books/LAM.json"
+                  },
+                  {
+                      "order":  26,
+                      "code":  "EZK",
+                      "name":  "Ezequiel",
+                      "long_name":  "Ezequiel",
+                      "short_name":  "Ez",
+                      "testament":  "old",
+                      "chapters":  48,
+                      "file":  "books/EZK.json"
+                  },
+                  {
+                      "order":  27,
+                      "code":  "DAN",
+                      "name":  "Daniel",
+                      "long_name":  "Daniel",
+                      "short_name":  "Dn",
+                      "testament":  "old",
+                      "chapters":  12,
+                      "file":  "books/DAN.json"
+                  },
+                  {
+                      "order":  28,
+                      "code":  "HOS",
+                      "name":  "Oseias",
+                      "long_name":  "Oseias",
+                      "short_name":  "Os",
+                      "testament":  "old",
+                      "chapters":  14,
+                      "file":  "books/HOS.json"
+                  },
+                  {
+                      "order":  29,
+                      "code":  "JOL",
+                      "name":  "Joel",
+                      "long_name":  "Joel",
+                      "short_name":  "Joel",
+                      "testament":  "old",
+                      "chapters":  3,
+                      "file":  "books/JOL.json"
+                  },
+                  {
+                      "order":  30,
+                      "code":  "AMO",
+                      "name":  "Amós",
+                      "long_name":  "Amós",
+                      "short_name":  "Am",
+                      "testament":  "old",
+                      "chapters":  9,
+                      "file":  "books/AMO.json"
+                  },
+                  {
+                      "order":  31,
+                      "code":  "OBA",
+                      "name":  "Obadias",
+                      "long_name":  "Obadias",
+                      "short_name":  "Ob",
+                      "testament":  "old",
+                      "chapters":  1,
+                      "file":  "books/OBA.json"
+                  },
+                  {
+                      "order":  32,
+                      "code":  "JON",
+                      "name":  "Jonas",
+                      "long_name":  "Jonas",
+                      "short_name":  "Jn",
+                      "testament":  "old",
+                      "chapters":  4,
+                      "file":  "books/JON.json"
+                  },
+                  {
+                      "order":  33,
+                      "code":  "MIC",
+                      "name":  "Miqueias",
+                      "long_name":  "Miqueias",
+                      "short_name":  "Mq",
+                      "testament":  "old",
+                      "chapters":  7,
+                      "file":  "books/MIC.json"
+                  },
+                  {
+                      "order":  34,
+                      "code":  "NAM",
+                      "name":  "Naum",
+                      "long_name":  "Naum",
+                      "short_name":  "Na",
+                      "testament":  "old",
+                      "chapters":  3,
+                      "file":  "books/NAM.json"
+                  },
+                  {
+                      "order":  35,
+                      "code":  "HAB",
+                      "name":  "Habacuque",
+                      "long_name":  "Habacuque",
+                      "short_name":  "Hab",
+                      "testament":  "old",
+                      "chapters":  3,
+                      "file":  "books/HAB.json"
+                  },
+                  {
+                      "order":  36,
+                      "code":  "ZEP",
+                      "name":  "Sofonias",
+                      "long_name":  "Sofonias",
+                      "short_name":  "Sf",
+                      "testament":  "old",
+                      "chapters":  3,
+                      "file":  "books/ZEP.json"
+                  },
+                  {
+                      "order":  37,
+                      "code":  "HAG",
+                      "name":  "Ageu",
+                      "long_name":  "Ageu",
+                      "short_name":  "Ag",
+                      "testament":  "old",
+                      "chapters":  2,
+                      "file":  "books/HAG.json"
+                  },
+                  {
+                      "order":  38,
+                      "code":  "ZEC",
+                      "name":  "Zacarias",
+                      "long_name":  "Zacarias",
+                      "short_name":  "Zc",
+                      "testament":  "old",
+                      "chapters":  14,
+                      "file":  "books/ZEC.json"
+                  },
+                  {
+                      "order":  39,
+                      "code":  "MAL",
+                      "name":  "Malaquias",
+                      "long_name":  "Malaquias",
+                      "short_name":  "Ml",
+                      "testament":  "old",
+                      "chapters":  4,
+                      "file":  "books/MAL.json"
+                  },
+                  {
+                      "order":  40,
+                      "code":  "MAT",
+                      "name":  "Mateus",
+                      "long_name":  "Evangelho Segundo Mateus",
+                      "short_name":  "Mt",
+                      "testament":  "new",
+                      "chapters":  28,
+                      "file":  "books/MAT.json"
+                  },
+                  {
+                      "order":  41,
+                      "code":  "MRK",
+                      "name":  "Marcos",
+                      "long_name":  "Evangelho Segundo Marcos",
+                      "short_name":  "Mc",
+                      "testament":  "new",
+                      "chapters":  16,
+                      "file":  "books/MRK.json"
+                  },
+                  {
+                      "order":  42,
+                      "code":  "LUK",
+                      "name":  "Lucas",
+                      "long_name":  "Evangelho Segundo Lucas",
+                      "short_name":  "Lc",
+                      "testament":  "new",
+                      "chapters":  24,
+                      "file":  "books/LUK.json"
+                  },
+                  {
+                      "order":  43,
+                      "code":  "JHN",
+                      "name":  "João",
+                      "long_name":  "Evangelho Segundo João",
+                      "short_name":  "Jo",
+                      "testament":  "new",
+                      "chapters":  21,
+                      "file":  "books/JHN.json"
+                  },
+                  {
+                      "order":  44,
+                      "code":  "ACT",
+                      "name":  "Atos",
+                      "long_name":  "Atos dos Apóstolos",
+                      "short_name":  "At",
+                      "testament":  "new",
+                      "chapters":  28,
+                      "file":  "books/ACT.json"
+                  },
+                  {
+                      "order":  45,
+                      "code":  "ROM",
+                      "name":  "Romanos",
+                      "long_name":  "Carta de Paulo aos Romanos",
+                      "short_name":  "Rm",
+                      "testament":  "new",
+                      "chapters":  16,
+                      "file":  "books/ROM.json"
+                  },
+                  {
+                      "order":  46,
+                      "code":  "1CO",
+                      "name":  "1 Coríntios",
+                      "long_name":  "Primeira Carta de Paulo aos Coríntios",
+                      "short_name":  "1Co",
+                      "testament":  "new",
+                      "chapters":  16,
+                      "file":  "books/1CO.json"
+                  },
+                  {
+                      "order":  47,
+                      "code":  "2CO",
+                      "name":  "2 Coríntios",
+                      "long_name":  "Segunda Carta de Paulo aos Coríntios",
+                      "short_name":  "2Co",
+                      "testament":  "new",
+                      "chapters":  13,
+                      "file":  "books/2CO.json"
+                  },
+                  {
+                      "order":  48,
+                      "code":  "GAL",
+                      "name":  "Gálatas",
+                      "long_name":  "Carta de Paulo aos Gálatas",
+                      "short_name":  "Gl",
+                      "testament":  "new",
+                      "chapters":  6,
+                      "file":  "books/GAL.json"
+                  },
+                  {
+                      "order":  49,
+                      "code":  "EPH",
+                      "name":  "Efésios",
+                      "long_name":  "Carta de Paulo aos Efésios",
+                      "short_name":  "Ef",
+                      "testament":  "new",
+                      "chapters":  6,
+                      "file":  "books/EPH.json"
+                  },
+                  {
+                      "order":  50,
+                      "code":  "PHP",
+                      "name":  "Filipenses",
+                      "long_name":  "Carta de Paulo aos Filipenses",
+                      "short_name":  "Fp",
+                      "testament":  "new",
+                      "chapters":  4,
+                      "file":  "books/PHP.json"
+                  },
+                  {
+                      "order":  51,
+                      "code":  "COL",
+                      "name":  "Colossenses",
+                      "long_name":  "Carta de Paulo aos Colossenses",
+                      "short_name":  "Cl",
+                      "testament":  "new",
+                      "chapters":  4,
+                      "file":  "books/COL.json"
+                  },
+                  {
+                      "order":  52,
+                      "code":  "1TH",
+                      "name":  "1 Tessalonicenses",
+                      "long_name":  "Primeira Carta de Paulo aos Tessalonicenses",
+                      "short_name":  "1Ts",
+                      "testament":  "new",
+                      "chapters":  5,
+                      "file":  "books/1TH.json"
+                  },
+                  {
+                      "order":  53,
+                      "code":  "2TH",
+                      "name":  "2 Tessalonicenses",
+                      "long_name":  "Segunda Carta de Paulo aos Tessalonicenses",
+                      "short_name":  "2Ts",
+                      "testament":  "new",
+                      "chapters":  3,
+                      "file":  "books/2TH.json"
+                  },
+                  {
+                      "order":  54,
+                      "code":  "1TI",
+                      "name":  "1 Timóteo",
+                      "long_name":  "Primeira Carta de Paulo a Timóteo",
+                      "short_name":  "1Tm",
+                      "testament":  "new",
+                      "chapters":  6,
+                      "file":  "books/1TI.json"
+                  },
+                  {
+                      "order":  55,
+                      "code":  "2TI",
+                      "name":  "2 Timóteo",
+                      "long_name":  "Segunda Carta de Paulo a Timóteo",
+                      "short_name":  "2Tm",
+                      "testament":  "new",
+                      "chapters":  4,
+                      "file":  "books/2TI.json"
+                  },
+                  {
+                      "order":  56,
+                      "code":  "TIT",
+                      "name":  "Tito",
+                      "long_name":  "Carta de Paulo a Tito",
+                      "short_name":  "Tt",
+                      "testament":  "new",
+                      "chapters":  3,
+                      "file":  "books/TIT.json"
+                  },
+                  {
+                      "order":  57,
+                      "code":  "PHM",
+                      "name":  "Filemom",
+                      "long_name":  "Carta de Paulo a Filemom",
+                      "short_name":  "Flm",
+                      "testament":  "new",
+                      "chapters":  1,
+                      "file":  "books/PHM.json"
+                  },
+                  {
+                      "order":  58,
+                      "code":  "HEB",
+                      "name":  "Hebreus",
+                      "long_name":  "Carta aos Hebreus",
+                      "short_name":  "Hb",
+                      "testament":  "new",
+                      "chapters":  13,
+                      "file":  "books/HEB.json"
+                  },
+                  {
+                      "order":  59,
+                      "code":  "JAS",
+                      "name":  "Tiago",
+                      "long_name":  "Carta Universal de Tiago",
+                      "short_name":  "Tg",
+                      "testament":  "new",
+                      "chapters":  5,
+                      "file":  "books/JAS.json"
+                  },
+                  {
+                      "order":  60,
+                      "code":  "1PE",
+                      "name":  "1 Pedro",
+                      "long_name":  "Primeira Carta Universal de Pedro",
+                      "short_name":  "1Pd",
+                      "testament":  "new",
+                      "chapters":  5,
+                      "file":  "books/1PE.json"
+                  },
+                  {
+                      "order":  61,
+                      "code":  "2PE",
+                      "name":  "2 Pedro",
+                      "long_name":  "Segunda Carta Universal de Pedro",
+                      "short_name":  "2Pd",
+                      "testament":  "new",
+                      "chapters":  3,
+                      "file":  "books/2PE.json"
+                  },
+                  {
+                      "order":  62,
+                      "code":  "1JN",
+                      "name":  "1 João",
+                      "long_name":  "Primeira Carta Universal de João",
+                      "short_name":  "1Jo",
+                      "testament":  "new",
+                      "chapters":  5,
+                      "file":  "books/1JN.json"
+                  },
+                  {
+                      "order":  63,
+                      "code":  "2JN",
+                      "name":  "2 João",
+                      "long_name":  "Segunda Carta de João",
+                      "short_name":  "2Jo",
+                      "testament":  "new",
+                      "chapters":  1,
+                      "file":  "books/2JN.json"
+                  },
+                  {
+                      "order":  64,
+                      "code":  "3JN",
+                      "name":  "3 João",
+                      "long_name":  "Terceira Carta de João",
+                      "short_name":  "3Jo",
+                      "testament":  "new",
+                      "chapters":  1,
+                      "file":  "books/3JN.json"
+                  },
+                  {
+                      "order":  65,
+                      "code":  "JUD",
+                      "name":  "Judas",
+                      "long_name":  "Carta Universal de Judas",
+                      "short_name":  "Jd",
+                      "testament":  "new",
+                      "chapters":  1,
+                      "file":  "books/JUD.json"
+                  },
+                  {
+                      "order":  66,
+                      "code":  "REV",
+                      "name":  "Apocalipse",
+                      "long_name":  "Apocalipse de João",
+                      "short_name":  "Ap",
+                      "testament":  "new",
+                      "chapters":  22,
+                      "file":  "books/REV.json"
+                  }
+              ]
+}
