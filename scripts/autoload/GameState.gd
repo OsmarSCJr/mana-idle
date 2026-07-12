@@ -6,6 +6,8 @@ var fe: float = FE_INICIAL
 var santos: int = 0
 var santos_gastos: int = 0
 var reliquias: int = 0
+var gemas: int = 0
+var gemas_total: int = 0  # historico de gemas ganhas (estatistica/anti-abuso)
 var fe_total_vida: float = 0.0
 var fe_total_historica: float = 0.0
 var geradores: Dictionary = {}
@@ -32,10 +34,12 @@ var estatisticas: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
 
 const ESTATISTICAS_DEFAULT: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
 const SAVE_VERSION: int = 2
+# Aventuras independentes (sem sequencia obrigatoria), cada uma com sua moeda:
+# vida_cristo e paywall de Fe (moeda do jogo); igreja_apocalipse e paywall de Gemas.
 const ADVENTURES: Dictionary = {
-	"jornada": {"entry_cost": 0.0, "historical_requirement": 0.0, "first_generator": 1, "last_generator": 12},
-	"vida_cristo": {"entry_cost": 1.0e13, "historical_requirement": 1.0e13, "first_generator": 13, "last_generator": 24},
-	"igreja_apocalipse": {"entry_cost": 1.0e26, "historical_requirement": 1.0e26, "first_generator": 25, "last_generator": 36},
+	"jornada": {"entry_cost": 0.0, "historical_requirement": 0.0, "first_generator": 1, "last_generator": 12, "currency": "fe"},
+	"vida_cristo": {"entry_cost": 2.0e14, "historical_requirement": 2.0e14, "first_generator": 13, "last_generator": 24, "currency": "fe"},
+	"igreja_apocalipse": {"entry_cost": 120.0, "historical_requirement": 0.0, "first_generator": 25, "last_generator": 36, "currency": "gemas"},
 }
 
 func _default_study_progress() -> Dictionary:
@@ -115,9 +119,9 @@ func can_unlock_adventure(adventure_id: String) -> bool:
 	var data: Dictionary = ADVENTURES.get(adventure_id, {})
 	if data.is_empty():
 		return false
+	if str(data.get("currency", "fe")) == "gemas":
+		return gemas >= int(data.entry_cost)
 	if fe_total_historica < float(data.historical_requirement):
-		return false
-	if adventure_id == "igreja_apocalipse" and "vida_cristo" not in aventuras_concluidas:
 		return false
 	return fe >= float(data.entry_cost)
 
@@ -125,12 +129,27 @@ func unlock_adventure(adventure_id: String) -> bool:
 	if not can_unlock_adventure(adventure_id):
 		return false
 	var data: Dictionary = ADVENTURES[adventure_id]
-	fe = max(0.0, fe - float(data.entry_cost))
+	if str(data.get("currency", "fe")) == "gemas":
+		gemas = max(0, gemas - int(data.entry_cost))
+		EventBus.gems_changed.emit(gemas)
+	else:
+		fe = max(0.0, fe - float(data.entry_cost))
+		EventBus.faith_changed.emit(fe)
 	aventuras_desbloqueadas.append(adventure_id)
-	EventBus.faith_changed.emit(fe)
 	EventBus.adventure_unlocked.emit(adventure_id)
 	EventBus.toast_requested.emit("Nova aventura desbloqueada: " + _adventure_display_name(adventure_id))
 	return true
+
+func add_gemas(amount: int, motivo: String = "") -> void:
+	if amount <= 0:
+		return
+	gemas += amount
+	gemas_total += amount
+	EventBus.gems_changed.emit(gemas)
+	var texto := "+" + str(amount) + " Gemas"
+	if not motivo.is_empty():
+		texto += " (" + motivo + ")"
+	EventBus.toast_requested.emit(texto)
 
 func get_adventure_unlock_status(adventure_id: String) -> Dictionary:
 	var data: Dictionary = ADVENTURES.get(adventure_id, {})
@@ -143,6 +162,7 @@ func get_adventure_unlock_status(adventure_id: String) -> Dictionary:
 		"entry_cost": float(data.entry_cost),
 		"historical_requirement": float(data.historical_requirement),
 		"historical_progress": fe_total_historica,
+		"currency": str(data.get("currency", "fe")),
 		"can_unlock": can_unlock_adventure(adventure_id),
 	}
 
@@ -192,6 +212,8 @@ func _check_adventure_completion(gen_id: int) -> void:
 	EventBus.relics_changed.emit(reliquias)
 	EventBus.adventure_completed.emit(adventure_id)
 	EventBus.toast_requested.emit("Aventura concluída: +" + str(relic_reward) + " Relíquias")
+	# Gemas por conclusao: fonte gratuita principal da moeda premium.
+	add_gemas(50 if adventure_id == "vida_cristo" else 100, "aventura concluída")
 
 func buy_prophet(gen_id: int) -> bool:
 	if not Economy.profeta_disponivel(gen_id):
@@ -310,6 +332,8 @@ func prestige() -> int:
 		return 0
 	santos += ganhos
 	estatisticas.prestiges += 1
+	# Gemas por ressurreicao: 1a paga bem (funil p/ conhecer a moeda), depois goteja.
+	add_gemas(10 if estatisticas.prestiges == 1 else 2, "Ressurreição")
 	# Sem fe inicial o jogador nao consegue comprar o 1o gerador e trava.
 	fe = FE_INICIAL
 	fe_total_vida = 0.0
@@ -346,6 +370,8 @@ func get_save_data() -> Dictionary:
 		"santos": santos,
 		"santosGastos": santos_gastos,
 		"reliquias": reliquias,
+		"gemas": gemas,
+		"gemasTotal": gemas_total,
 		"feTotalVida": fe_total_vida,
 		"feTotalHistorica": fe_total_historica,
 		"geradores": gens_save,
@@ -370,6 +396,8 @@ func load_save_data(data: Dictionary) -> void:
 	santos = int(data.get("santos", 0))
 	santos_gastos = int(data.get("santosGastos", 0))
 	reliquias = int(data.get("reliquias", 0))
+	gemas = max(0, int(data.get("gemas", 0)))
+	gemas_total = max(gemas, int(data.get("gemasTotal", gemas)))
 	fe_total_vida = float(data.get("feTotalVida", 0.0))
 	fe_total_historica = float(data.get("feTotalHistorica", fe_total_vida))
 	upgrades_comprados = _unique_string_array(data.get("upgradesComprados", []))

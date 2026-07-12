@@ -50,13 +50,11 @@ Objetivo declarado (feedback do alpha 1):
 - [x] UI: no painel Santos, mostrar "faltam X de Fé para o próximo Santo"
   (barra de progresso), para o objetivo de 3h ficar visível e não parecer bug.
 
-### Fase D — Aventuras como capítulos
-- [ ] `GameState.ADVENTURES`:
-  - `vida_cristo`: 1e13 → **2e14** (histórico e entrada).
-    Pensado para exigir 1–2 ressurreições antes (~5–6h de jogo).
-  - `igreja_apocalipse`: 1e26 → **1e28** (mantida a exigência de concluir
-    Vida de Cristo). Concluir Vida de Cristo (gen 24, custo 3.3e25) já leva
-    horas com o novo growth; 1e28 dá o fôlego extra de ~10h.
+### Fase D — Aventuras como capítulos (aplicada, modelo revisto)
+- [x] Aventuras deixaram de ser sequenciais — cada uma é comprada separadamente.
+- [x] `vida_cristo`: 1e13 → **2e14** em Fé (histórico e entrada).
+- [x] `igreja_apocalipse`: paywall trocado para **120 Gemas** (moeda premium),
+  sem requisito de Fé nem de concluir Vida de Cristo. Ver PLANO_GEMAS.md.
 
 ## Ordem de aplicação e validação
 

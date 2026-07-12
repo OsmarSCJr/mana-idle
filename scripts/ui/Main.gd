@@ -57,6 +57,16 @@ var _relics_label: Label
 var _dadivas_list: VBoxContainer
 var _dadivas_cards: Dictionary = {}
 
+# Painel Gemas
+const VIDEO_COOLDOWN_S: int = 300
+const VIDEO_GEMAS: int = 5
+var _panel_gemas: VBoxContainer
+var _gemas_label: Label
+var _gemas_total_label: Label
+var _video_btn: Button
+var _video_cooldown_until: float = 0.0
+var _adventure_icons: Dictionary = {}
+
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_load_ui_config()
@@ -99,7 +109,8 @@ func _build_ui() -> void:
 	_panel_milagres = _build_panel_milagres()
 	_panel_estudo = StudyPanel.new()
 	_panel_santos = _build_panel_santos()
-	for panel in [_panel_geradores, _panel_milagres, _panel_estudo, _panel_santos]:
+	_panel_gemas = _build_panel_gemas()
+	for panel in [_panel_geradores, _panel_milagres, _panel_estudo, _panel_santos, _panel_gemas]:
 		panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 		content.add_child(panel)
 
@@ -324,25 +335,84 @@ func _adventure_tab_style(bg: Color, border: Color, active: bool) -> StyleBoxFla
 	return style
 
 func _build_future_boost_space() -> Control:
-	# Reserva estrutural deliberadamente vazia: sem painel, borda ou conteúdo.
-	# 214 px correspondem a aproximadamente 85% da antiga coluna de 252 px.
-	var space := Control.new()
-	space.custom_minimum_size = Vector2(214, 0)
-	space.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return space
+	# Coluna lateral: icones de compra dos capitulos no topo; o espaco restante
+	# fica reservado para os boosts (ver PLANO_GEMAS.md).
+	var column := VBoxContainer.new()
+	column.custom_minimum_size = Vector2(214, 0)
+	column.add_theme_constant_override("separation", 12)
+
+	var header := Label.new()
+	header.text = "CAPÍTULOS"
+	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.add_theme_font_override("font", ManaTheme.body_semibold())
+	header.add_theme_font_size_override("font_size", 19)
+	header.add_theme_color_override("font_color", TEXT_DIM)
+	column.add_child(header)
+
+	for adventure_id in ["vida_cristo", "igreja_apocalipse"]:
+		var btn := Button.new()
+		var first_gen := int(GameState.ADVENTURES[adventure_id]["first_generator"])
+		btn.icon = GameArt.generator_icon(first_gen)
+		btn.expand_icon = true
+		btn.add_theme_constant_override("icon_max_width", 92)
+		btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		btn.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+		btn.custom_minimum_size = Vector2(0, 196)
+		btn.add_theme_font_override("font", ManaTheme.body_semibold())
+		btn.add_theme_font_size_override("font_size", 19)
+		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		btn.pressed.connect(_on_adventure_pressed.bind(adventure_id))
+		_adventure_icons[adventure_id] = btn
+		column.add_child(btn)
+
+	var filler := Control.new()
+	filler.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	filler.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(filler)
+
+	_refresh_adventure_icons()
+	return column
+
+func _refresh_adventure_icons() -> void:
+	for adventure_id in _adventure_icons:
+		var key := str(adventure_id)
+		var btn: Button = _adventure_icons[key]
+		var status := GameState.get_adventure_unlock_status(key)
+		var chapter := "II" if key == "vida_cristo" else "III"
+		var nome := "CRISTO" if key == "vida_cristo" else "APOC."
+		if bool(status.get("unlocked", false)):
+			btn.text = chapter + " · " + nome + "\nABERTO"
+			btn.modulate = Color.WHITE
+			btn.tooltip_text = "Abrir capítulo: " + _adventure_label(key)
+		else:
+			var custo_txt: String
+			if str(status.get("currency", "fe")) == "gemas":
+				custo_txt = str(int(status.get("entry_cost", 0.0))) + " 💎"
+			else:
+				custo_txt = NumberFormat.format(float(status.get("entry_cost", 0.0))) + " Fé"
+			btn.text = chapter + " · " + nome + "\n🔒 " + custo_txt
+			btn.modulate = Color.WHITE if bool(status.get("can_unlock", false)) else Color(0.72, 0.72, 0.78)
+			btn.tooltip_text = "Desbloquear " + _adventure_label(key) + " por " + custo_txt
 
 func _on_adventure_pressed(adventure_id: String) -> void:
 	if GameState.is_adventure_unlocked(adventure_id):
+		_show_tab("geradores")
 		_select_adventure(adventure_id)
 		return
 	var status := GameState.get_adventure_unlock_status(adventure_id)
+	var em_gemas: bool = str(status.get("currency", "fe")) == "gemas"
 	if not bool(status.get("can_unlock", false)):
-		var requirement := NumberFormat.format(float(status.get("historical_requirement", 0.0)))
-		EventBus.toast_requested.emit("Aventura bloqueada: alcance " + requirement + " de Fé histórica e reúna o custo de entrada.")
+		if em_gemas:
+			EventBus.toast_requested.emit("Capítulo bloqueado: custa " + str(int(status.entry_cost)) + " Gemas. Veja a aba GEMAS para conseguir mais.")
+			_show_tab("gemas")
+		else:
+			var requirement := NumberFormat.format(float(status.get("historical_requirement", 0.0)))
+			EventBus.toast_requested.emit("Aventura bloqueada: alcance " + requirement + " de Fé histórica e reúna o custo de entrada.")
 		return
+	var custo_txt: String = (str(int(status.entry_cost)) + " Gemas") if em_gemas else (NumberFormat.format(float(status.entry_cost)) + " de Fé")
 	var dialog := ConfirmationDialog.new()
 	dialog.title = "Desbloquear aventura"
-	dialog.dialog_text = "Desbloquear " + _adventure_label(adventure_id) + " por " + NumberFormat.format(float(status.entry_cost)) + " de Fé?\n\nO acesso será permanente, inclusive após a Ressurreição."
+	dialog.dialog_text = "Desbloquear " + _adventure_label(adventure_id) + " por " + custo_txt + "?\n\nO acesso será permanente, inclusive após a Ressurreição."
 	dialog.get_ok_button().text = "Desbloquear"
 	dialog.get_cancel_button().text = "Agora não"
 	dialog.confirmed.connect(func():
@@ -372,6 +442,7 @@ func _select_adventure(adventure_id: String) -> void:
 	_update_topbar()
 
 func _refresh_adventure_selector() -> void:
+	_refresh_adventure_icons()
 	for adventure_id in _adventure_buttons:
 		var adventure_key := str(adventure_id)
 		var button: Button = _adventure_buttons[adventure_id]
@@ -707,6 +778,130 @@ func _build_panel_santos() -> VBoxContainer:
 
 	return vbox
 
+# ============================================================ Aba Gemas
+
+func _build_panel_gemas() -> VBoxContainer:
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+
+	# Saldo
+	var saldo_panel := PanelContainer.new()
+	saldo_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color(0.10, 0.07, 0.20, 0.96), 26, Color(0.62, 0.44, 0.92, 0.4), 2, 24, true))
+	var saldo_vbox := VBoxContainer.new()
+	saldo_vbox.add_theme_constant_override("separation", 2)
+	saldo_panel.add_child(saldo_vbox)
+	_gemas_label = Label.new()
+	_gemas_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_gemas_label.add_theme_font_override("font", ManaTheme.serif_bold())
+	_gemas_label.add_theme_font_size_override("font_size", 52)
+	_gemas_label.add_theme_color_override("font_color", Color(0.78, 0.62, 1.0))
+	saldo_vbox.add_child(_gemas_label)
+	_gemas_total_label = Label.new()
+	_gemas_total_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_gemas_total_label.add_theme_font_size_override("font_size", 22)
+	_gemas_total_label.add_theme_color_override("font_color", TEXT_DIM)
+	saldo_vbox.add_child(_gemas_total_label)
+	vbox.add_child(saldo_panel)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(scroll)
+	var lista := VBoxContainer.new()
+	lista.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lista.add_theme_constant_override("separation", 14)
+	scroll.add_child(lista)
+	ManaTheme.enable_touch_scroll(scroll, lista)
+
+	# Video recompensado (SIMULADO ate integrar o SDK de anuncios).
+	_video_btn = Button.new()
+	_video_btn.custom_minimum_size = Vector2(0, 92)
+	_video_btn.add_theme_font_size_override("font_size", 28)
+	ManaTheme.apply_primary_button(_video_btn)
+	_video_btn.pressed.connect(_on_video_pressed)
+	lista.add_child(_video_btn)
+
+	var como_ganhar := Label.new()
+	como_ganhar.text = "COMO GANHAR GEMAS"
+	como_ganhar.add_theme_font_override("font", ManaTheme.body_semibold())
+	como_ganhar.add_theme_font_size_override("font_size", 24)
+	como_ganhar.add_theme_color_override("font_color", GOLD)
+	lista.add_child(como_ganhar)
+
+	for linha in [
+		"✦  1ª Ressurreição: +10 Gemas (seguintes: +2)",
+		"✦  Concluir Vida de Cristo: +50 Gemas",
+		"✦  Concluir Igreja & Apocalipse: +100 Gemas",
+		"✦  Assistir vídeo: +" + str(VIDEO_GEMAS) + " Gemas (a cada 5 min)",
+	]:
+		var l := Label.new()
+		l.text = linha
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.add_theme_font_size_override("font_size", 24)
+		l.add_theme_color_override("font_color", TEXT_COLOR)
+		lista.add_child(l)
+
+	var pacotes_header := Label.new()
+	pacotes_header.text = "PACOTES (EM BREVE)"
+	pacotes_header.add_theme_font_override("font", ManaTheme.body_semibold())
+	pacotes_header.add_theme_font_size_override("font_size", 24)
+	pacotes_header.add_theme_color_override("font_color", GOLD)
+	lista.add_child(pacotes_header)
+
+	for pacote in [["Punhado de Gemas", 80, "R$ 9,90"], ["Bolsa de Gemas", 500, "R$ 39,90"], ["Baú de Gemas", 1200, "R$ 79,90"]]:
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE_HIGH, 20, Color(0.62, 0.44, 0.92, 0.25), 1, 18))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		card.add_child(row)
+		var info := Label.new()
+		info.text = str(pacote[0]) + "\n💎 " + str(pacote[1])
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_font_size_override("font_size", 24)
+		row.add_child(info)
+		var comprar := Button.new()
+		comprar.text = str(pacote[2]) + "\nEM BREVE"
+		comprar.disabled = true
+		comprar.custom_minimum_size = Vector2(190, 84)
+		comprar.add_theme_font_size_override("font_size", 21)
+		row.add_child(comprar)
+		lista.add_child(card)
+
+	# Cooldown do video atualizado a cada segundo.
+	var timer := Timer.new()
+	timer.wait_time = 1.0
+	timer.timeout.connect(_refresh_video_button)
+	vbox.add_child(timer)
+	timer.autostart = true
+
+	_refresh_gemas()
+	return vbox
+
+func _refresh_gemas() -> void:
+	_gemas_label.text = "💎 " + str(GameState.gemas)
+	_gemas_total_label.text = "Ganhas no total: " + str(GameState.gemas_total)
+	_refresh_video_button()
+
+func _refresh_video_button() -> void:
+	if _video_btn == null or _panel_gemas == null or not _panel_gemas.visible:
+		return
+	var agora := Time.get_unix_time_from_system()
+	if agora >= _video_cooldown_until:
+		_video_btn.text = "▶  Assistir vídeo  ·  +" + str(VIDEO_GEMAS) + " 💎  (simulado)"
+		_video_btn.disabled = false
+	else:
+		_video_btn.text = "▶  Próximo vídeo em " + str(int(_video_cooldown_until - agora)) + "s"
+		_video_btn.disabled = true
+
+func _on_video_pressed() -> void:
+	# Placeholder do rewarded ad: aqui entra o SDK (AdMob) no futuro.
+	_video_cooldown_until = Time.get_unix_time_from_system() + VIDEO_COOLDOWN_S
+	_video_btn.disabled = true
+	_video_btn.text = "Reproduzindo vídeo..."
+	await get_tree().create_timer(2.0).timeout
+	GameState.add_gemas(VIDEO_GEMAS, "vídeo")
+	_refresh_gemas()
+
 func _refresh_santos() -> void:
 	var bonus_pct: float = (Economy.get_multiplicador_santos() - 1.0) * 100.0
 	_santos_info_label.text = str(GameState.santos) + " Santos  ·  +" + String.num(bonus_pct, 1) + "% de produção global"
@@ -755,7 +950,7 @@ func _build_tabbar() -> PanelContainer:
 	hbox.add_theme_constant_override("separation", 8)
 	panel.add_child(hbox)
 
-	for tab in [["geradores", "JORNADA"], ["milagres", "BÊNÇÃOS"], ["estudo", "ESTUDO"], ["santos", "SANTOS"]]:
+	for tab in [["geradores", "JORNADA"], ["milagres", "BÊNÇÃOS"], ["estudo", "ESTUDO"], ["santos", "SANTOS"], ["gemas", "GEMAS"]]:
 		var btn: Button = Button.new()
 		btn.text = tab[1]
 		btn.add_theme_font_override("font", ManaTheme.body_semibold())
@@ -774,6 +969,7 @@ func _show_tab(tab: String) -> void:
 	_panel_milagres.visible = tab == "milagres"
 	_panel_estudo.visible = tab == "estudo"
 	_panel_santos.visible = tab == "santos"
+	_panel_gemas.visible = tab == "gemas"
 	for t in _tab_buttons:
 		var btn: Button = _tab_buttons[t]
 		if t == tab:
@@ -794,6 +990,8 @@ func _show_tab(tab: String) -> void:
 			_refresh_santos()
 		"estudo":
 			_panel_estudo.refresh()
+		"gemas":
+			_refresh_gemas()
 		"geradores":
 			for item in _items.values():
 				item.update()
@@ -873,6 +1071,11 @@ func _setup_signals() -> void:
 	EventBus.relics_changed.connect(func(_amount: int):
 		if _tab_atual == "santos":
 			_refresh_santos()
+	)
+	EventBus.gems_changed.connect(func(_amount: int):
+		if _tab_atual == "gemas":
+			_refresh_gemas()
+		_refresh_adventure_icons()
 	)
 
 func _on_study_changed() -> void:
