@@ -140,6 +140,22 @@ func unlock_adventure(adventure_id: String) -> bool:
 	EventBus.toast_requested.emit("Nova aventura desbloqueada: " + _adventure_display_name(adventure_id))
 	return true
 
+func spend_gemas(amount: int) -> bool:
+	if amount <= 0 or gemas < amount:
+		return false
+	gemas -= amount
+	EventBus.gems_changed.emit(gemas)
+	return true
+
+# Fe extra (bonus de video/gema do ganho offline): conta em todos os totais.
+func add_fe_bonus(amount: float) -> void:
+	if amount <= 0:
+		return
+	fe += amount
+	fe_total_vida += amount
+	fe_total_historica += amount
+	EventBus.faith_changed.emit(fe)
+
 func add_gemas(amount: int, motivo: String = "") -> void:
 	if amount <= 0:
 		return
@@ -219,10 +235,11 @@ func buy_prophet(gen_id: int) -> bool:
 	if not Economy.profeta_disponivel(gen_id):
 		return false
 	var data: Dictionary = Geradores.get_data(gen_id)
-	if fe < data.profeta_custo:
+	var custo: float = Economy.get_profeta_custo(gen_id)
+	if fe < custo:
 		return false
 	var state: Dictionary = geradores[gen_id]
-	fe -= data.profeta_custo
+	fe -= custo
 	state.tem_profeta = true
 	if state.tempo_restante < 0:
 		state.tempo_restante = Economy.get_tempo_ciclo(gen_id)

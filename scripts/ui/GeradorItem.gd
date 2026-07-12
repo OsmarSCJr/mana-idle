@@ -659,8 +659,9 @@ func update() -> void:
 		var p_nome: String = data.get("profeta_nome", "?")
 		if qtd >= 25:
 			_apply_prophet_button_style(true)
-			_set_prophet_text("CONTRATAR " + p_nome.to_upper() + "  ·  " + NumberFormat.format(data.profeta_custo) + " Fé")
-			_prophet_btn.disabled = GameState.fe < data.profeta_custo
+			var custo_profeta: float = Economy.get_profeta_custo(gen_id)
+			_set_prophet_text("CONTRATAR " + p_nome.to_upper() + "  ·  " + NumberFormat.format(custo_profeta) + " Fé")
+			_prophet_btn.disabled = GameState.fe < custo_profeta
 		else:
 			_apply_prophet_button_style(false)
 			_set_prophet_text("AUTOMAÇÃO  ·  " + p_nome + "  —  " + str(qtd) + "/25 unidades")

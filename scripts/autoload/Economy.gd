@@ -5,7 +5,10 @@ extends Node
 # primeiro prestige ser perceptivel (+6% de producao por Santo).
 const GROWTH_RATE: float = 1.11
 const SANTO_BONUS: float = 0.06
-const PRESTIGE_DIVISOR: float = 4.0e11
+const PRESTIGE_DIVISOR: float = 2.0e12
+# Profeta custa PROFETA_CUSTO_MULT x o custo acumulado de liberar (25 unidades).
+const PROFETA_LIBERACAO_QTD: int = 25
+const PROFETA_CUSTO_MULT: float = 20.0
 const OFFLINE_CAP_BASE: float = 8.0 * 3600.0
 
 # Caches derivados de upgrades_comprados + dadivas_compradas.
@@ -184,7 +187,9 @@ func receita_total_por_segundo() -> float:
 func santos_ganhos(fe_total: float) -> int:
 	if fe_total < PRESTIGE_DIVISOR:
 		return 0
-	return int(sqrt(fe_total / PRESTIGE_DIVISOR))
+	# Raiz cubica: o 2o Santo custa 8x o 1o, o 3o custa 27x... segura a
+	# multiplicacao rapida de Santos nas runs avancadas.
+	return int(pow(fe_total / PRESTIGE_DIVISOR, 1.0 / 3.0))
 
 func get_multiplicador_santos() -> float:
 	var value_per_saint := SANTO_BONUS + _santo_bonus_extra
@@ -207,11 +212,17 @@ func profeta_disponivel(gen_id: int) -> bool:
 		return false
 	return state.qtd >= 25 and not state.tem_profeta
 
+func get_profeta_custo(gen_id: int) -> float:
+	var data: Dictionary = Geradores.get_data(gen_id)
+	if data.is_empty():
+		return 0.0
+	var custo_liberacao: float = data.custo_base * (pow(GROWTH_RATE, PROFETA_LIBERACAO_QTD) - 1.0) / (GROWTH_RATE - 1.0)
+	return custo_liberacao * PROFETA_CUSTO_MULT
+
 func profeta_pode_comprar(gen_id: int) -> bool:
 	if not profeta_disponivel(gen_id):
 		return false
-	var data: Dictionary = Geradores.get_data(gen_id)
-	return GameState.fe >= data.profeta_custo
+	return GameState.fe >= get_profeta_custo(gen_id)
 
 # Marcos que valem a pena mirar: profeta aos 25 e bonus x2 de milestone_bonus.
 const MILESTONE_ALVOS: Array[int] = [25, 50, 100, 200, 300, 400]

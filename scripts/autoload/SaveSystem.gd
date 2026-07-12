@@ -8,6 +8,8 @@ const AUTOSAVE_INTERVAL: float = 10.0
 var _autosave_timer: Timer
 var _last_save_time: float = 0.0
 var persistence_enabled: bool = true
+# Ganho offline calculado no load; Main consome e mostra o modal de coleta.
+var pending_offline_gain: float = 0.0
 
 func set_persistence_enabled(enabled: bool) -> void:
 	persistence_enabled = enabled
@@ -63,7 +65,7 @@ func load_game() -> bool:
 	if offline_seconds > 60.0:
 		var ganho: float = GameState.apply_offline_production(offline_seconds)
 		if ganho > 0:
-			EventBus.toast_requested.emit("Bem-vindo de volta! Seus profetas coletaram " + NumberFormat.format(ganho) + " de Fé enquanto você estava fora.")
+			pending_offline_gain = ganho
 	EventBus.ui_needs_update.emit()
 	return true
 

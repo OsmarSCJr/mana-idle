@@ -56,6 +56,18 @@ Objetivo declarado (feedback do alpha 1):
 - [x] `igreja_apocalipse`: paywall trocado para **120 Gemas** (moeda premium),
   sem requisito de Fé nem de concluir Vida de Cristo. Ver PLANO_GEMAS.md.
 
+### Fase E — Valores monetários menores (aplicada, feedback alpha 3)
+Vida de Cristo saiu em <30 min mesmo após B+C. Ciclos continuam rápidos
+(feedback: "não lento"), mas rendendo menos:
+- [x] `receita_base`: Era 1 (gens 2–4) ÷2; gens 5–36 ÷3 (razão receita/custo ~0.1).
+- [x] Profetas: custo agora é **calculado** — `Economy.get_profeta_custo()` =
+  20× o custo acumulado de comprar as 25 unidades que liberam o profeta
+  (~2288× custo_base). O `profeta_custo` da tabela de dados ficou obsoleto.
+- [x] Santos: fórmula quadrática → **cúbica** (`cbrt(fe_total/divisor)`) e
+  `PRESTIGE_DIVISOR` 4e11 → **2e12**. 2º Santo custa 8× o 1º, 3º custa 27× —
+  segura a multiplicação nas runs avançadas.
+- [x] Modal de ganho offline com dobrar (vídeo) / triplicar (3 gemas).
+
 ## Ordem de aplicação e validação
 
 1. Aplicar **B + C** juntas (são o núcleo do ritmo). D depois de medir.

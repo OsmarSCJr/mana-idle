@@ -78,6 +78,9 @@ func _ready() -> void:
 	_update_all()
 	if not _game_loaded:
 		EventBus.toast_requested.emit("Bem-vindo a Maná Idle! Compre Haja Luz e toque no cartão para gerar Fé.")
+	if SaveSystem.pending_offline_gain > 0.0:
+		_show_offline_modal(SaveSystem.pending_offline_gain)
+		SaveSystem.pending_offline_gain = 0.0
 
 # ============================================================ UI raiz
 
@@ -893,6 +896,73 @@ func _refresh_video_button() -> void:
 		_video_btn.text = "▶  Próximo vídeo em " + str(int(_video_cooldown_until - agora)) + "s"
 		_video_btn.disabled = true
 
+# Modal de coleta offline: o ganho base ja foi creditado; as opcoes de
+# video (x2) e gema (x3) somam o EXTRA por cima.
+const OFFLINE_TRIPLO_GEMAS: int = 3
+
+func _show_offline_modal(ganho: float) -> void:
+	var popup := PopupPanel.new()
+	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE, 24, ManaTheme.GOLD_DARK, 2, 36))
+	add_child(popup)
+	popup.popup_hide.connect(popup.queue_free)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 18)
+	vbox.custom_minimum_size = Vector2(minf(get_viewport_rect().size.x * 0.8, 760.0), 0)
+	popup.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Enquanto você esteve fora..."
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 38)
+	title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(title)
+
+	var ganho_label := Label.new()
+	ganho_label.text = "Seus profetas coletaram\n+" + NumberFormat.format(ganho) + " Fé"
+	ganho_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ganho_label.add_theme_font_size_override("font_size", 34)
+	ganho_label.add_theme_color_override("font_color", GOLD)
+	vbox.add_child(ganho_label)
+
+	var video_btn := Button.new()
+	video_btn.text = "▶  Dobrar com vídeo  ·  +" + NumberFormat.format(ganho)
+	video_btn.custom_minimum_size = Vector2(0, 84)
+	video_btn.add_theme_font_size_override("font_size", 26)
+	video_btn.pressed.connect(func():
+		video_btn.disabled = true
+		video_btn.text = "Reproduzindo vídeo..."
+		# Placeholder do rewarded ad (ver PLANO_GEMAS.md).
+		await get_tree().create_timer(2.0).timeout
+		GameState.add_fe_bonus(ganho)
+		EventBus.toast_requested.emit("Ganho offline dobrado: +" + NumberFormat.format(ganho) + " Fé")
+		popup.hide()
+	)
+	vbox.add_child(video_btn)
+
+	var gema_btn := Button.new()
+	gema_btn.text = "💎  Triplicar por " + str(OFFLINE_TRIPLO_GEMAS) + " Gemas  ·  +" + NumberFormat.format(ganho * 2.0)
+	gema_btn.custom_minimum_size = Vector2(0, 84)
+	gema_btn.add_theme_font_size_override("font_size", 26)
+	gema_btn.disabled = GameState.gemas < OFFLINE_TRIPLO_GEMAS
+	gema_btn.pressed.connect(func():
+		if GameState.spend_gemas(OFFLINE_TRIPLO_GEMAS):
+			GameState.add_fe_bonus(ganho * 2.0)
+			EventBus.toast_requested.emit("Ganho offline triplicado: +" + NumberFormat.format(ganho * 2.0) + " Fé")
+		popup.hide()
+	)
+	vbox.add_child(gema_btn)
+
+	var coletar_btn := Button.new()
+	coletar_btn.text = "Coletar"
+	coletar_btn.custom_minimum_size = Vector2(0, 84)
+	ManaTheme.apply_primary_button(coletar_btn)
+	coletar_btn.pressed.connect(popup.hide)
+	vbox.add_child(coletar_btn)
+
+	popup.popup_centered()
+
 func _on_video_pressed() -> void:
 	# Placeholder do rewarded ad: aqui entra o SDK (AdMob) no futuro.
 	_video_cooldown_until = Time.get_unix_time_from_system() + VIDEO_COOLDOWN_S
@@ -908,8 +978,9 @@ func _refresh_santos() -> void:
 	_relics_label.text = NumberFormat.format(GameState.reliquias) + " Relíquias"
 
 	# Objetivo visivel: quanto falta de fe acumulada para o proximo Santo.
+	# Espelha a formula cubica de Economy.santos_ganhos.
 	var santos_prox: int = GameState.get_santos_proximo_prestige()
-	var proximo_alvo: float = pow(float(santos_prox + 1), 2.0) * Economy.PRESTIGE_DIVISOR
+	var proximo_alvo: float = pow(float(santos_prox + 1), 3.0) * Economy.PRESTIGE_DIVISOR
 	var falta: float = maxf(0.0, proximo_alvo - GameState.fe_total_vida)
 	_santos_mult_label.text = "Fé nesta jornada: " + NumberFormat.format(GameState.fe_total_vida) \
 		+ "  ·  faltam " + NumberFormat.format(falta) + " p/ " + ("+1 Santo" if santos_prox > 0 else "o 1º Santo") \
@@ -1352,7 +1423,7 @@ func _notification(what: int) -> void:
 			if away > 5.0:
 				var ganho: float = GameState.apply_offline_production(away)
 				if ganho > 0 and away > 60.0:
-					EventBus.toast_requested.emit("Bem-vindo de volta! +" + NumberFormat.format(ganho) + " de Fé")
+					_show_offline_modal(ganho)
 			_last_tick_msec = Time.get_ticks_msec()
 			_pause_time = 0.0
 			_update_all()
