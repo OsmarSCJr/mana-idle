@@ -1,6 +1,8 @@
 extends Node
 
-var fe: float = 1000.0  # TESTE: fe inicial generosa p/ validar loop. Voltar p/ 10.0 no release.
+# Fe inicial: suficiente p/ comprar o 1o gerador (custo 4) e sobrar margem.
+const FE_INICIAL: float = 10.0
+var fe: float = FE_INICIAL
 var santos: int = 0
 var santos_gastos: int = 0
 var reliquias: int = 0
@@ -308,7 +310,8 @@ func prestige() -> int:
 		return 0
 	santos += ganhos
 	estatisticas.prestiges += 1
-	fe = 0.0
+	# Sem fe inicial o jogador nao consegue comprar o 1o gerador e trava.
+	fe = FE_INICIAL
 	fe_total_vida = 0.0
 	for gen_id in geradores:
 		geradores[gen_id] = {

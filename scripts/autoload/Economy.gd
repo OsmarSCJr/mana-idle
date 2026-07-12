@@ -1,8 +1,11 @@
 extends Node
 
-const GROWTH_RATE: float = 1.07
-const SANTO_BONUS: float = 0.02
-const PRESTIGE_DIVISOR: float = 1.0e9
+# Ver PLANO_BALANCEAMENTO.md: 1.11 freia compras Max em massa e torna
+# milestones objetivos reais; 4e11 mira ~3h ate o 1o Santo; 0.06 faz o
+# primeiro prestige ser perceptivel (+6% de producao por Santo).
+const GROWTH_RATE: float = 1.11
+const SANTO_BONUS: float = 0.06
+const PRESTIGE_DIVISOR: float = 4.0e11
 const OFFLINE_CAP_BASE: float = 8.0 * 3600.0
 
 # Caches derivados de upgrades_comprados + dadivas_compradas.

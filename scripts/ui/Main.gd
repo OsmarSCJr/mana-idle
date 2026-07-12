@@ -59,6 +59,7 @@ var _dadivas_cards: Dictionary = {}
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_load_ui_config()
 	theme = ManaTheme.make_theme()
 	_game_loaded = SaveSystem.load_game()
 	_build_ui()
@@ -146,10 +147,10 @@ func _build_topbar() -> PanelContainer:
 
 	var settings := Button.new()
 	settings.text = "⚙"
-	settings.tooltip_text = "Aviso legal e configurações"
+	settings.tooltip_text = "Configurações"
 	settings.custom_minimum_size = Vector2(72, 72)
 	settings.add_theme_font_size_override("font_size", 41)
-	settings.pressed.connect(_show_legal)
+	settings.pressed.connect(_show_settings)
 	hbox.add_child(settings)
 
 	return panel
@@ -709,15 +710,20 @@ func _build_panel_santos() -> VBoxContainer:
 func _refresh_santos() -> void:
 	var bonus_pct: float = (Economy.get_multiplicador_santos() - 1.0) * 100.0
 	_santos_info_label.text = str(GameState.santos) + " Santos  ·  +" + String.num(bonus_pct, 1) + "% de produção global"
-	_santos_mult_label.text = "Fé nesta jornada: " + NumberFormat.format(GameState.fe_total_vida) + "  ·  Ressurreições: " + str(GameState.estatisticas.prestiges)
 	_relics_label.text = NumberFormat.format(GameState.reliquias) + " Relíquias"
 
+	# Objetivo visivel: quanto falta de fe acumulada para o proximo Santo.
 	var santos_prox: int = GameState.get_santos_proximo_prestige()
+	var proximo_alvo: float = pow(float(santos_prox + 1), 2.0) * Economy.PRESTIGE_DIVISOR
+	var falta: float = maxf(0.0, proximo_alvo - GameState.fe_total_vida)
+	_santos_mult_label.text = "Fé nesta jornada: " + NumberFormat.format(GameState.fe_total_vida) \
+		+ "  ·  faltam " + NumberFormat.format(falta) + " p/ " + ("+1 Santo" if santos_prox > 0 else "o 1º Santo") \
+		+ "  ·  Ressurreições: " + str(GameState.estatisticas.prestiges)
 	if santos_prox > 0:
 		_prestige_btn.text = "Ressurreição  ·  +" + str(santos_prox) + " Santos"
 		_prestige_btn.disabled = false
 	else:
-		_prestige_btn.text = "Ressurreição  ·  requer " + NumberFormat.format(Economy.PRESTIGE_DIVISOR) + " de Fé"
+		_prestige_btn.text = "Ressurreição  ·  faltam " + NumberFormat.format(falta) + " de Fé"
 		_prestige_btn.disabled = true
 
 	var disponiveis: Array = Dadivas.disponiveis()
@@ -998,6 +1004,116 @@ func _on_prestige() -> void:
 	dialog.confirmed.connect(func():
 		GameState.prestige()
 		dialog.queue_free()
+	)
+	dialog.canceled.connect(func(): dialog.queue_free())
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+# ============================================================ Configurações
+
+const CONFIG_PATH: String = "user://config.cfg"
+const FONT_SCALES: Array = [0.85, 1.0, 1.15, 1.3]
+var _font_scale: float = 1.0
+
+func _load_ui_config() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(CONFIG_PATH) == OK:
+		_font_scale = clampf(float(cfg.get_value("ui", "escala_fonte", 1.0)), 0.7, 1.6)
+	_apply_font_scale()
+
+func _apply_font_scale() -> void:
+	get_window().content_scale_factor = _font_scale
+
+func _set_font_scale(scale: float) -> void:
+	_font_scale = scale
+	_apply_font_scale()
+	var cfg := ConfigFile.new()
+	cfg.load(CONFIG_PATH)
+	cfg.set_value("ui", "escala_fonte", scale)
+	cfg.save(CONFIG_PATH)
+
+func _show_settings() -> void:
+	var popup := PopupPanel.new()
+	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE, 24, ManaTheme.OUTLINE, 2, 36))
+	add_child(popup)
+	popup.popup_hide.connect(popup.queue_free)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 20)
+	vbox.custom_minimum_size = Vector2(minf(get_viewport_rect().size.x * 0.8, 760.0), 0)
+	popup.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Configurações"
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	vbox.add_child(title)
+
+	var fonte_label := Label.new()
+	fonte_label.text = "Tamanho da fonte"
+	fonte_label.add_theme_font_override("font", ManaTheme.body_semibold())
+	fonte_label.add_theme_font_size_override("font_size", 26)
+	fonte_label.add_theme_color_override("font_color", TEXT_DIM)
+	vbox.add_child(fonte_label)
+
+	var fonte_row := HBoxContainer.new()
+	fonte_row.add_theme_constant_override("separation", 10)
+	vbox.add_child(fonte_row)
+	for scale in FONT_SCALES:
+		var btn := Button.new()
+		btn.text = str(int(round(scale * 100.0))) + "%"
+		btn.custom_minimum_size = Vector2(0, 70)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if is_equal_approx(scale, _font_scale):
+			ManaTheme.apply_primary_button(btn)
+			btn.disabled = true
+		btn.pressed.connect(func():
+			_set_font_scale(scale)
+			popup.hide()
+		)
+		fonte_row.add_child(btn)
+
+	var legal_btn := Button.new()
+	legal_btn.text = "Aviso legal"
+	legal_btn.custom_minimum_size = Vector2(0, 70)
+	legal_btn.pressed.connect(func():
+		popup.hide()
+		_show_legal()
+	)
+	vbox.add_child(legal_btn)
+
+	var reset_btn := Button.new()
+	reset_btn.text = "Apagar save e recomeçar"
+	reset_btn.custom_minimum_size = Vector2(0, 70)
+	reset_btn.add_theme_color_override("font_color", Color(1.0, 0.55, 0.5))
+	reset_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.65, 0.6))
+	reset_btn.pressed.connect(func():
+		popup.hide()
+		_confirm_reset_save()
+	)
+	vbox.add_child(reset_btn)
+
+	var close_btn := Button.new()
+	close_btn.text = "Fechar"
+	close_btn.custom_minimum_size = Vector2(0, 70)
+	ManaTheme.apply_primary_button(close_btn)
+	close_btn.pressed.connect(popup.hide)
+	vbox.add_child(close_btn)
+
+	popup.popup_centered()
+
+func _confirm_reset_save() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Apagar save"
+	dialog.dialog_text = "Isto apaga TODO o progresso (Fé, geradores, Santos, estudos) e fecha o jogo.\n\nAo abrir de novo, você começa do zero.\n\nTem certeza?"
+	dialog.get_ok_button().text = "Apagar tudo"
+	dialog.get_cancel_button().text = "Cancelar"
+	dialog.confirmed.connect(func():
+		SaveSystem.set_persistence_enabled(false)
+		SaveSystem.delete_save()
+		get_tree().quit()
 	)
 	dialog.canceled.connect(func(): dialog.queue_free())
 	add_child(dialog)
