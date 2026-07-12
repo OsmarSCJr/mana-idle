@@ -108,6 +108,7 @@ const GIFT_ICONS := {
 
 const SANTOS_ICON: Texture2D = preload("res://assets/icons/ui/ui_santos.png")
 const RELIQUIAS_ICON: Texture2D = preload("res://assets/icons/ui/ui_reliquias.png")
+const GEM_ICON: Texture2D = preload("res://assets/icons/ui/ui_gema_256.png")
 
 
 static func generator_icon(generator_id: int) -> Texture2D:

@@ -78,6 +78,6 @@ Regras:
    e recibos no save ajuda suporte.
 
 ## Pendências de design
-- Ícone/arte própria para gema (hoje usa emoji 💎).
-- Badge na aba GEMAS quando houver vídeo disponível.
+- [x] Ícone/arte própria para gema, integrado à carteira, loja, capítulos e navegação.
+- [x] Badge na aba GEMAS quando houver vídeo disponível.
 - Oferta única "starter pack" (gemas + boost) pós 1ª ressurreição.

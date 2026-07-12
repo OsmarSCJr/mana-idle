@@ -64,6 +64,7 @@ var _panel_gemas: VBoxContainer
 var _gemas_label: Label
 var _gemas_total_label: Label
 var _video_btn: Button
+var _video_status_label: Label
 var _video_cooldown_until: float = 0.0
 var _adventure_icons: Dictionary = {}
 
@@ -390,7 +391,7 @@ func _refresh_adventure_icons() -> void:
 		else:
 			var custo_txt: String
 			if str(status.get("currency", "fe")) == "gemas":
-				custo_txt = str(int(status.get("entry_cost", 0.0))) + " 💎"
+				custo_txt = str(int(status.get("entry_cost", 0.0))) + " Gemas"
 			else:
 				custo_txt = NumberFormat.format(float(status.get("entry_cost", 0.0))) + " Fé"
 			btn.text = chapter + " · " + nome + "\n🔒 " + custo_txt
@@ -785,24 +786,40 @@ func _build_panel_santos() -> VBoxContainer:
 
 func _build_panel_gemas() -> VBoxContainer:
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
+	vbox.add_theme_constant_override("separation", 14)
 
-	# Saldo
+	# Carteira premium: icone e saldo formam uma unica leitura forte.
 	var saldo_panel := PanelContainer.new()
-	saldo_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color(0.10, 0.07, 0.20, 0.96), 26, Color(0.62, 0.44, 0.92, 0.4), 2, 24, true))
+	saldo_panel.custom_minimum_size = Vector2(0, 190)
+	saldo_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#102b3c"), 24, Color("#79e6e8"), 2, 30, true))
+	var saldo_row := HBoxContainer.new()
+	saldo_row.add_theme_constant_override("separation", 26)
+	saldo_panel.add_child(saldo_row)
+	var gem_hero := TextureRect.new()
+	gem_hero.texture = GameArt.GEM_ICON
+	gem_hero.custom_minimum_size = Vector2(132, 132)
+	gem_hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	gem_hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	gem_hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	saldo_row.add_child(gem_hero)
 	var saldo_vbox := VBoxContainer.new()
-	saldo_vbox.add_theme_constant_override("separation", 2)
-	saldo_panel.add_child(saldo_vbox)
+	saldo_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	saldo_vbox.add_theme_constant_override("separation", -2)
+	saldo_row.add_child(saldo_vbox)
+	var carteira := Label.new()
+	carteira.text = "SUA CARTEIRA"
+	carteira.add_theme_font_override("font", ManaTheme.body_semibold())
+	carteira.add_theme_font_size_override("font_size", 20)
+	carteira.add_theme_color_override("font_color", Color("#9edcdf"))
+	saldo_vbox.add_child(carteira)
 	_gemas_label = Label.new()
-	_gemas_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_gemas_label.add_theme_font_override("font", ManaTheme.serif_bold())
-	_gemas_label.add_theme_font_size_override("font_size", 52)
-	_gemas_label.add_theme_color_override("font_color", Color(0.78, 0.62, 1.0))
+	_gemas_label.add_theme_font_size_override("font_size", 62)
+	_gemas_label.add_theme_color_override("font_color", Color("#e8ffff"))
 	saldo_vbox.add_child(_gemas_label)
 	_gemas_total_label = Label.new()
-	_gemas_total_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_gemas_total_label.add_theme_font_size_override("font_size", 22)
-	_gemas_total_label.add_theme_color_override("font_color", TEXT_DIM)
+	_gemas_total_label.add_theme_color_override("font_color", Color("#9edcdf"))
 	saldo_vbox.add_child(_gemas_total_label)
 	vbox.add_child(saldo_panel)
 
@@ -816,59 +833,56 @@ func _build_panel_gemas() -> VBoxContainer:
 	scroll.add_child(lista)
 	ManaTheme.enable_touch_scroll(scroll, lista)
 
-	# Video recompensado (SIMULADO ate integrar o SDK de anuncios).
+	lista.add_child(_build_gem_section_title("RECOMPENSA DIÁRIA", "Ganhe gemas sem gastar"))
+
+	# Video recompensado (simulado ate integrar o SDK de anuncios).
+	var reward_panel := PanelContainer.new()
+	reward_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#f4edda"), 18, Color("#d8b65c"), 2, 20, true))
+	var reward_row := HBoxContainer.new()
+	reward_row.add_theme_constant_override("separation", 18)
+	reward_panel.add_child(reward_row)
+	var reward_icon := TextureRect.new()
+	reward_icon.texture = GameArt.GEM_ICON
+	reward_icon.custom_minimum_size = Vector2(76, 76)
+	reward_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	reward_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	reward_row.add_child(reward_icon)
+	var reward_copy := VBoxContainer.new()
+	reward_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	reward_copy.add_theme_constant_override("separation", 2)
+	reward_row.add_child(reward_copy)
+	var reward_title := Label.new()
+	reward_title.text = "+" + str(VIDEO_GEMAS) + " Gemas"
+	reward_title.add_theme_font_override("font", ManaTheme.serif_bold())
+	reward_title.add_theme_font_size_override("font_size", 31)
+	reward_title.add_theme_color_override("font_color", ManaTheme.INK)
+	reward_copy.add_child(reward_title)
+	_video_status_label = Label.new()
+	_video_status_label.add_theme_font_size_override("font_size", 20)
+	_video_status_label.add_theme_color_override("font_color", ManaTheme.INK_MUTED)
+	reward_copy.add_child(_video_status_label)
 	_video_btn = Button.new()
-	_video_btn.custom_minimum_size = Vector2(0, 92)
-	_video_btn.add_theme_font_size_override("font_size", 28)
+	_video_btn.text = "ASSISTIR"
+	_video_btn.custom_minimum_size = Vector2(210, 74)
+	_video_btn.add_theme_font_size_override("font_size", 23)
 	ManaTheme.apply_primary_button(_video_btn)
 	_video_btn.pressed.connect(_on_video_pressed)
-	lista.add_child(_video_btn)
+	reward_row.add_child(_video_btn)
+	lista.add_child(reward_panel)
 
-	var como_ganhar := Label.new()
-	como_ganhar.text = "COMO GANHAR GEMAS"
-	como_ganhar.add_theme_font_override("font", ManaTheme.body_semibold())
-	como_ganhar.add_theme_font_size_override("font_size", 24)
-	como_ganhar.add_theme_color_override("font_color", GOLD)
-	lista.add_child(como_ganhar)
+	lista.add_child(_build_gem_section_title("ROTAS GRATUITAS", "Seu progresso tambem enche a carteira"))
 
-	for linha in [
-		"✦  1ª Ressurreição: +10 Gemas (seguintes: +2)",
-		"✦  Concluir Vida de Cristo: +50 Gemas",
-		"✦  Concluir Igreja & Apocalipse: +100 Gemas",
-		"✦  Assistir vídeo: +" + str(VIDEO_GEMAS) + " Gemas (a cada 5 min)",
+	for fonte in [
+		["RESSURREIÇÃO", "+10", "Depois, +2 por jornada"],
+		["VIDA DE CRISTO", "+50", "Ao concluir o capítulo"],
+		["IGREJA & APOCALIPSE", "+100", "Ao concluir o capítulo"],
 	]:
-		var l := Label.new()
-		l.text = linha
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.add_theme_font_size_override("font_size", 24)
-		l.add_theme_color_override("font_color", TEXT_COLOR)
-		lista.add_child(l)
+		lista.add_child(_build_gem_source_row(str(fonte[0]), str(fonte[1]), str(fonte[2])))
 
-	var pacotes_header := Label.new()
-	pacotes_header.text = "PACOTES (EM BREVE)"
-	pacotes_header.add_theme_font_override("font", ManaTheme.body_semibold())
-	pacotes_header.add_theme_font_size_override("font_size", 24)
-	pacotes_header.add_theme_color_override("font_color", GOLD)
-	lista.add_child(pacotes_header)
+	lista.add_child(_build_gem_section_title("LOJA DE GEMAS", "Pacotes planejados para o lançamento"))
 
-	for pacote in [["Punhado de Gemas", 80, "R$ 9,90"], ["Bolsa de Gemas", 500, "R$ 39,90"], ["Baú de Gemas", 1200, "R$ 79,90"]]:
-		var card := PanelContainer.new()
-		card.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE_HIGH, 20, Color(0.62, 0.44, 0.92, 0.25), 1, 18))
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 14)
-		card.add_child(row)
-		var info := Label.new()
-		info.text = str(pacote[0]) + "\n💎 " + str(pacote[1])
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info.add_theme_font_size_override("font_size", 24)
-		row.add_child(info)
-		var comprar := Button.new()
-		comprar.text = str(pacote[2]) + "\nEM BREVE"
-		comprar.disabled = true
-		comprar.custom_minimum_size = Vector2(190, 84)
-		comprar.add_theme_font_size_override("font_size", 21)
-		row.add_child(comprar)
-		lista.add_child(card)
+	for pacote in [["Punhado", 80, "R$ 9,90", false], ["Bolsa", 500, "R$ 39,90", true], ["Baú", 1200, "R$ 79,90", false]]:
+		lista.add_child(_build_gem_package(str(pacote[0]), int(pacote[1]), str(pacote[2]), bool(pacote[3])))
 
 	# Cooldown do video atualizado a cada segundo.
 	var timer := Timer.new()
@@ -880,9 +894,96 @@ func _build_panel_gemas() -> VBoxContainer:
 	_refresh_gemas()
 	return vbox
 
+func _build_gem_section_title(title: String, subtitle: String) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", -2)
+	var heading := Label.new()
+	heading.text = title
+	heading.add_theme_font_override("font", ManaTheme.body_semibold())
+	heading.add_theme_font_size_override("font_size", 23)
+	heading.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	box.add_child(heading)
+	var sub := Label.new()
+	sub.text = subtitle
+	sub.add_theme_font_size_override("font_size", 19)
+	sub.add_theme_color_override("font_color", TEXT_DIM)
+	box.add_child(sub)
+	return box
+
+func _build_gem_source_row(title: String, reward: String, detail: String) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#20203f"), 14, Color(1.0, 0.77, 0.42, 0.14), 1, 16))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	panel.add_child(row)
+	var marker := Label.new()
+	marker.text = "✦"
+	marker.add_theme_font_size_override("font_size", 28)
+	marker.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	row.add_child(marker)
+	var copy := VBoxContainer.new()
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.add_theme_constant_override("separation", -3)
+	row.add_child(copy)
+	var source_name := Label.new()
+	source_name.text = title
+	source_name.add_theme_font_override("font", ManaTheme.body_semibold())
+	source_name.add_theme_font_size_override("font_size", 21)
+	copy.add_child(source_name)
+	var desc := Label.new()
+	desc.text = detail
+	desc.add_theme_font_size_override("font_size", 18)
+	desc.add_theme_color_override("font_color", TEXT_DIM)
+	copy.add_child(desc)
+	var amount := Label.new()
+	amount.text = reward
+	amount.add_theme_font_override("font", ManaTheme.serif_bold())
+	amount.add_theme_font_size_override("font_size", 28)
+	amount.add_theme_color_override("font_color", Color("#8fe8ed"))
+	row.add_child(amount)
+	return panel
+
+func _build_gem_package(name: String, amount: int, price: String, featured: bool) -> PanelContainer:
+	var card := PanelContainer.new()
+	var border := ManaTheme.GOLD if featured else Color("#497a86")
+	var bg := Color("#18313e") if featured else Color("#1d2839")
+	card.add_theme_stylebox_override("panel", ManaTheme.panel_style(bg, 18, border, 2 if featured else 1, 18, featured))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	card.add_child(row)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.GEM_ICON
+	icon.custom_minimum_size = Vector2(70, 70)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(icon)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.add_theme_constant_override("separation", -3)
+	row.add_child(info)
+	var package_name := Label.new()
+	package_name.text = name.to_upper() + ("  ·  MELHOR VALOR" if featured else "")
+	package_name.add_theme_font_override("font", ManaTheme.body_semibold())
+	package_name.add_theme_font_size_override("font_size", 19)
+	package_name.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT if featured else TEXT_DIM)
+	info.add_child(package_name)
+	var package_amount := Label.new()
+	package_amount.text = str(amount) + " Gemas"
+	package_amount.add_theme_font_override("font", ManaTheme.serif_bold())
+	package_amount.add_theme_font_size_override("font_size", 31)
+	package_amount.add_theme_color_override("font_color", Color("#d9fdff"))
+	info.add_child(package_amount)
+	var comprar := Button.new()
+	comprar.text = price + "\nEM BREVE"
+	comprar.disabled = true
+	comprar.custom_minimum_size = Vector2(190, 76)
+	comprar.add_theme_font_size_override("font_size", 19)
+	row.add_child(comprar)
+	return card
+
 func _refresh_gemas() -> void:
-	_gemas_label.text = "💎 " + str(GameState.gemas)
-	_gemas_total_label.text = "Ganhas no total: " + str(GameState.gemas_total)
+	_gemas_label.text = str(GameState.gemas) + " Gemas"
+	_gemas_total_label.text = str(GameState.gemas_total) + " conquistadas desde o início"
 	_refresh_video_button()
 
 func _refresh_video_button() -> void:
@@ -890,10 +991,13 @@ func _refresh_video_button() -> void:
 		return
 	var agora := Time.get_unix_time_from_system()
 	if agora >= _video_cooldown_until:
-		_video_btn.text = "▶  Assistir vídeo  ·  +" + str(VIDEO_GEMAS) + " 💎  (simulado)"
+		_video_btn.text = "▶  ASSISTIR"
+		_video_status_label.text = "Recompensa pronta para coletar"
 		_video_btn.disabled = false
 	else:
-		_video_btn.text = "▶  Próximo vídeo em " + str(int(_video_cooldown_until - agora)) + "s"
+		var restante := int(_video_cooldown_until - agora)
+		_video_btn.text = "AGUARDE " + str(restante) + "s"
+		_video_status_label.text = "Próxima recompensa em " + str(restante) + " segundos"
 		_video_btn.disabled = true
 
 # Modal de coleta offline: o ganho base ja foi creditado; as opcoes de
@@ -942,7 +1046,7 @@ func _show_offline_modal(ganho: float) -> void:
 	vbox.add_child(video_btn)
 
 	var gema_btn := Button.new()
-	gema_btn.text = "💎  Triplicar por " + str(OFFLINE_TRIPLO_GEMAS) + " Gemas  ·  +" + NumberFormat.format(ganho * 2.0)
+	gema_btn.text = "Triplicar por " + str(OFFLINE_TRIPLO_GEMAS) + " Gemas  ·  +" + NumberFormat.format(ganho * 2.0)
 	gema_btn.custom_minimum_size = Vector2(0, 84)
 	gema_btn.add_theme_font_size_override("font_size", 26)
 	gema_btn.disabled = GameState.gemas < OFFLINE_TRIPLO_GEMAS
@@ -1029,6 +1133,10 @@ func _build_tabbar() -> PanelContainer:
 		btn.custom_minimum_size = Vector2(0, 92)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.pressed.connect(_show_tab.bind(tab[0]))
+		if tab[0] == "gemas":
+			btn.icon = GameArt.GEM_ICON
+			btn.add_theme_constant_override("icon_max_width", 34)
+			btn.expand_icon = true
 		_tab_buttons[tab[0]] = btn
 		hbox.add_child(btn)
 
@@ -1077,6 +1185,10 @@ func _update_tab_badges() -> void:
 	if study_btn != null:
 		var unread := int(StudySystem.get_progress_summary().get("unread", 0))
 		study_btn.text = "ESTUDO" + ("  ·  " + str(unread) if unread > 0 else "")
+	var gems_btn: Button = _tab_buttons.get("gemas")
+	if gems_btn != null:
+		var reward_ready := Time.get_unix_time_from_system() >= _video_cooldown_until
+		gems_btn.text = "GEMAS" + ("  ·  +" + str(VIDEO_GEMAS) if reward_ready else "")
 
 # ============================================================ Notificacao (toast)
 
