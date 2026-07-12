@@ -96,6 +96,26 @@ const FLAVORS_TIER: Array = [
 	"Coroa para quem corre ate o fim.",
 ]
 
+# Bencaos de VELOCIDADE geradas: 5 tiers por gerador. O multiplicador por
+# tier e a raiz 5a de (tempo_min / tempo), entao comprar os 5 leva o ciclo
+# exatamente ao tempo_min da tabela de Geradores (o clamp em Economy garante
+# que outros bonus de velocidade nao passem desse teto).
+const TIERS_VELOCIDADE: Array = [
+	{"req": 100, "custo_fator": 1.0e4, "sufixo": "I"},
+	{"req": 200, "custo_fator": 1.0e7, "sufixo": "II"},
+	{"req": 350, "custo_fator": 1.0e11, "sufixo": "III"},
+	{"req": 550, "custo_fator": 1.0e15, "sufixo": "IV"},
+	{"req": 900, "custo_fator": 1.0e20, "sufixo": "V"},
+]
+
+const FLAVORS_VELOCIDADE: Array = [
+	"O vento sopra onde quer. Hoje, a favor.",
+	"Correram e nao se cansaram.",
+	"Asas como aguias.",
+	"Mais veloz que corca sobre os montes.",
+	"O carro de fogo nao espera.",
+]
+
 var _by_id: Dictionary = {}
 var _dados_all: Array = []
 
@@ -115,6 +135,23 @@ func _ready() -> void:
 				"categoria": "milagre",
 				"efeito": "x" + str(int(tier.mult)) + " producao de " + str(gdata.nome),
 				"flavor": FLAVORS_TIER[i],
+			})
+		# Serie de velocidade: 5 compras levam do tempo base ao tempo_min.
+		var ratio: float = float(gdata.get("tempo_min", 0.1)) / float(gdata.tempo)
+		var mult_tier: float = pow(ratio, 1.0 / float(TIERS_VELOCIDADE.size()))
+		var pct: int = int(round((1.0 - mult_tier) * 100.0))
+		for i in TIERS_VELOCIDADE.size():
+			var tier: Dictionary = TIERS_VELOCIDADE[i]
+			_dados_all.append({
+				"id": "us%d_%s" % [gen_id, tier.sufixo],
+				"nome": "Sopro de " + str(gdata.nome) + " " + str(tier.sufixo),
+				"custo": float(gdata.custo_base) * float(tier.custo_fator),
+				"tipo": "speed", "alvo": "g", "alvo_id": gen_id,
+				"mult": mult_tier,
+				"req_gen": gen_id, "req_qtd": int(tier.req),
+				"categoria": "milagre",
+				"efeito": "-" + str(pct) + "% tempo de ciclo de " + str(gdata.nome),
+				"flavor": FLAVORS_VELOCIDADE[i],
 			})
 	for u in _dados_all:
 		_by_id[u.id] = u

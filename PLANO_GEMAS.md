@@ -38,11 +38,12 @@ assíduo desbloqueia em ~3-4 dias sem pagar; comprador pula a espera.
 Punhado quase chega, o da Bolsa desbloqueia e sobra p/ boosts. Preços em BRL;
 na Play Store usar tiers equivalentes.
 
-## Boosts (a implementar — coluna lateral)
+## Boosts (interface implementada — mecânica pendente)
 
 Local: coluna lateral do painel Jornada, abaixo dos ícones de capítulo
-(`_build_future_boost_space` em Main.gd já reserva o espaço). Cada boost é um
-ícone com timer visível quando ativo.
+(`_build_future_boost_space` em Main.gd). Os cinco impulsos já aparecem como
+peças visuais sem moldura externa; compra, ativação e timer persistente ainda
+precisam ser ligados ao estado do jogo.
 
 | Boost | Efeito | Duração | Gemas | Vídeo |
 |---|---|---|---|---|

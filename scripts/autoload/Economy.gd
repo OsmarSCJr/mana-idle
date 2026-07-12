@@ -146,7 +146,9 @@ func get_desconto(gen_id: int) -> float:
 func get_tempo_ciclo(gen_id: int) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
 	var tempo: float = data.tempo * _tempo_gen.get(gen_id, 1.0)
-	return max(tempo, 0.1)
+	# tempo_min e o teto de aceleracao do gerador: com todas as bencaos de
+	# velocidade ativas, o ciclo chega exatamente ai e nao passa disso.
+	return max(tempo, float(data.get("tempo_min", 0.1)))
 
 func custo_unitario(gen_id: int, ja_possui: int) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)

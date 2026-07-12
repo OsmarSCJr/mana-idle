@@ -285,8 +285,8 @@ func _build_ui() -> void:
 func _update_icon_style(accent: Color) -> void:
 	if _icon_panel == null:
 		return
-	var bg := ManaTheme.PARCHMENT.lerp(accent, 0.22)
-	_icon_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(bg, 47, accent.darkened(0.18), 3, 8))
+	# A arte ocupa todo o slot; o antigo medalhao oval reduzia a leitura do icone.
+	_icon_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color.TRANSPARENT, 0, Color.TRANSPARENT, 0, 0))
 
 func _apply_icon_texture() -> void:
 	if _icon_texture_rect == null or _icon_label == null:
@@ -695,6 +695,6 @@ func _set_locked_state() -> void:
 	_rev_label.add_theme_color_override("font_color", ManaTheme.DISABLED)
 	_cycle_state_label.add_theme_color_override("font_color", ManaTheme.DISABLED)
 	_cycle_time_label.add_theme_color_override("font_color", ManaTheme.DISABLED)
-	_icon_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE_LOW, 47, Color(1.0, 1.0, 1.0, 0.09), 2, 8))
+	_icon_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color.TRANSPARENT, 0, Color.TRANSPARENT, 0, 0))
 	_icon_label.add_theme_color_override("font_color", ManaTheme.DISABLED)
 	_icon_texture_rect.modulate = Color(0.55, 0.54, 0.62, 0.72)

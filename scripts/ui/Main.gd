@@ -339,11 +339,11 @@ func _adventure_tab_style(bg: Color, border: Color, active: bool) -> StyleBoxFla
 	return style
 
 func _build_future_boost_space() -> Control:
-	# Coluna lateral: icones de compra dos capitulos no topo; o espaco restante
-	# fica reservado para os boosts (ver PLANO_GEMAS.md).
+	# Coluna lateral sem moldura: capitulos e impulsos flutuam diretamente sobre
+	# o fundo, deixando as ilustracoes ocuparem toda a area util.
 	var column := VBoxContainer.new()
-	column.custom_minimum_size = Vector2(214, 0)
-	column.add_theme_constant_override("separation", 12)
+	column.custom_minimum_size = Vector2(224, 0)
+	column.add_theme_constant_override("separation", 10)
 
 	var header := Label.new()
 	header.text = "CAPÍTULOS"
@@ -358,16 +358,36 @@ func _build_future_boost_space() -> Control:
 		var first_gen := int(GameState.ADVENTURES[adventure_id]["first_generator"])
 		btn.icon = GameArt.generator_icon(first_gen)
 		btn.expand_icon = true
-		btn.add_theme_constant_override("icon_max_width", 92)
+		btn.add_theme_constant_override("icon_max_width", 104)
 		btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		btn.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		btn.custom_minimum_size = Vector2(0, 196)
+		btn.custom_minimum_size = Vector2(0, 184)
 		btn.add_theme_font_override("font", ManaTheme.body_semibold())
 		btn.add_theme_font_size_override("font_size", 19)
 		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		btn.pressed.connect(_on_adventure_pressed.bind(adventure_id))
 		_adventure_icons[adventure_id] = btn
 		column.add_child(btn)
+
+	var boost_header := Label.new()
+	boost_header.text = "IMPULSOS"
+	boost_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boost_header.add_theme_font_override("font", ManaTheme.body_semibold())
+	boost_header.add_theme_font_size_override("font_size", 19)
+	boost_header.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	column.add_child(boost_header)
+
+	for boost in [
+		["FERVOR", "×2 · 4 h", 20, 1, Color("#d89c28")],
+		["PENTECOSTE", "×5 · 15 min", 10, 25, Color("#d85a2b")],
+		["COLHEITA", "+2 h agora", 15, 5, Color("#7da84b")],
+		["PASSO LIGEIRO", "2× · 1 h", 12, 27, Color("#3f91aa")],
+		["MÃOS SANTAS", "Toque ×10", 8, 15, Color("#8b6ac2")],
+	]:
+		column.add_child(_build_boost_preview(
+			str(boost[0]), str(boost[1]), int(boost[2]),
+			GameArt.generator_icon(int(boost[3])), boost[4]
+		))
 
 	var filler := Control.new()
 	filler.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -376,6 +396,43 @@ func _build_future_boost_space() -> Control:
 
 	_refresh_adventure_icons()
 	return column
+
+func _build_boost_preview(title: String, effect: String, cost: int, icon: Texture2D, accent: Color) -> Button:
+	var button := Button.new()
+	button.text = title + "\n" + effect + "  ·  " + str(cost) + " Gemas"
+	button.icon = icon
+	button.expand_icon = true
+	button.add_theme_constant_override("icon_max_width", 86)
+	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+	button.custom_minimum_size = Vector2(0, 132)
+	button.add_theme_font_override("font", ManaTheme.body_semibold())
+	button.add_theme_font_size_override("font_size", 17)
+	button.add_theme_color_override("font_color", ManaTheme.CREAM)
+	button.add_theme_color_override("font_hover_color", Color("#fff8e8"))
+	button.add_theme_color_override("font_pressed_color", ManaTheme.CREAM)
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.tooltip_text = title.capitalize() + ": " + effect + ". Implementação da mecânica em breve."
+	button.add_theme_stylebox_override("normal", _boost_button_style(accent, false))
+	button.add_theme_stylebox_override("hover", _boost_button_style(accent.lightened(0.12), true))
+	button.add_theme_stylebox_override("pressed", _boost_button_style(accent.darkened(0.10), true))
+	button.pressed.connect(func():
+		EventBus.toast_requested.emit(title.capitalize() + " será liberado em breve.")
+	)
+	return button
+
+func _boost_button_style(accent: Color, highlighted: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("#171735").lerp(accent, 0.30 if highlighted else 0.20)
+	style.set_corner_radius_all(16)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 7
+	style.content_margin_bottom = 8
+	style.shadow_color = Color(accent, 0.38 if highlighted else 0.22)
+	style.shadow_size = 10 if highlighted else 7
+	style.shadow_offset = Vector2(0, 5)
+	return style
 
 func _refresh_adventure_icons() -> void:
 	for adventure_id in _adventure_icons:
