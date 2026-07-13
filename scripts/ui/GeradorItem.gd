@@ -2,6 +2,7 @@ class_name GeradorItem
 extends PanelContainer
 
 const FastCycleWaveScript = preload("res://scripts/ui/FastCycleWave.gd")
+const PurchaseButtonScript = preload("res://scripts/ui/PurchaseButton.gd")
 
 signal buy_pressed(gen_id: int, amount: int)
 signal prophet_pressed(gen_id: int)
@@ -41,6 +42,10 @@ var _progress_bar: ProgressBar
 var _hint_label: Label
 var _fast_cycle_wave: Control
 var _buy_btn: Button
+var _buy_faith_icon: TextureRect
+var _buy_quantity_label: Label
+var _buy_cost_label: Label
+var _buy_divider: ColorRect
 var _prophet_btn: Button
 var _pulse_tween: Tween
 var _completion_tween: Tween
@@ -212,14 +217,52 @@ func _build_ui() -> void:
 	_flavor_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info_vbox.add_child(_flavor_label)
 
-	_buy_btn = Button.new()
-	_buy_btn.text = "Comprar"
-	_buy_btn.add_theme_font_size_override("font_size", 23)
-	_buy_btn.custom_minimum_size = Vector2(184, 98)
+	_buy_btn = PurchaseButtonScript.new()
+	_buy_btn.custom_minimum_size = Vector2(184, 88)
 	_buy_btn.pressed.connect(_on_buy_pressed)
 	_buy_btn.tooltip_text = "Adquirir unidades deste gerador"
-	ManaTheme.apply_primary_button(_buy_btn)
+	_apply_purchase_button_style()
 	top_hbox.add_child(_buy_btn)
+	_buy_quantity_label = Label.new()
+	_buy_quantity_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_buy_quantity_label.offset_top = 15
+	_buy_quantity_label.offset_bottom = 44
+	_buy_quantity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_buy_quantity_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_buy_quantity_label.add_theme_font_override("font", ManaTheme.body_semibold())
+	_buy_quantity_label.add_theme_font_size_override("font_size", 23)
+	_buy_quantity_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buy_btn.add_child(_buy_quantity_label)
+	_buy_divider = ColorRect.new()
+	_buy_divider.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_buy_divider.offset_left = 24
+	_buy_divider.offset_right = -24
+	_buy_divider.visible = false
+	_buy_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buy_btn.add_child(_buy_divider)
+	var cost_row := HBoxContainer.new()
+	cost_row.set_anchors_preset(Control.PRESET_CENTER)
+	cost_row.offset_left = -64
+	cost_row.offset_right = 64
+	cost_row.offset_top = 8
+	cost_row.offset_bottom = 38
+	cost_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	cost_row.add_theme_constant_override("separation", 6)
+	cost_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_buy_btn.add_child(cost_row)
+	_buy_faith_icon = TextureRect.new()
+	_buy_faith_icon.texture = GameArt.FAITH_ICON
+	_buy_faith_icon.custom_minimum_size = Vector2(22, 22)
+	_buy_faith_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_buy_faith_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_buy_faith_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost_row.add_child(_buy_faith_icon)
+	_buy_cost_label = Label.new()
+	_buy_cost_label.add_theme_font_override("font", ManaTheme.body_semibold())
+	_buy_cost_label.add_theme_font_size_override("font_size", 20)
+	_buy_cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_buy_cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost_row.add_child(_buy_cost_label)
 
 	# Cabecalho operacional da barra: o estado nunca depende apenas de cor.
 	var cycle_header: HBoxContainer = HBoxContainer.new()
@@ -323,6 +366,20 @@ func _apply_prophet_button_style(is_ready: bool) -> void:
 	_prophet_btn.add_theme_stylebox_override("hover", ManaTheme.button_style(Color("#69df91"), Color("#178844"), 16, 2, 18, 9))
 	_prophet_btn.add_theme_stylebox_override("pressed", ManaTheme.button_style(Color("#27aa5a"), Color("#126f39"), 16, 2, 18, 9))
 	_prophet_btn.add_theme_stylebox_override("disabled", ManaTheme.button_style(Color("#dce9dc"), Color("#93ad97"), 16, 1, 18, 9))
+
+func _apply_purchase_button_style() -> void:
+	_buy_btn.add_theme_stylebox_override("normal", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	_buy_btn.add_theme_stylebox_override("hover", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	_buy_btn.add_theme_stylebox_override("pressed", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	_buy_btn.add_theme_stylebox_override("disabled", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+
+func _set_buy_availability(available: bool) -> void:
+	var text_color := Color("#f5e3b6") if available else Color("#a8a7a5")
+	_buy_quantity_label.add_theme_color_override("font_color", text_color)
+	_buy_cost_label.add_theme_color_override("font_color", text_color)
+	_buy_divider.color = Color("#d7b76e") if available else Color("#77777c")
+	_buy_faith_icon.modulate = Color.WHITE if available else Color(0.55, 0.54, 0.62, 0.72)
+	_buy_btn.call("refresh_visual")
 
 func _apply_card_style(state: String) -> void:
 	if state == _card_style_state:
@@ -492,7 +549,10 @@ func _set_rev_text(t: String) -> void:
 func _set_buy_text(t: String) -> void:
 	if t != _last_buy_text:
 		_last_buy_text = t
-		_buy_btn.text = t
+		var parts := t.split("\n", false, 1)
+		_buy_quantity_label.text = parts[0] if not parts.is_empty() else ""
+		_buy_cost_label.text = parts[1] if parts.size() > 1 else ""
+		_buy_faith_icon.visible = _buy_quantity_label.text.begins_with("x")
 
 func _set_prophet_text(t: String) -> void:
 	if t != _last_prophet_text:
@@ -614,6 +674,8 @@ func update() -> void:
 		_update_icon_style(data.get("cor", GOLD))
 	_icon_label.add_theme_color_override("font_color", TEXT_COLOR)
 	_icon_texture_rect.modulate = Color.WHITE
+	if _buy_faith_icon != null:
+		_buy_faith_icon.modulate = Color.WHITE
 
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
 	var qtd: int = state.get("qtd", 0)
@@ -643,13 +705,14 @@ func update() -> void:
 
 	if amount > 0:
 		if qtd <= 0:
-			_set_buy_text("COMPRAR\nx" + str(amount) + " · " + NumberFormat.format(custo) + " Fé")
+			_set_buy_text("x" + str(amount) + "\n" + NumberFormat.format(custo))
 		else:
-			_set_buy_text("x" + str(amount) + "\n" + NumberFormat.format(custo) + " Fé")
+			_set_buy_text("x" + str(amount) + "\n" + NumberFormat.format(custo))
 	else:
-		_set_buy_text("MAX\nFé insuficiente")
+		_set_buy_text("MAX\nINDISPONÍVEL")
 
 	_buy_btn.disabled = not pode_comprar
+	_set_buy_availability(pode_comprar)
 
 	# Botao de profeta: progresso visivel desde a 1a unidade, compra aos 25.
 	if tem_profeta or qtd <= 0:
@@ -698,3 +761,4 @@ func _set_locked_state() -> void:
 	_icon_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color.TRANSPARENT, 0, Color.TRANSPARENT, 0, 0))
 	_icon_label.add_theme_color_override("font_color", ManaTheme.DISABLED)
 	_icon_texture_rect.modulate = Color(0.55, 0.54, 0.62, 0.72)
+	_set_buy_availability(false)

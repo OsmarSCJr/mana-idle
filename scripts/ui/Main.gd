@@ -1,5 +1,7 @@
 extends Control
 
+const PurchaseButtonScript = preload("res://scripts/ui/PurchaseButton.gd")
+const EraProgressSquareScript = preload("res://scripts/ui/EraProgressSquare.gd")
 const TICK_RATE: float = 10.0
 const BG_COLOR: Color = ManaTheme.BACKGROUND_TOP
 const TOPBAR_COLOR: Color = ManaTheme.SURFACE_LOW
@@ -18,7 +20,8 @@ var _faith_label: Label
 var _santos_label: Label
 var _rev_label: Label
 var _era_label: Label
-var _era_progress: ProgressBar
+var _era_operator_grid: HBoxContainer
+var _era_squares: Dictionary = {}
 var _gen_list: VBoxContainer
 var _generator_scroll: ScrollContainer
 var _future_boost_space: Control
@@ -31,13 +34,16 @@ var _pause_time: float = 0.0
 const MODO_ORDEM: Array[String] = ["x1", "x10", "x100", "Next", "Max"]
 var _modo_compra: String = "x1"
 var _modo_btn: Button = null
+var _modo_display_label: Label = null
 var _last_tick_msec: int = 0
 var _full_update_counter: int = 0
 const FULL_UPDATE_EVERY: int = 3  # atualiza precos/botoes a cada 3 ticks (~3Hz)
+const OPERATOR_PROGRESS_TARGET: int = 100
 
 # Abas
 var _tab_atual: String = "geradores"
 var _tab_buttons: Dictionary = {}
+var _tab_attention_tags: Dictionary = {}
 var _panel_geradores: VBoxContainer
 var _panel_milagres: VBoxContainer
 var _panel_estudo: StudyPanel
@@ -66,14 +72,35 @@ var _gemas_total_label: Label
 var _video_btn: Button
 var _video_status_label: Label
 var _video_cooldown_until: float = 0.0
+var _gem_wallet_panel: PanelContainer
+var _gem_sources_button: Button
+var _daily_boost_video_button: Button
+var _daily_boost_video_status: Label
 var _adventure_icons: Dictionary = {}
+var _boost_buttons: Dictionary = {}
+var _boost_timer_badges: Dictionary = {}
+var _boost_inventory_badges: Dictionary = {}
+var _boost_store_buttons: Dictionary = {}
+var _boost_store_count_labels: Dictionary = {}
+var _inactive_operator_panel: VBoxContainer
+var _inactive_operator_button: Button
+var _inactive_operator_layers: Array[TextureRect] = []
+var _inactive_operator_count: Label
+var _inactive_operator_queue: Array[int] = []
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_load_ui_config()
-	theme = ManaTheme.make_theme()
+	# A escala de acessibilidade e aplicada aos glifos, nunca ao canvas inteiro.
+	# Assim, espacos e controles continuam dentro da largura visivel da janela.
+	get_window().content_scale_factor = 1.0
+	theme = ManaTheme.make_theme(_font_scale)
+	get_tree().node_added.connect(_on_tree_node_added)
 	_game_loaded = SaveSystem.load_game()
 	_build_ui()
+	_apply_font_scale()
+	get_viewport().size_changed.connect(_layout_tenda_wallet)
+	call_deferred("_layout_tenda_wallet")
 	_setup_timer()
 	_setup_signals()
 	_update_all()
@@ -128,58 +155,122 @@ func _build_topbar() -> PanelContainer:
 	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color(0.055, 0.055, 0.16, 0.96), 28, Color(1.0, 0.77, 0.42, 0.18), 2, 20, true))
 
 	var hbox: HBoxContainer = HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 18)
+	hbox.add_theme_constant_override("separation", 10)
 	panel.add_child(hbox)
+
+	var mana_icon := TextureRect.new()
+	mana_icon.texture = GameArt.MANA_ICON
+	mana_icon.custom_minimum_size = Vector2(60, 60)
+	mana_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mana_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mana_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(mana_icon)
 
 	var brand: VBoxContainer = VBoxContainer.new()
 	brand.add_theme_constant_override("separation", -4)
-	brand.custom_minimum_size = Vector2(250, 0)
+	brand.custom_minimum_size = Vector2(210, 0)
+	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(brand)
 	var brand_name := Label.new()
-	brand_name.text = "✦  Maná Idle"
+	brand_name.text = "Maná Idle"
 	brand_name.add_theme_font_override("font", ManaTheme.serif_bold())
 	brand_name.add_theme_font_size_override("font_size", 48)
 	brand_name.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	brand_name.clip_text = true
+	brand_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	brand.add_child(brand_name)
 	var brand_sub := Label.new()
 	brand_sub.text = "BÍBLIA CLICKER"
 	brand_sub.add_theme_font_override("font", ManaTheme.body_semibold())
 	brand_sub.add_theme_font_size_override("font_size", 22)
 	brand_sub.add_theme_color_override("font_color", TEXT_DIM)
+	brand_sub.clip_text = true
+	brand_sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	brand.add_child(brand_sub)
 
+	var bible_button := _build_framed_button(Color("#1b2841"), Color("#a88b46"), Color("#f2d58a"), Color("#2f4260"))
+	bible_button.tooltip_text = "Leia a Bíblia"
+	bible_button.custom_minimum_size = Vector2(106, 86)
+	var bible_icon := TextureRect.new()
+	bible_icon.texture = GameArt.OPEN_BIBLE_ICON
+	bible_icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bible_icon.offset_left = 24
+	bible_icon.offset_right = -24
+	bible_icon.offset_top = 5
+	bible_icon.offset_bottom = -31
+	bible_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bible_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	bible_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bible_button.add_child(bible_icon)
+	var bible_caption := Label.new()
+	bible_caption.text = "Leia a Bíblia"
+	bible_caption.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	bible_caption.offset_top = -28
+	bible_caption.offset_bottom = -5
+	bible_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bible_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bible_caption.add_theme_font_override("font", ManaTheme.body_semibold())
+	bible_caption.add_theme_font_size_override("font_size", 13)
+	bible_caption.add_theme_color_override("font_color", ManaTheme.CREAM)
+	bible_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bible_button.add_child(bible_caption)
+	bible_button.pressed.connect(_open_bible)
+	hbox.add_child(bible_button)
+
+	var resources := HBoxContainer.new()
+	resources.add_theme_constant_override("separation", 4)
+	resources.size_flags_horizontal = Control.SIZE_SHRINK_END
+	hbox.add_child(resources)
 	var fe_pill := _build_resource_pill("FÉ", GOLD)
 	_faith_label = fe_pill.value
-	hbox.add_child(fe_pill.panel)
-
-	var spacer: Control = Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hbox.add_child(spacer)
-
+	resources.add_child(fe_pill.panel)
 	var santos_pill := _build_resource_pill("SANTOS", SANTO_COLOR)
 	_santos_label = santos_pill.value
-	hbox.add_child(santos_pill.panel)
+	resources.add_child(santos_pill.panel)
 
-	var settings := Button.new()
-	settings.text = "⚙"
+	var settings := _build_framed_button(Color("#242731"), Color("#858994"), Color("#d3d5dc"), Color("#363a47"))
+	settings.text = ""
 	settings.tooltip_text = "Configurações"
-	settings.custom_minimum_size = Vector2(72, 72)
-	settings.add_theme_font_size_override("font_size", 41)
+	settings.custom_minimum_size = Vector2(64, 64)
+	var settings_icon := TextureRect.new()
+	settings_icon.texture = GameArt.SETTINGS_ICON
+	settings_icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	settings_icon.offset_left = 12
+	settings_icon.offset_right = -12
+	settings_icon.offset_top = 12
+	settings_icon.offset_bottom = -12
+	settings_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	settings_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	settings_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	settings.add_child(settings_icon)
 	settings.pressed.connect(_show_settings)
 	hbox.add_child(settings)
 
 	return panel
 
+
+func _open_bible() -> void:
+	_show_tab("estudo")
+	_panel_estudo.show_section("bible")
+
 func _build_resource_pill(caption: String, accent: Color) -> Dictionary:
-	var panel := PanelContainer.new()
+	var palette: Array[Color] = [Color("#17213b"), Color("#b98e38"), Color("#f0cd78"), Color("#25345a")]
+	if caption == "SANTOS":
+		palette = [Color("#252836"), Color("#9298aa"), Color("#e2e5ef"), Color("#35394b")]
+	var panel := _build_framed_button(palette[0], palette[1], palette[2], palette[3])
 	panel.custom_minimum_size = Vector2(182, 72)
-	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color(0.11, 0.11, 0.24, 0.92), 28, Color(accent, 0.34), 2, 16))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 14
+	row.offset_right = -14
+	row.offset_top = 10
+	row.offset_bottom = -10
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(row)
-	if caption == "SANTOS":
+	if caption == "SANTOS" or caption == "FÉ":
 		var icon_texture := TextureRect.new()
-		icon_texture.texture = GameArt.SANTOS_ICON
+		icon_texture.texture = GameArt.SANTOS_ICON if caption == "SANTOS" else GameArt.FAITH_ICON
 		icon_texture.custom_minimum_size = Vector2(38, 38)
 		icon_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -194,19 +285,48 @@ func _build_resource_pill(caption: String, accent: Color) -> Dictionary:
 		row.add_child(icon)
 	var text := VBoxContainer.new()
 	text.add_theme_constant_override("separation", -5)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(text)
 	var label := Label.new()
 	label.text = caption
 	label.add_theme_font_override("font", ManaTheme.body_semibold())
 	label.add_theme_font_size_override("font_size", 19)
 	label.add_theme_color_override("font_color", TEXT_DIM)
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	text.add_child(label)
 	var value := Label.new()
 	value.add_theme_font_override("font", ManaTheme.body_semibold())
 	value.add_theme_font_size_override("font_size", 34)
 	value.add_theme_color_override("font_color", accent)
+	value.clip_text = true
+	value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	text.add_child(value)
 	return {"panel": panel, "value": value}
+
+func _build_framed_button(base: Color, outer: Color, inner: Color, hover: Color) -> Button:
+	var button: Button = PurchaseButtonScript.new()
+	button.add_theme_stylebox_override("normal", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	button.add_theme_stylebox_override("hover", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	button.add_theme_stylebox_override("pressed", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	button.add_theme_stylebox_override("disabled", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	button.call("set_frame_style", base, outer, inner, hover, false)
+	return button
+
+func _build_avatar_slot() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(100, 100)
+	panel.tooltip_text = "Avatar do peregrino"
+	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#202944"), 16, Color("#d7ad4d"), 2, 5, true))
+	var portrait := TextureRect.new()
+	# Carregamento tardio permite ao editor importar o PNG novo sem interromper
+	# a compilacao do catalogo de arte durante a primeira abertura.
+	portrait.texture = load("res://assets/icons/avatar/avatar_pilgrim.png") as Texture2D
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(portrait)
+	return panel
 
 # ============================================================ Aba Geradores
 
@@ -217,31 +337,45 @@ func _build_panel_geradores() -> VBoxContainer:
 	var journey_header := PanelContainer.new()
 	journey_header.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color(0.08, 0.08, 0.20, 0.86), 20, Color(1.0, 0.77, 0.42, 0.16), 1, 18))
 	var header_vbox := VBoxContainer.new()
-	header_vbox.add_theme_constant_override("separation", 10)
 	journey_header.add_child(header_vbox)
+	var header_row := HBoxContainer.new()
+	header_row.add_theme_constant_override("separation", 12)
+	header_vbox.add_child(header_row)
+	header_row.add_child(_build_avatar_slot())
+	var era_content := VBoxContainer.new()
+	era_content.add_theme_constant_override("separation", 8)
+	era_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_row.add_child(era_content)
 	var era_hbox: HBoxContainer = HBoxContainer.new()
 	era_hbox.add_theme_constant_override("separation", 12)
 	_era_label = Label.new()
 	_era_label.add_theme_font_override("font", ManaTheme.serif_bold())
 	_era_label.add_theme_font_size_override("font_size", 43)
 	_era_label.add_theme_color_override("font_color", ManaTheme.CREAM)
+	_era_label.custom_minimum_size = Vector2(240, 58)
 	_era_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_era_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_era_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_era_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_era_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_era_label.clip_text = true
 	era_hbox.add_child(_era_label)
+	var era_actions := HBoxContainer.new()
+	era_actions.add_theme_constant_override("separation", 12)
 	_rev_label = Label.new()
 	_rev_label.add_theme_font_override("font", ManaTheme.body_semibold())
 	_rev_label.add_theme_font_size_override("font_size", 31)
 	_rev_label.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
-	era_hbox.add_child(_rev_label)
-	era_hbox.add_child(_build_modo_selector())
-	header_vbox.add_child(era_hbox)
-	_era_progress = ProgressBar.new()
-	_era_progress.custom_minimum_size = Vector2(0, 18)
-	_era_progress.min_value = 0.0
-	_era_progress.max_value = 1.0
-	_era_progress.show_percentage = false
-	header_vbox.add_child(_era_progress)
+	era_actions.add_child(_rev_label)
+	era_actions.add_child(_build_modo_selector())
+	era_hbox.add_child(era_actions)
+	era_content.add_child(era_hbox)
+	_era_operator_grid = HBoxContainer.new()
+	_era_operator_grid.add_theme_constant_override("separation", 5)
+	_era_operator_grid.custom_minimum_size = Vector2(0, 30)
+	_era_operator_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	era_content.add_child(_era_operator_grid)
+	_refresh_era_operator_grid()
 	vbox.add_child(journey_header)
 
 	# As aventuras funcionam como marcadores de capítulo presos ao volume que
@@ -343,51 +477,42 @@ func _build_future_boost_space() -> Control:
 	# o fundo, deixando as ilustracoes ocuparem toda a area util.
 	var column := VBoxContainer.new()
 	column.custom_minimum_size = Vector2(224, 0)
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 12)
 
-	var header := Label.new()
-	header.text = "CAPÍTULOS"
-	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	header.add_theme_font_override("font", ManaTheme.body_semibold())
-	header.add_theme_font_size_override("font_size", 19)
-	header.add_theme_color_override("font_color", TEXT_DIM)
-	column.add_child(header)
-
-	for adventure_id in ["vida_cristo", "igreja_apocalipse"]:
+	column.add_child(_build_side_section_label("JORNADAS", TEXT_DIM))
+	for index in range(["vida_cristo", "igreja_apocalipse"].size()):
+		var adventure_id: String = ["vida_cristo", "igreja_apocalipse"][index]
 		var btn := Button.new()
-		var first_gen := int(GameState.ADVENTURES[adventure_id]["first_generator"])
-		btn.icon = GameArt.generator_icon(first_gen)
+		btn.icon = GameArt.sidebar_adventure_icon(adventure_id)
 		btn.expand_icon = true
-		btn.add_theme_constant_override("icon_max_width", 104)
+		btn.text = "CRISTO" if adventure_id == "vida_cristo" else "APOC."
+		btn.add_theme_constant_override("icon_max_width", 123)
 		btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		btn.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		btn.custom_minimum_size = Vector2(0, 184)
+		btn.custom_minimum_size = Vector2(0, 140)
 		btn.add_theme_font_override("font", ManaTheme.body_semibold())
-		btn.add_theme_font_size_override("font_size", 19)
-		btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		btn.add_theme_font_size_override("font_size", 16)
+		_apply_side_icon_style(btn)
 		btn.pressed.connect(_on_adventure_pressed.bind(adventure_id))
 		_adventure_icons[adventure_id] = btn
 		column.add_child(btn)
+		_start_side_icon_motion(btn, index)
 
-	var boost_header := Label.new()
-	boost_header.text = "IMPULSOS"
-	boost_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	boost_header.add_theme_font_override("font", ManaTheme.body_semibold())
-	boost_header.add_theme_font_size_override("font_size", 19)
-	boost_header.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
-	column.add_child(boost_header)
+	column.add_child(_build_side_section_divider())
+	column.add_child(_build_side_section_label("BOOSTS", ManaTheme.GOLD_LIGHT))
+	for index in range(GameState.BOOSTS.size()):
+		var boost_id: String = GameState.BOOSTS.keys()[index]
+		var btn := _build_boost_icon(boost_id)
+		_boost_buttons[boost_id] = btn
+		column.add_child(btn)
+		_start_side_icon_motion(btn, index + 2)
 
-	for boost in [
-		["FERVOR", "×2 · 4 h", 20, 1, Color("#d89c28")],
-		["PENTECOSTE", "×5 · 15 min", 10, 25, Color("#d85a2b")],
-		["COLHEITA", "+2 h agora", 15, 5, Color("#7da84b")],
-		["PASSO LIGEIRO", "2× · 1 h", 12, 27, Color("#3f91aa")],
-		["MÃOS SANTAS", "Toque ×10", 8, 15, Color("#8b6ac2")],
-	]:
-		column.add_child(_build_boost_preview(
-			str(boost[0]), str(boost[1]), int(boost[2]),
-			GameArt.generator_icon(int(boost[3])), boost[4]
-		))
+	var inactive_spacer := Control.new()
+	inactive_spacer.custom_minimum_size = Vector2(0, 18)
+	inactive_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(inactive_spacer)
+	_inactive_operator_panel = _build_inactive_operator_stack()
+	column.add_child(_inactive_operator_panel)
 
 	var filler := Control.new()
 	filler.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -395,55 +520,227 @@ func _build_future_boost_space() -> Control:
 	column.add_child(filler)
 
 	_refresh_adventure_icons()
+	_refresh_inactive_operator_stack()
 	return column
 
-func _build_boost_preview(title: String, effect: String, cost: int, icon: Texture2D, accent: Color) -> Button:
+func _build_inactive_operator_stack() -> VBoxContainer:
+	var panel := VBoxContainer.new()
+	panel.custom_minimum_size = Vector2(0, 174)
+	panel.add_theme_constant_override("separation", 4)
+	panel.visible = false
+	panel.add_child(_build_side_section_label("INATIVOS", ManaTheme.GOLD_LIGHT))
+
+	var stack_area := Control.new()
+	stack_area.custom_minimum_size = Vector2(0, 132)
+	panel.add_child(stack_area)
+	for depth in range(2, 0, -1):
+		var layer := TextureRect.new()
+		layer.set_anchors_preset(Control.PRESET_CENTER)
+		var shift := float(depth * 8)
+		layer.offset_left = -54 + shift
+		layer.offset_right = 54 + shift
+		layer.offset_top = -56 + shift
+		layer.offset_bottom = 56 + shift
+		layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		layer.modulate = Color(0.76, 0.76, 0.86, 0.72 - float(depth - 1) * 0.18)
+		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layer.visible = false
+		stack_area.add_child(layer)
+		_inactive_operator_layers.append(layer)
+
+	_inactive_operator_button = Button.new()
+	_inactive_operator_button.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_inactive_operator_button.expand_icon = true
+	_inactive_operator_button.add_theme_constant_override("icon_max_width", 122)
+	_inactive_operator_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_inactive_operator_button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
+	_inactive_operator_button.tooltip_text = "Ativar ciclo manual"
+	_apply_side_icon_style(_inactive_operator_button)
+	_inactive_operator_button.pressed.connect(_activate_next_inactive_operator)
+	stack_area.add_child(_inactive_operator_button)
+
+	_inactive_operator_count = Label.new()
+	_inactive_operator_count.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_inactive_operator_count.offset_left = -42
+	_inactive_operator_count.offset_right = -2
+	_inactive_operator_count.offset_top = 2
+	_inactive_operator_count.offset_bottom = 30
+	_inactive_operator_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_inactive_operator_count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_inactive_operator_count.add_theme_font_override("font", ManaTheme.body_semibold())
+	_inactive_operator_count.add_theme_font_size_override("font_size", 14)
+	_inactive_operator_count.add_theme_color_override("font_color", ManaTheme.CREAM)
+	_inactive_operator_count.add_theme_stylebox_override("normal", ManaTheme.panel_style(Color("#34415f"), 10, Color("#f0cd78"), 1, 4, true))
+	_inactive_operator_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_inactive_operator_count.visible = false
+	stack_area.add_child(_inactive_operator_count)
+	return panel
+
+func _refresh_inactive_operator_stack() -> void:
+	if _inactive_operator_panel == null or _inactive_operator_button == null:
+		return
+	if _inactive_operator_button.disabled:
+		return
+	var inactive_ids: Array[int] = []
+	for gen_id in GameState.geradores:
+		var id := int(gen_id)
+		var state: Dictionary = GameState.geradores[id]
+		if not GameState.is_unlocked(id):
+			continue
+		if int(state.get("qtd", 0)) <= 0:
+			continue
+		if bool(state.get("tem_profeta", false)):
+			continue
+		if float(state.get("tempo_restante", -1.0)) >= 0.0:
+			continue
+		inactive_ids.append(id)
+	inactive_ids.sort()
+	_inactive_operator_queue = inactive_ids
+	_inactive_operator_panel.visible = not inactive_ids.is_empty()
+	if inactive_ids.is_empty():
+		return
+
+	var current_id := inactive_ids[0]
+	var current_data := Geradores.get_data(current_id)
+	_inactive_operator_button.icon = GameArt.generator_icon(current_id)
+	_inactive_operator_button.tooltip_text = "Ativar ciclo: " + str(current_data.get("nome", "Operador"))
+	for index in range(_inactive_operator_layers.size()):
+		var layer := _inactive_operator_layers[index]
+		var queue_index := _inactive_operator_layers.size() - index
+		layer.visible = queue_index < inactive_ids.size()
+		if layer.visible:
+			layer.texture = GameArt.generator_icon(inactive_ids[queue_index])
+	_inactive_operator_count.visible = inactive_ids.size() > 1
+	_inactive_operator_count.text = str(inactive_ids.size())
+
+func _activate_next_inactive_operator() -> void:
+	if _inactive_operator_queue.is_empty() or _inactive_operator_button == null:
+		return
+	var gen_id := _inactive_operator_queue[0]
+	if not GameState.start_cycle(gen_id):
+		_refresh_inactive_operator_stack()
+		return
+	_inactive_operator_button.disabled = true
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(_inactive_operator_button, "scale", Vector2(0.82, 0.82), 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_property(_inactive_operator_button, "modulate", Color(1.0, 1.0, 1.0, 0.0), 0.14)
+	await tween.finished
+	if _inactive_operator_button == null:
+		return
+	_inactive_operator_button.scale = Vector2.ONE
+	_inactive_operator_button.modulate = Color.WHITE
+	_inactive_operator_button.disabled = false
+	_update_item(gen_id)
+	_refresh_inactive_operator_stack()
+
+func _build_boost_icon(boost_id: String) -> Button:
+	var data: Dictionary = GameState.get_boost_data(boost_id)
 	var button := Button.new()
-	button.text = title + "\n" + effect + "  ·  " + str(cost) + " Gemas"
-	button.icon = icon
+	button.text = _side_icon_short_name(boost_id)
+	button.icon = GameArt.sidebar_boost_icon(boost_id)
 	button.expand_icon = true
-	button.add_theme_constant_override("icon_max_width", 86)
+	button.add_theme_constant_override("icon_max_width", 119)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
 	button.custom_minimum_size = Vector2(0, 132)
 	button.add_theme_font_override("font", ManaTheme.body_semibold())
-	button.add_theme_font_size_override("font_size", 17)
-	button.add_theme_color_override("font_color", ManaTheme.CREAM)
-	button.add_theme_color_override("font_hover_color", Color("#fff8e8"))
-	button.add_theme_color_override("font_pressed_color", ManaTheme.CREAM)
-	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	button.tooltip_text = title.capitalize() + ": " + effect + ". Implementação da mecânica em breve."
-	button.add_theme_stylebox_override("normal", _boost_button_style(accent, false))
-	button.add_theme_stylebox_override("hover", _boost_button_style(accent.lightened(0.12), true))
-	button.add_theme_stylebox_override("pressed", _boost_button_style(accent.darkened(0.10), true))
-	button.pressed.connect(func():
-		EventBus.toast_requested.emit(title.capitalize() + " será liberado em breve.")
-	)
+	button.add_theme_font_size_override("font_size", 15)
+	_apply_side_icon_style(button)
+	var inventory_badge := Label.new()
+	inventory_badge.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	# O contador fica sobre a arte, nao perdido no canto do cartao lateral.
+	inventory_badge.offset_left = 44
+	inventory_badge.offset_right = 82
+	inventory_badge.offset_top = 4
+	inventory_badge.offset_bottom = 30
+	inventory_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	inventory_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	inventory_badge.add_theme_font_override("font", ManaTheme.body_semibold())
+	inventory_badge.add_theme_font_size_override("font_size", 13)
+	inventory_badge.add_theme_color_override("font_color", ManaTheme.INK)
+	inventory_badge.add_theme_stylebox_override("normal", ManaTheme.panel_style(Color("#f0cd78"), 10, Color("#fff0c4"), 1, 4, true))
+	inventory_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inventory_badge.visible = false
+	button.add_child(inventory_badge)
+	_boost_inventory_badges[boost_id] = inventory_badge
+	var timer_badge := Label.new()
+	timer_badge.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	timer_badge.offset_left = -78
+	timer_badge.offset_right = -4
+	timer_badge.offset_top = 4
+	timer_badge.offset_bottom = 30
+	timer_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	timer_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	timer_badge.add_theme_font_override("font", ManaTheme.body_semibold())
+	timer_badge.add_theme_font_size_override("font_size", 13)
+	timer_badge.add_theme_color_override("font_color", ManaTheme.CREAM)
+	timer_badge.add_theme_stylebox_override("normal", ManaTheme.panel_style(Color("#184f60"), 10, Color("#9bf6f3"), 1, 4, true))
+	timer_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	timer_badge.visible = false
+	button.add_child(timer_badge)
+	_boost_timer_badges[boost_id] = timer_badge
+	button.pressed.connect(_show_boost_modal.bind(boost_id))
 	return button
 
-func _boost_button_style(accent: Color, highlighted: bool) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color("#171735").lerp(accent, 0.30 if highlighted else 0.20)
-	style.set_corner_radius_all(16)
-	style.content_margin_left = 8
-	style.content_margin_right = 8
-	style.content_margin_top = 7
-	style.content_margin_bottom = 8
-	style.shadow_color = Color(accent, 0.38 if highlighted else 0.22)
-	style.shadow_size = 10 if highlighted else 7
-	style.shadow_offset = Vector2(0, 5)
-	return style
+func _build_side_section_label(text: String, color: Color) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_override("font", ManaTheme.body_semibold())
+	label.add_theme_font_size_override("font_size", 17)
+	label.add_theme_color_override("font_color", color)
+	label.custom_minimum_size = Vector2(0, 38)
+	return label
+
+func _build_side_section_divider() -> Label:
+	var divider := Label.new()
+	divider.text = "—"
+	divider.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	divider.add_theme_font_override("font", ManaTheme.serif_bold())
+	divider.add_theme_font_size_override("font_size", 28)
+	divider.add_theme_color_override("font_color", Color(1.0, 0.82, 0.45, 0.48))
+	divider.custom_minimum_size = Vector2(0, 26)
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return divider
+
+func _side_icon_short_name(boost_id: String) -> String:
+	match boost_id:
+		"pentecoste": return "PENTECOSTE"
+		"passo_ligeiro": return "PASSO"
+		"maos_santas": return "MÃOS"
+		_: return str(GameState.get_boost_data(boost_id).get("nome", "")).to_upper()
+
+func _apply_side_icon_style(button: Button) -> void:
+	button.add_theme_stylebox_override("normal", ManaTheme.button_style(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0, 0, 0))
+	button.add_theme_stylebox_override("hover", ManaTheme.button_style(Color(1.0, 1.0, 1.0, 0.08), Color.TRANSPARENT, 18, 0, 0, 0))
+	button.add_theme_stylebox_override("pressed", ManaTheme.button_style(Color(1.0, 0.86, 0.52, 0.14), Color.TRANSPARENT, 18, 0, 0, 0))
+
+func _start_side_icon_motion(button: Button, index: int) -> void:
+	button.call_deferred("set_pivot_offset", button.size * 0.5)
+	var tween := create_tween()
+	tween.set_loops()
+	tween.tween_interval(3.8 + float(index % 4) * 0.72)
+	tween.tween_property(button, "scale", Vector2(1.055, 1.055), 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(button, "rotation", 0.018 if index % 2 == 0 else -0.018, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(button, "scale", Vector2.ONE, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tween.parallel().tween_property(button, "rotation", 0.0, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 
 func _refresh_adventure_icons() -> void:
 	for adventure_id in _adventure_icons:
 		var key := str(adventure_id)
 		var btn: Button = _adventure_icons[key]
 		var status := GameState.get_adventure_unlock_status(key)
-		var chapter := "II" if key == "vida_cristo" else "III"
-		var nome := "CRISTO" if key == "vida_cristo" else "APOC."
+		var active := key == _current_adventure
 		if bool(status.get("unlocked", false)):
-			btn.text = chapter + " · " + nome + "\nABERTO"
-			btn.modulate = Color.WHITE
+			btn.text = "CRISTO" if key == "vida_cristo" else "APOC."
+			if active and key == "vida_cristo":
+				btn.modulate = Color("#ea8790")
+			elif active and key == "igreja_apocalipse":
+				btn.modulate = Color("#242329")
+			else:
+				btn.modulate = Color.WHITE
 			btn.tooltip_text = "Abrir capítulo: " + _adventure_label(key)
 		else:
 			var custo_txt: String
@@ -451,40 +748,236 @@ func _refresh_adventure_icons() -> void:
 				custo_txt = str(int(status.get("entry_cost", 0.0))) + " Gemas"
 			else:
 				custo_txt = NumberFormat.format(float(status.get("entry_cost", 0.0))) + " Fé"
-			btn.text = chapter + " · " + nome + "\n🔒 " + custo_txt
+			btn.text = "CRISTO" if key == "vida_cristo" else "APOC."
 			btn.modulate = Color.WHITE if bool(status.get("can_unlock", false)) else Color(0.72, 0.72, 0.78)
 			btn.tooltip_text = "Desbloquear " + _adventure_label(key) + " por " + custo_txt
+	_refresh_boost_icons()
+
+func _refresh_boost_icons() -> void:
+	for boost_id in _boost_buttons:
+		var key := str(boost_id)
+		var button: Button = _boost_buttons[key]
+		var data := GameState.get_boost_data(key)
+		var remaining := GameState.get_boost_remaining(key)
+		var inventory := GameState.get_boost_inventory(key)
+		button.modulate = Color.WHITE if remaining > 0 or inventory > 0 else Color(0.86, 0.86, 0.94, 1.0)
+		button.tooltip_text = str(data.nome) + " · " + str(data.efeito) + (" · " + _format_duration(remaining) + " restante" if remaining > 0 else "")
+		if inventory > 0:
+			button.tooltip_text += "  ·  " + str(inventory) + " disponível"
+		var inventory_badge: Label = _boost_inventory_badges.get(key)
+		if inventory_badge != null:
+			inventory_badge.visible = inventory > 0
+			inventory_badge.text = str(inventory)
+		var timer_badge: Label = _boost_timer_badges.get(key)
+		if timer_badge != null:
+			timer_badge.visible = remaining > 0
+			timer_badge.text = _format_boost_timer(remaining)
 
 func _on_adventure_pressed(adventure_id: String) -> void:
-	if GameState.is_adventure_unlocked(adventure_id):
-		_show_tab("geradores")
-		_select_adventure(adventure_id)
-		return
 	var status := GameState.get_adventure_unlock_status(adventure_id)
+	var unlocked := GameState.is_adventure_unlocked(adventure_id)
 	var em_gemas: bool = str(status.get("currency", "fe")) == "gemas"
-	if not bool(status.get("can_unlock", false)):
-		if em_gemas:
-			EventBus.toast_requested.emit("Capítulo bloqueado: custa " + str(int(status.entry_cost)) + " Gemas. Veja a aba GEMAS para conseguir mais.")
-			_show_tab("gemas")
-		else:
-			var requirement := NumberFormat.format(float(status.get("historical_requirement", 0.0)))
-			EventBus.toast_requested.emit("Aventura bloqueada: alcance " + requirement + " de Fé histórica e reúna o custo de entrada.")
-		return
 	var custo_txt: String = (str(int(status.entry_cost)) + " Gemas") if em_gemas else (NumberFormat.format(float(status.entry_cost)) + " de Fé")
-	var dialog := ConfirmationDialog.new()
-	dialog.title = "Desbloquear aventura"
-	dialog.dialog_text = "Desbloquear " + _adventure_label(adventure_id) + " por " + custo_txt + "?\n\nO acesso será permanente, inclusive após a Ressurreição."
-	dialog.get_ok_button().text = "Desbloquear"
-	dialog.get_cancel_button().text = "Agora não"
-	dialog.confirmed.connect(func():
-		if GameState.unlock_adventure(adventure_id):
+	var popup := PopupPanel.new()
+	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#171b3b"), 26, ManaTheme.GOLD_DARK, 2, 30, true))
+	add_child(popup)
+	popup.popup_hide.connect(popup.queue_free)
+	var content := VBoxContainer.new()
+	content.custom_minimum_size = Vector2.ZERO
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 18)
+	popup.add_child(content)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.sidebar_adventure_icon(adventure_id)
+	icon.custom_minimum_size = Vector2(0, 170)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	content.add_child(icon)
+	var title := Label.new()
+	title.text = _adventure_label(adventure_id)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_color_override("font_color", ManaTheme.CREAM)
+	content.add_child(title)
+	var copy := Label.new()
+	copy.text = "Este capítulo amplia sua jornada com novos geradores, milagres e profetas." if unlocked else "Desbloqueie este capítulo permanentemente, inclusive após a Ressurreição."
+	copy.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	copy.add_theme_font_size_override("font_size", 22)
+	copy.add_theme_color_override("font_color", TEXT_DIM)
+	content.add_child(copy)
+	var detail := Label.new()
+	detail.text = "CAPÍTULO ABERTO" if unlocked else "CUSTO  " + custo_txt + ("\nREQUER  " + NumberFormat.format(float(status.get("historical_requirement", 0.0))) + " de Fé histórica" if not em_gemas else "")
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail.add_theme_font_override("font", ManaTheme.body_semibold())
+	detail.add_theme_font_size_override("font_size", 20)
+	detail.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	content.add_child(detail)
+	var action := Button.new()
+	action.text = "ABRIR JORNADA" if unlocked else "DESBLOQUEAR"
+	action.custom_minimum_size = Vector2(0, 76)
+	action.add_theme_font_size_override("font_size", 22)
+	ManaTheme.apply_primary_button(action)
+	action.disabled = not unlocked and not bool(status.get("can_unlock", false))
+	action.pressed.connect(func():
+		if unlocked or GameState.unlock_adventure(adventure_id):
 			SaveSystem.save_game()
+			_show_tab("geradores")
 			_select_adventure(adventure_id)
-		dialog.queue_free()
+			popup.hide()
 	)
-	dialog.canceled.connect(func(): dialog.queue_free())
-	add_child(dialog)
-	dialog.popup_centered()
+	content.add_child(action)
+	var close := Button.new()
+	close.text = "Agora não"
+	close.custom_minimum_size = Vector2(0, 58)
+	close.add_theme_font_size_override("font_size", 19)
+	close.pressed.connect(popup.hide)
+	content.add_child(close)
+	_popup_center_compact(popup, Vector2(760, 700))
+
+func _show_boost_modal(boost_id: String) -> void:
+	var data: Dictionary = GameState.get_boost_data(boost_id)
+	if data.is_empty():
+		return
+	var remaining := GameState.get_boost_remaining(boost_id)
+	var popup := PopupPanel.new()
+	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#171b3b"), 26, ManaTheme.GOLD_DARK, 2, 30, true))
+	add_child(popup)
+	popup.popup_hide.connect(popup.queue_free)
+	var content := VBoxContainer.new()
+	content.custom_minimum_size = Vector2.ZERO
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 18)
+	popup.add_child(content)
+
+	var hero := HBoxContainer.new()
+	hero.add_theme_constant_override("separation", 22)
+	content.add_child(hero)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.sidebar_boost_icon(boost_id)
+	icon.custom_minimum_size = Vector2(138, 138)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hero.add_child(icon)
+	var heading := VBoxContainer.new()
+	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading.add_theme_constant_override("separation", 2)
+	hero.add_child(heading)
+	var eyebrow := Label.new()
+	eyebrow.text = "IMPULSO CELESTIAL"
+	eyebrow.add_theme_font_override("font", ManaTheme.body_semibold())
+	eyebrow.add_theme_font_size_override("font_size", 18)
+	eyebrow.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	heading.add_child(eyebrow)
+	var title := Label.new()
+	title.text = str(data.nome)
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_color_override("font_color", ManaTheme.CREAM)
+	heading.add_child(title)
+	var effect := Label.new()
+	effect.text = str(data.efeito)
+	effect.add_theme_font_override("font", ManaTheme.body_semibold())
+	effect.add_theme_font_size_override("font_size", 24)
+	effect.add_theme_color_override("font_color", Color("#91e6d0"))
+	effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	heading.add_child(effect)
+
+	var description := Label.new()
+	description.text = str(data.descricao)
+	description.add_theme_font_size_override("font_size", 22)
+	description.add_theme_color_override("font_color", TEXT_DIM)
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(description)
+
+	var duration := "Imediato" if int(data.duracao) <= 0 else _format_duration(float(data.duracao))
+	var details := PanelContainer.new()
+	details.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#22264d"), 16, Color(1.0, 0.77, 0.42, 0.18), 1, 16))
+	content.add_child(details)
+	var detail_text := Label.new()
+	detail_text.text = "DURAÇÃO  " + duration + "\nDISPONÍVEL  " + str(GameState.get_boost_inventory(boost_id)) + " carga" + ("" if GameState.get_boost_inventory(boost_id) == 1 else "s") + ("\nATIVO  " + _format_duration(remaining) + " restante" if remaining > 0 else "")
+	detail_text.add_theme_font_override("font", ManaTheme.body_semibold())
+	detail_text.add_theme_font_size_override("font_size", 20)
+	detail_text.add_theme_color_override("font_color", ManaTheme.CREAM_MUTED)
+	details.add_child(detail_text)
+
+	var use_button := Button.new()
+	var inventory := GameState.get_boost_inventory(boost_id)
+	use_button.text = "USAR  ·  " + str(inventory) + (" CARGA" if inventory == 1 else " CARGAS")
+	use_button.custom_minimum_size = Vector2(0, 76)
+	use_button.add_theme_font_size_override("font_size", 22)
+	ManaTheme.apply_primary_button(use_button)
+	use_button.disabled = inventory <= 0
+	use_button.pressed.connect(func():
+		if GameState.use_boost_charge(boost_id):
+			_refresh_boost_icons()
+			_refresh_boost_store()
+			_update_all()
+			popup.hide()
+	)
+	content.add_child(use_button)
+
+	if boost_id in ["fervor", "passo_ligeiro"]:
+		var video_button := Button.new()
+		var videos_left := GameState.get_reward_videos_remaining()
+		video_button.text = "▶  VÍDEO  ·  +30 MIN  ·  " + str(videos_left) + "/" + str(GameState.REWARD_VIDEO_LIMIT)
+		video_button.custom_minimum_size = Vector2(0, 72)
+		video_button.add_theme_font_size_override("font_size", 20)
+		video_button.add_theme_color_override("font_color", ManaTheme.CREAM)
+		video_button.add_theme_color_override("font_hover_color", ManaTheme.CREAM)
+		video_button.add_theme_stylebox_override("normal", ManaTheme.button_style(Color("#28536a"), Color("#71cbd0"), 18, 2, 20, 12))
+		video_button.add_theme_stylebox_override("hover", ManaTheme.button_style(Color("#367287"), Color("#b0ffff"), 18, 2, 20, 12))
+		video_button.disabled = videos_left <= 0
+		video_button.pressed.connect(func():
+			video_button.disabled = true
+			video_button.text = "REPRODUZINDO VÍDEO..."
+			await get_tree().create_timer(2.0).timeout
+			if GameState.activate_boost_from_video(boost_id):
+				_refresh_boost_icons()
+				_update_all()
+				popup.hide()
+			else:
+				video_button.text = "COTA DE VÍDEOS ESGOTADA"
+		)
+		content.add_child(video_button)
+
+	var close := Button.new()
+	close.text = "Agora não"
+	close.custom_minimum_size = Vector2(0, 58)
+	close.add_theme_font_size_override("font_size", 19)
+	close.pressed.connect(popup.hide)
+	content.add_child(close)
+	_popup_center_compact(popup, Vector2(760, 730 if boost_id in ["fervor", "passo_ligeiro"] else 640))
+
+func _popup_center_compact(popup: PopupPanel, preferred_size: Vector2) -> void:
+	var viewport := get_viewport_rect().size
+	var desired := Vector2i(
+		int(minf(preferred_size.x, viewport.x * 0.86)),
+		int(minf(preferred_size.y, viewport.y * 0.86))
+	)
+	# popup_centered trata o tamanho recebido como minimo e preserva o tamanho
+	# expandido anterior. Travamos a janela no tamanho desejado antes de exibi-la.
+	popup.min_size = desired
+	popup.max_size = desired
+	popup.size = desired
+	# O PopupPanel conhece o espaco de coordenadas do viewport embutido; depois
+	# de travar o tamanho, delegamos somente o posicionamento ao metodo nativo.
+	popup.popup_centered()
+
+func _format_duration(seconds: float) -> String:
+	var total := maxi(0, ceili(seconds))
+	if total < 60:
+		return str(total) + "s"
+	if total < 3600:
+		return "%dm %02ds" % [total / 60, total % 60]
+	return "%dh %02dm" % [total / 3600, (total % 3600) / 60]
+
+func _format_boost_timer(seconds: int) -> String:
+	var total := maxi(0, seconds)
+	if total >= 3600:
+		return "%d:%02d" % [total / 3600, (total % 3600) / 60]
+	return "%02d:%02d" % [total / 60, total % 60]
 
 func _adventure_label(adventure_id: String) -> String:
 	match adventure_id:
@@ -549,23 +1042,23 @@ func _build_modo_selector() -> PanelContainer:
 	panel.custom_minimum_size = Vector2(128, 0)
 	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color(0, 0, 0, 0), 0, Color(0, 0, 0, 0), 0, 0))
 
-	var hbox: HBoxContainer = HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 10)
-	panel.add_child(hbox)
-
 	# Botao unico: cada toque avanca para o proximo modo da ordem.
-	_modo_btn = Button.new()
+	_modo_btn = _build_framed_button(Color("#3a1c35"), Color("#ca6f9e"), Color("#ffc1df"), Color("#542749"))
 	_modo_btn.add_theme_font_override("font", ManaTheme.body_semibold())
-	_modo_btn.add_theme_font_size_override("font_size", 22)
+	_modo_btn.text = ""
 	_modo_btn.custom_minimum_size = Vector2(128, 54)
-	_modo_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
 	_modo_btn.tooltip_text = "Alternar quantidade comprada por toque"
-	_modo_btn.add_theme_color_override("font_color", ManaTheme.INK)
-	_modo_btn.add_theme_color_override("font_hover_color", ManaTheme.INK)
-	_modo_btn.add_theme_stylebox_override("normal", ManaTheme.button_style(ManaTheme.GOLD, ManaTheme.GOLD_LIGHT, 18, 2, 14, 8))
-	_modo_btn.add_theme_stylebox_override("hover", ManaTheme.button_style(ManaTheme.GOLD_LIGHT, ManaTheme.GOLD_LIGHT, 18, 2, 14, 8))
+	_modo_display_label = Label.new()
+	_modo_display_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_modo_display_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_modo_display_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_modo_display_label.add_theme_font_override("font", ManaTheme.body_semibold())
+	_modo_display_label.add_theme_font_size_override("font_size", 22)
+	_modo_display_label.add_theme_color_override("font_color", Color("#ffd5e7"))
+	_modo_display_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modo_btn.add_child(_modo_display_label)
 	_modo_btn.pressed.connect(_on_modo_pressed)
-	hbox.add_child(_modo_btn)
+	panel.add_child(_modo_btn)
 
 	_update_modo_buttons()
 	return panel
@@ -587,7 +1080,7 @@ func _update_modo_buttons() -> void:
 		for item in _items.values():
 			item.set_modo(_modo_compra)
 	if _modo_btn != null:
-		_modo_btn.text = _modo_label(_modo_compra)
+		_modo_display_label.text = _modo_label(_modo_compra)
 
 func _modo_label(modo: String) -> String:
 	match modo:
@@ -844,41 +1337,7 @@ func _build_panel_santos() -> VBoxContainer:
 func _build_panel_gemas() -> VBoxContainer:
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 14)
-
-	# Carteira premium: icone e saldo formam uma unica leitura forte.
-	var saldo_panel := PanelContainer.new()
-	saldo_panel.custom_minimum_size = Vector2(0, 190)
-	saldo_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#102b3c"), 24, Color("#79e6e8"), 2, 30, true))
-	var saldo_row := HBoxContainer.new()
-	saldo_row.add_theme_constant_override("separation", 26)
-	saldo_panel.add_child(saldo_row)
-	var gem_hero := TextureRect.new()
-	gem_hero.texture = GameArt.GEM_ICON
-	gem_hero.custom_minimum_size = Vector2(132, 132)
-	gem_hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	gem_hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	gem_hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	saldo_row.add_child(gem_hero)
-	var saldo_vbox := VBoxContainer.new()
-	saldo_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	saldo_vbox.add_theme_constant_override("separation", -2)
-	saldo_row.add_child(saldo_vbox)
-	var carteira := Label.new()
-	carteira.text = "SUA CARTEIRA"
-	carteira.add_theme_font_override("font", ManaTheme.body_semibold())
-	carteira.add_theme_font_size_override("font_size", 20)
-	carteira.add_theme_color_override("font_color", Color("#9edcdf"))
-	saldo_vbox.add_child(carteira)
-	_gemas_label = Label.new()
-	_gemas_label.add_theme_font_override("font", ManaTheme.serif_bold())
-	_gemas_label.add_theme_font_size_override("font_size", 62)
-	_gemas_label.add_theme_color_override("font_color", Color("#e8ffff"))
-	saldo_vbox.add_child(_gemas_label)
-	_gemas_total_label = Label.new()
-	_gemas_total_label.add_theme_font_size_override("font_size", 22)
-	_gemas_total_label.add_theme_color_override("font_color", Color("#9edcdf"))
-	saldo_vbox.add_child(_gemas_total_label)
-	vbox.add_child(saldo_panel)
+	vbox.add_child(_build_tenda_wallet_area())
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -891,65 +1350,147 @@ func _build_panel_gemas() -> VBoxContainer:
 	ManaTheme.enable_touch_scroll(scroll, lista)
 
 	lista.add_child(_build_gem_section_title("RECOMPENSA DIÁRIA", "Ganhe gemas sem gastar"))
+	var reward_center := CenterContainer.new()
+	reward_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	reward_center.add_child(_build_daily_gem_reward())
+	lista.add_child(reward_center)
 
-	# Video recompensado (simulado ate integrar o SDK de anuncios).
-	var reward_panel := PanelContainer.new()
-	reward_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#f4edda"), 18, Color("#d8b65c"), 2, 20, true))
-	var reward_row := HBoxContainer.new()
-	reward_row.add_theme_constant_override("separation", 18)
-	reward_panel.add_child(reward_row)
-	var reward_icon := TextureRect.new()
-	reward_icon.texture = GameArt.GEM_ICON
-	reward_icon.custom_minimum_size = Vector2(76, 76)
-	reward_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	reward_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	reward_row.add_child(reward_icon)
-	var reward_copy := VBoxContainer.new()
-	reward_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	reward_copy.add_theme_constant_override("separation", 2)
-	reward_row.add_child(reward_copy)
-	var reward_title := Label.new()
-	reward_title.text = "+" + str(VIDEO_GEMAS) + " Gemas"
-	reward_title.add_theme_font_override("font", ManaTheme.serif_bold())
-	reward_title.add_theme_font_size_override("font_size", 31)
-	reward_title.add_theme_color_override("font_color", ManaTheme.INK)
-	reward_copy.add_child(reward_title)
-	_video_status_label = Label.new()
-	_video_status_label.add_theme_font_size_override("font_size", 20)
-	_video_status_label.add_theme_color_override("font_color", ManaTheme.INK_MUTED)
-	reward_copy.add_child(_video_status_label)
-	_video_btn = Button.new()
-	_video_btn.text = "ASSISTIR"
-	_video_btn.custom_minimum_size = Vector2(210, 74)
-	_video_btn.add_theme_font_size_override("font_size", 23)
-	ManaTheme.apply_primary_button(_video_btn)
-	_video_btn.pressed.connect(_on_video_pressed)
-	reward_row.add_child(_video_btn)
-	lista.add_child(reward_panel)
+	lista.add_child(_build_gem_section_title("IMPULSOS CELESTIAIS", "Compre cargas para usar na jornada"))
+	var boost_grid := GridContainer.new()
+	boost_grid.columns = 3
+	boost_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	boost_grid.add_theme_constant_override("h_separation", 12)
+	boost_grid.add_theme_constant_override("v_separation", 12)
+	for boost_id in ["fervor", "pentecoste", "colheita", "passo_ligeiro", "maos_santas"]:
+		boost_grid.add_child(_build_boost_store_card(boost_id))
+	boost_grid.add_child(_build_daily_boost_video_card())
+	lista.add_child(boost_grid)
 
-	lista.add_child(_build_gem_section_title("ROTAS GRATUITAS", "Seu progresso tambem enche a carteira"))
-
-	for fonte in [
-		["RESSURREIÇÃO", "+10", "Depois, +2 por jornada"],
-		["VIDA DE CRISTO", "+50", "Ao concluir o capítulo"],
-		["IGREJA & APOCALIPSE", "+100", "Ao concluir o capítulo"],
-	]:
-		lista.add_child(_build_gem_source_row(str(fonte[0]), str(fonte[1]), str(fonte[2])))
-
-	lista.add_child(_build_gem_section_title("LOJA DE GEMAS", "Pacotes planejados para o lançamento"))
-
+	lista.add_child(_build_gem_section_title("GEMAS", "Pacotes planejados para o lançamento"))
+	var package_grid := GridContainer.new()
+	package_grid.columns = 3
+	package_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	package_grid.add_theme_constant_override("h_separation", 12)
+	package_grid.add_theme_constant_override("v_separation", 12)
 	for pacote in [["Punhado", 80, "R$ 9,90", false], ["Bolsa", 500, "R$ 39,90", true], ["Baú", 1200, "R$ 79,90", false]]:
-		lista.add_child(_build_gem_package(str(pacote[0]), int(pacote[1]), str(pacote[2]), bool(pacote[3])))
+		package_grid.add_child(_build_gem_package(str(pacote[0]), int(pacote[1]), str(pacote[2]), bool(pacote[3])))
+	lista.add_child(package_grid)
 
-	# Cooldown do video atualizado a cada segundo.
+	# Os dois videos possuem contadores independentes na interface.
 	var timer := Timer.new()
 	timer.wait_time = 1.0
-	timer.timeout.connect(_refresh_video_button)
+	timer.timeout.connect(_refresh_tenda_timers)
 	vbox.add_child(timer)
 	timer.autostart = true
 
 	_refresh_gemas()
 	return vbox
+
+func _build_tenda_wallet_area() -> Control:
+	var area := Control.new()
+	area.custom_minimum_size = Vector2(0, 126)
+	area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_gem_wallet_panel = PanelContainer.new()
+	_gem_wallet_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#102b3c"), 20, Color("#79e6e8"), 2, 20, true))
+	area.add_child(_gem_wallet_panel)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	_gem_wallet_panel.add_child(row)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.GEM_ICON
+	icon.custom_minimum_size = Vector2(70, 70)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var copy := VBoxContainer.new()
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.add_theme_constant_override("separation", -3)
+	row.add_child(copy)
+	var title := Label.new()
+	title.text = "CARTEIRA"
+	title.add_theme_font_override("font", ManaTheme.body_semibold())
+	title.add_theme_font_size_override("font_size", 17)
+	title.add_theme_color_override("font_color", Color("#9edcdf"))
+	copy.add_child(title)
+	_gemas_label = Label.new()
+	_gemas_label.add_theme_font_override("font", ManaTheme.serif_bold())
+	_gemas_label.add_theme_font_size_override("font_size", 42)
+	_gemas_label.add_theme_color_override("font_color", Color("#e8ffff"))
+	_gemas_label.clip_text = true
+	_gemas_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	copy.add_child(_gemas_label)
+	_gemas_total_label = Label.new()
+	_gemas_total_label.add_theme_font_size_override("font_size", 16)
+	_gemas_total_label.add_theme_color_override("font_color", Color("#9edcdf"))
+	_gemas_total_label.clip_text = true
+	_gemas_total_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	copy.add_child(_gemas_total_label)
+	_gem_sources_button = Button.new()
+	_gem_sources_button.text = "?"
+	_gem_sources_button.tooltip_text = "Como conseguir Gemas"
+	_gem_sources_button.add_theme_font_override("font", ManaTheme.serif_bold())
+	_gem_sources_button.add_theme_font_size_override("font_size", 29)
+	_gem_sources_button.add_theme_color_override("font_color", Color("#d9fdff"))
+	_gem_sources_button.add_theme_color_override("font_hover_color", Color.WHITE)
+	_gem_sources_button.add_theme_stylebox_override("normal", ManaTheme.button_style(Color("#173447"), Color("#79e6e8"), 16, 2, 10, 6))
+	_gem_sources_button.add_theme_stylebox_override("hover", ManaTheme.button_style(Color("#28536a"), Color("#c4ffff"), 16, 2, 10, 6))
+	_gem_sources_button.pressed.connect(_show_gem_sources_modal)
+	area.add_child(_gem_sources_button)
+	return area
+
+func _layout_tenda_wallet() -> void:
+	if _gem_wallet_panel == null or _gem_sources_button == null:
+		return
+	var target_width := clampf(get_viewport_rect().size.x * 0.50, 350.0, 540.0)
+	var half_width := target_width * 0.5
+	_gem_wallet_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_gem_wallet_panel.offset_left = -half_width
+	_gem_wallet_panel.offset_right = half_width
+	_gem_wallet_panel.offset_top = -54
+	_gem_wallet_panel.offset_bottom = 54
+	_gem_sources_button.set_anchors_preset(Control.PRESET_CENTER)
+	_gem_sources_button.offset_left = half_width + 12
+	_gem_sources_button.offset_right = half_width + 64
+	_gem_sources_button.offset_top = -26
+	_gem_sources_button.offset_bottom = 26
+
+func _build_daily_gem_reward() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(640, 108)
+	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#f4edda"), 18, Color("#d8b65c"), 2, 20, true))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	panel.add_child(row)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.GEM_ICON
+	icon.custom_minimum_size = Vector2(68, 68)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var copy := VBoxContainer.new()
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.add_theme_constant_override("separation", 0)
+	row.add_child(copy)
+	var title := Label.new()
+	title.text = "+" + str(VIDEO_GEMAS) + " GEMAS"
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", ManaTheme.INK)
+	copy.add_child(title)
+	_video_status_label = Label.new()
+	_video_status_label.add_theme_font_size_override("font_size", 16)
+	_video_status_label.add_theme_color_override("font_color", ManaTheme.INK_MUTED)
+	copy.add_child(_video_status_label)
+	_video_btn = Button.new()
+	_video_btn.text = "ASSISTIR"
+	_video_btn.custom_minimum_size = Vector2(166, 62)
+	_video_btn.add_theme_font_size_override("font_size", 18)
+	ManaTheme.apply_primary_button(_video_btn)
+	_video_btn.pressed.connect(_on_video_pressed)
+	row.add_child(_video_btn)
+	return panel
 
 func _build_gem_section_title(title: String, subtitle: String) -> VBoxContainer:
 	var box := VBoxContainer.new()
@@ -966,6 +1507,112 @@ func _build_gem_section_title(title: String, subtitle: String) -> VBoxContainer:
 	sub.add_theme_color_override("font_color", TEXT_DIM)
 	box.add_child(sub)
 	return box
+
+func _build_boost_store_card(boost_id: String) -> PanelContainer:
+	var data := GameState.get_boost_data(boost_id)
+	var card := PanelContainer.new()
+	# Tres colunas deixam cada oferta quase quadrada no painel de gemas.
+	card.custom_minimum_size = Vector2(0, 300)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#1c2b46"), 16, Color("#4a7895"), 1, 14, true))
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 4)
+	card.add_child(content)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.sidebar_boost_icon(boost_id)
+	icon.custom_minimum_size = Vector2(0, 92)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(icon)
+	var title := Label.new()
+	title.text = str(data.get("nome", "Impulso")).to_upper()
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", ManaTheme.body_semibold())
+	title.add_theme_font_size_override("font_size", 19)
+	title.add_theme_color_override("font_color", ManaTheme.CREAM)
+	title.clip_text = true
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	content.add_child(title)
+	var effect := Label.new()
+	effect.text = str(data.get("efeito", ""))
+	effect.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	effect.custom_minimum_size = Vector2(0, 38)
+	effect.add_theme_font_size_override("font_size", 16)
+	effect.add_theme_color_override("font_color", Color("#91e6d0"))
+	content.add_child(effect)
+	var stock := Label.new()
+	stock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stock.add_theme_font_override("font", ManaTheme.body_semibold())
+	stock.add_theme_font_size_override("font_size", 14)
+	stock.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	content.add_child(stock)
+	_boost_store_count_labels[boost_id] = stock
+	var buy := Button.new()
+	buy.text = "COMPRAR  ·  " + str(int(data.get("custo", 0)))
+	buy.icon = GameArt.GEM_ICON
+	buy.expand_icon = true
+	buy.add_theme_constant_override("icon_max_width", 20)
+	buy.custom_minimum_size = Vector2(0, 52)
+	buy.add_theme_font_size_override("font_size", 16)
+	ManaTheme.apply_primary_button(buy)
+	buy.pressed.connect(func():
+		if GameState.buy_boost_charge(boost_id):
+			_refresh_gemas()
+			_refresh_boost_icons()
+			_update_all()
+	)
+	content.add_child(buy)
+	_boost_store_buttons[boost_id] = buy
+	return card
+
+func _build_daily_boost_video_card() -> PanelContainer:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(0, 300)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#183849"), 16, Color("#79e6e8"), 2, 14, true))
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 4)
+	card.add_child(content)
+	var blessing_icon := TextureRect.new()
+	blessing_icon.texture = GameArt.DAILY_BLESSING_ICON
+	blessing_icon.custom_minimum_size = Vector2(0, 92)
+	blessing_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	blessing_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	blessing_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(blessing_icon)
+	var title := Label.new()
+	title.text = "BÊNÇÃO DIÁRIA"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", ManaTheme.body_semibold())
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", ManaTheme.CREAM)
+	content.add_child(title)
+	var effect := Label.new()
+	effect.text = "Revela 1 impulso celestial"
+	effect.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	effect.custom_minimum_size = Vector2(0, 38)
+	effect.add_theme_font_size_override("font_size", 16)
+	effect.add_theme_color_override("font_color", Color("#91e6d0"))
+	content.add_child(effect)
+	_daily_boost_video_status = Label.new()
+	_daily_boost_video_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_daily_boost_video_status.add_theme_font_override("font", ManaTheme.body_semibold())
+	_daily_boost_video_status.add_theme_font_size_override("font_size", 13)
+	_daily_boost_video_status.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	content.add_child(_daily_boost_video_status)
+	_daily_boost_video_button = Button.new()
+	_daily_boost_video_button.text = "▶  RECEBER POR VÍDEO"
+	_daily_boost_video_button.custom_minimum_size = Vector2(0, 52)
+	_daily_boost_video_button.add_theme_font_size_override("font_size", 16)
+	_daily_boost_video_button.add_theme_color_override("font_color", ManaTheme.CREAM)
+	_daily_boost_video_button.add_theme_color_override("font_hover_color", ManaTheme.CREAM)
+	_daily_boost_video_button.add_theme_stylebox_override("normal", ManaTheme.button_style(Color("#28536a"), Color("#71cbd0"), 16, 2, 16, 8))
+	_daily_boost_video_button.add_theme_stylebox_override("hover", ManaTheme.button_style(Color("#367287"), Color("#b0ffff"), 16, 2, 16, 8))
+	_daily_boost_video_button.pressed.connect(_on_daily_boost_video_pressed)
+	content.add_child(_daily_boost_video_button)
+	return card
 
 func _build_gem_source_row(title: String, reward: String, detail: String) -> PanelContainer:
 	var panel := PanelContainer.new()
@@ -1000,25 +1647,74 @@ func _build_gem_source_row(title: String, reward: String, detail: String) -> Pan
 	row.add_child(amount)
 	return panel
 
+func _show_gem_sources_modal() -> void:
+	var popup := PopupPanel.new()
+	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#171b3b"), 24, Color("#79e6e8"), 2, 28, true))
+	add_child(popup)
+	popup.popup_hide.connect(popup.queue_free)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 14)
+	popup.add_child(content)
+	var heading := HBoxContainer.new()
+	heading.add_theme_constant_override("separation", 14)
+	content.add_child(heading)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.GEM_ICON
+	icon.custom_minimum_size = Vector2(62, 62)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	heading.add_child(icon)
+	var title := Label.new()
+	title.text = "Como conseguir Gemas"
+	title.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 34)
+	title.add_theme_color_override("font_color", ManaTheme.CREAM)
+	heading.add_child(title)
+	var intro := Label.new()
+	intro.text = "Gemas também são conquistadas jogando."
+	intro.add_theme_font_size_override("font_size", 19)
+	intro.add_theme_color_override("font_color", TEXT_DIM)
+	content.add_child(intro)
+	for source in [
+		["RESSURREIÇÃO", "+10", "Depois, +2 por jornada"],
+		["VIDA DE CRISTO", "+50", "Ao concluir o capítulo"],
+		["IGREJA & APOCALIPSE", "+100", "Ao concluir o capítulo"],
+	]:
+		content.add_child(_build_gem_source_row(str(source[0]), str(source[1]), str(source[2])))
+	var close := Button.new()
+	close.text = "Entendi"
+	close.custom_minimum_size = Vector2(0, 56)
+	close.add_theme_font_size_override("font_size", 18)
+	ManaTheme.apply_primary_button(close)
+	close.pressed.connect(popup.hide)
+	content.add_child(close)
+	_popup_center_compact(popup, Vector2(650, 560))
+
 func _build_gem_package(name: String, amount: int, price: String, featured: bool) -> PanelContainer:
 	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(0, 246)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var border := ManaTheme.GOLD if featured else Color("#497a86")
 	var bg := Color("#18313e") if featured else Color("#1d2839")
 	card.add_theme_stylebox_override("panel", ManaTheme.panel_style(bg, 18, border, 2 if featured else 1, 18, featured))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
 	card.add_child(row)
 	var icon := TextureRect.new()
 	icon.texture = GameArt.GEM_ICON
-	icon.custom_minimum_size = Vector2(70, 70)
+	icon.custom_minimum_size = Vector2(0, 74)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(icon)
 	var info := VBoxContainer.new()
-	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.add_theme_constant_override("separation", -3)
 	row.add_child(info)
 	var package_name := Label.new()
+	package_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	package_name.text = name.to_upper() + ("  ·  MELHOR VALOR" if featured else "")
 	package_name.add_theme_font_override("font", ManaTheme.body_semibold())
 	package_name.add_theme_font_size_override("font_size", 19)
@@ -1026,6 +1722,7 @@ func _build_gem_package(name: String, amount: int, price: String, featured: bool
 	info.add_child(package_name)
 	var package_amount := Label.new()
 	package_amount.text = str(amount) + " Gemas"
+	package_amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	package_amount.add_theme_font_override("font", ManaTheme.serif_bold())
 	package_amount.add_theme_font_size_override("font_size", 31)
 	package_amount.add_theme_color_override("font_color", Color("#d9fdff"))
@@ -1033,8 +1730,8 @@ func _build_gem_package(name: String, amount: int, price: String, featured: bool
 	var comprar := Button.new()
 	comprar.text = price + "\nEM BREVE"
 	comprar.disabled = true
-	comprar.custom_minimum_size = Vector2(190, 76)
-	comprar.add_theme_font_size_override("font_size", 19)
+	comprar.custom_minimum_size = Vector2(0, 58)
+	comprar.add_theme_font_size_override("font_size", 15)
 	row.add_child(comprar)
 	return card
 
@@ -1042,20 +1739,57 @@ func _refresh_gemas() -> void:
 	_gemas_label.text = str(GameState.gemas) + " Gemas"
 	_gemas_total_label.text = str(GameState.gemas_total) + " conquistadas desde o início"
 	_refresh_video_button()
+	_refresh_daily_boost_video_card()
+	_refresh_boost_store()
+
+func _refresh_boost_store() -> void:
+	for boost_id in _boost_store_buttons:
+		var key := str(boost_id)
+		var data := GameState.get_boost_data(key)
+		var buy: Button = _boost_store_buttons[key]
+		buy.disabled = GameState.gemas < int(data.get("custo", 0))
+		var stock: Label = _boost_store_count_labels.get(key)
+		if stock != null:
+			var inventory := GameState.get_boost_inventory(key)
+			stock.text = str(inventory) + (" CARGA" if inventory == 1 else " CARGAS")
 
 func _refresh_video_button() -> void:
 	if _video_btn == null or _panel_gemas == null or not _panel_gemas.visible:
 		return
 	var agora := Time.get_unix_time_from_system()
-	if agora >= _video_cooldown_until:
+	var videos_left := GameState.get_reward_videos_remaining()
+	if videos_left <= 0:
+		_video_btn.text = "VÍDEOS ESGOTADOS"
+		_video_status_label.text = "A cota de 6 vídeos volta em até 24 h"
+		_video_btn.disabled = true
+	elif agora >= _video_cooldown_until:
 		_video_btn.text = "▶  ASSISTIR"
-		_video_status_label.text = "Recompensa pronta para coletar"
+		_video_status_label.text = "Recompensa pronta  ·  " + str(videos_left) + "/" + str(GameState.REWARD_VIDEO_LIMIT) + " vídeos"
 		_video_btn.disabled = false
 	else:
 		var restante := int(_video_cooldown_until - agora)
 		_video_btn.text = "AGUARDE " + str(restante) + "s"
 		_video_status_label.text = "Próxima recompensa em " + str(restante) + " segundos"
 		_video_btn.disabled = true
+
+func _refresh_daily_boost_video_card() -> void:
+	if _daily_boost_video_button == null or _daily_boost_video_status == null:
+		return
+	var remaining := GameState.get_daily_boost_video_remaining_seconds()
+	if remaining <= 0:
+		_daily_boost_video_button.text = "▶  RECEBER POR VÍDEO"
+		_daily_boost_video_button.disabled = false
+		_daily_boost_video_status.text = "1 VÍDEO DISPONÍVEL HOJE"
+	else:
+		_daily_boost_video_button.text = "VÍDEO RESGATADO"
+		_daily_boost_video_button.disabled = true
+		var last_reward := GameState.get_daily_boost_video_last_reward()
+		var received := "RECEBIDO: " + str(GameState.get_boost_data(last_reward).get("nome", "Impulso")) if not last_reward.is_empty() else "BÊNÇÃO RECEBIDA"
+		_daily_boost_video_status.text = received + "\nVOLTA EM " + _format_duration(remaining)
+
+func _refresh_tenda_timers() -> void:
+	_refresh_video_button()
+	_refresh_daily_boost_video_card()
 
 # Modal de coleta offline: o ganho base ja foi creditado; as opcoes de
 # video (x2) e gema (x3) somam o EXTRA por cima.
@@ -1130,8 +1864,80 @@ func _on_video_pressed() -> void:
 	_video_btn.disabled = true
 	_video_btn.text = "Reproduzindo vídeo..."
 	await get_tree().create_timer(2.0).timeout
-	GameState.add_gemas(VIDEO_GEMAS, "vídeo")
+	if GameState.consume_reward_video():
+		GameState.add_gemas(VIDEO_GEMAS, "vídeo")
+		SaveSystem.save_game()
 	_refresh_gemas()
+
+func _on_daily_boost_video_pressed() -> void:
+	if not GameState.can_claim_daily_boost_video() or _daily_boost_video_button == null:
+		_refresh_daily_boost_video_card()
+		return
+	_daily_boost_video_button.disabled = true
+	_daily_boost_video_button.text = "REPRODUZINDO VÍDEO..."
+	await get_tree().create_timer(2.0).timeout
+	var boost_id := GameState.claim_daily_random_boost_video()
+	if not boost_id.is_empty():
+		_refresh_boost_icons()
+		_refresh_boost_store()
+		_show_daily_boost_reveal(boost_id)
+	_update_all()
+	_refresh_gemas()
+
+func _show_daily_boost_reveal(boost_id: String) -> void:
+	var data := GameState.get_boost_data(boost_id)
+	if data.is_empty():
+		return
+	var popup := PopupPanel.new()
+	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#17223d"), 24, Color("#79e6e8"), 2, 28, true))
+	add_child(popup)
+	popup.popup_hide.connect(popup.queue_free)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 12)
+	popup.add_child(content)
+	var blessing := TextureRect.new()
+	blessing.texture = GameArt.DAILY_BLESSING_ICON
+	blessing.custom_minimum_size = Vector2(0, 100)
+	blessing.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	blessing.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	blessing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(blessing)
+	var eyebrow := Label.new()
+	eyebrow.text = "BÊNÇÃO RECEBIDA"
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	eyebrow.add_theme_font_override("font", ManaTheme.body_semibold())
+	eyebrow.add_theme_font_size_override("font_size", 18)
+	eyebrow.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	content.add_child(eyebrow)
+	var reward_icon := TextureRect.new()
+	reward_icon.texture = GameArt.sidebar_boost_icon(boost_id)
+	reward_icon.custom_minimum_size = Vector2(0, 126)
+	reward_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	reward_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	reward_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(reward_icon)
+	var title := Label.new()
+	title.text = str(data.get("nome", "Impulso"))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 38)
+	title.add_theme_color_override("font_color", ManaTheme.CREAM)
+	content.add_child(title)
+	var effect := Label.new()
+	effect.text = str(data.get("efeito", "")) + "\n1 carga adicionada aos seus impulsos"
+	effect.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	effect.add_theme_font_size_override("font_size", 19)
+	effect.add_theme_color_override("font_color", Color("#91e6d0"))
+	content.add_child(effect)
+	var close := Button.new()
+	close.text = "Guardar impulso"
+	close.custom_minimum_size = Vector2(0, 62)
+	close.add_theme_font_size_override("font_size", 19)
+	ManaTheme.apply_primary_button(close)
+	close.pressed.connect(popup.hide)
+	content.add_child(close)
+	_popup_center_compact(popup, Vector2(610, 660))
 
 func _refresh_santos() -> void:
 	var bonus_pct: float = (Economy.get_multiplicador_santos() - 1.0) * 100.0
@@ -1182,7 +1988,7 @@ func _build_tabbar() -> PanelContainer:
 	hbox.add_theme_constant_override("separation", 8)
 	panel.add_child(hbox)
 
-	for tab in [["geradores", "JORNADA"], ["milagres", "BÊNÇÃOS"], ["estudo", "ESTUDO"], ["santos", "SANTOS"], ["gemas", "GEMAS"]]:
+	for tab in [["geradores", "JORNADA"], ["milagres", "BÊNÇÃOS"], ["estudo", "ESTUDO"], ["santos", "SANTOS"], ["gemas", "TENDA"]]:
 		var btn: Button = Button.new()
 		btn.text = tab[1]
 		btn.add_theme_font_override("font", ManaTheme.body_semibold())
@@ -1194,10 +2000,31 @@ func _build_tabbar() -> PanelContainer:
 			btn.icon = GameArt.GEM_ICON
 			btn.add_theme_constant_override("icon_max_width", 34)
 			btn.expand_icon = true
+		var attention_tag := _build_tab_attention_tag()
+		btn.add_child(attention_tag)
 		_tab_buttons[tab[0]] = btn
+		_tab_attention_tags[tab[0]] = attention_tag
 		hbox.add_child(btn)
 
 	return panel
+
+func _build_tab_attention_tag() -> Label:
+	var tag := Label.new()
+	tag.text = "!"
+	tag.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	tag.offset_left = -32
+	tag.offset_right = -6
+	tag.offset_top = 7
+	tag.offset_bottom = 33
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tag.add_theme_font_override("font", ManaTheme.body_semibold())
+	tag.add_theme_font_size_override("font_size", 16)
+	tag.add_theme_color_override("font_color", ManaTheme.CREAM)
+	tag.add_theme_stylebox_override("normal", ManaTheme.panel_style(Color("#b65b3c"), 9, Color("#ffe0a6"), 1, 4, true))
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tag.visible = false
+	return tag
 
 func _show_tab(tab: String) -> void:
 	_tab_atual = tab
@@ -1233,19 +2060,58 @@ func _show_tab(tab: String) -> void:
 				item.update()
 
 func _update_tab_badges() -> void:
-	# Mostra quantos milagres estao disponiveis na aba.
-	var n: int = Upgrades.disponiveis().size()
-	var btn: Button = _tab_buttons.get("milagres")
-	if btn != null:
-		btn.text = "BÊNÇÃOS" + ("  ·  " + str(n) if n > 0 else "")
-	var study_btn: Button = _tab_buttons.get("estudo")
-	if study_btn != null:
-		var unread := int(StudySystem.get_progress_summary().get("unread", 0))
-		study_btn.text = "ESTUDO" + ("  ·  " + str(unread) if unread > 0 else "")
-	var gems_btn: Button = _tab_buttons.get("gemas")
-	if gems_btn != null:
-		var reward_ready := Time.get_unix_time_from_system() >= _video_cooldown_until
-		gems_btn.text = "GEMAS" + ("  ·  +" + str(VIDEO_GEMAS) if reward_ready else "")
+	_set_tab_attention("geradores", false)
+	_set_tab_attention("milagres", _has_affordable_blessing())
+	_set_tab_attention("estudo", _has_study_attention())
+	_set_tab_attention("santos", _has_saints_attention())
+	_set_tab_attention("gemas", _has_gems_attention())
+
+func _set_tab_attention(tab: String, visible: bool) -> void:
+	var tag: Label = _tab_attention_tags.get(tab)
+	if tag != null:
+		tag.visible = visible
+	var button: Button = _tab_buttons.get(tab)
+	if button != null:
+		button.tooltip_text = "Ação disponível" if visible else ""
+
+func _has_affordable_blessing() -> bool:
+	for blessing_variant in Upgrades.disponiveis():
+		var blessing: Dictionary = blessing_variant
+		if GameState.fe >= float(blessing.get("custo", 0.0)):
+			return true
+	return false
+
+func _has_study_attention() -> bool:
+	if int(StudySystem.get_progress_summary().get("unread", 0)) > 0:
+		return true
+	for knowledge_variant in Conhecimentos.all():
+		var knowledge: Dictionary = knowledge_variant
+		var knowledge_id := str(knowledge.get("id", ""))
+		if StudySystem.can_purchase_knowledge(knowledge_id) or StudySystem.can_activate_knowledge(knowledge_id):
+			return true
+	return false
+
+func _has_saints_attention() -> bool:
+	for gift_variant in Dadivas.disponiveis():
+		var gift: Dictionary = gift_variant
+		if GameState.santos >= int(gift.get("custo", 0)):
+			return true
+	var incoming_saints := GameState.get_santos_proximo_prestige()
+	if incoming_saints <= 0:
+		return false
+	if int(GameState.estatisticas.get("prestiges", 0)) == 0:
+		return true
+	return incoming_saints > GameState.santos
+
+func _has_gems_attention() -> bool:
+	if GameState.can_claim_daily_boost_video():
+		return true
+	if GameState.get_reward_videos_remaining() > 0 and Time.get_unix_time_from_system() >= _video_cooldown_until:
+		return true
+	for boost_id in GameState.BOOSTS:
+		if GameState.gemas >= int(GameState.get_boost_data(str(boost_id)).get("custo", 0)):
+			return true
+	return false
 
 # ============================================================ Notificacao (toast)
 
@@ -1306,6 +2172,7 @@ func _setup_signals() -> void:
 	EventBus.study_unlocked.connect(func(_id: String): _on_study_changed())
 	EventBus.wisdom_changed.connect(func(_amount: int): _on_study_changed())
 	EventBus.knowledge_purchased.connect(func(_id: String): _on_economy_changed())
+	EventBus.knowledge_activation_changed.connect(func(_id: String): _on_economy_changed())
 	EventBus.adventure_unlocked.connect(func(_id: String): _on_adventure_changed())
 	EventBus.adventure_completed.connect(func(_id: String): _on_adventure_changed())
 	EventBus.relics_changed.connect(func(_amount: int):
@@ -1316,6 +2183,13 @@ func _setup_signals() -> void:
 		if _tab_atual == "gemas":
 			_refresh_gemas()
 		_refresh_adventure_icons()
+	)
+	EventBus.boosts_changed.connect(func():
+		_refresh_boost_icons()
+		_refresh_boost_store()
+		if _tab_atual == "gemas":
+			_refresh_gemas()
+		_update_all()
 	)
 
 func _on_study_changed() -> void:
@@ -1353,12 +2227,14 @@ func _on_tick() -> void:
 		delta = 1.0 / TICK_RATE
 	GameState.process_tick(delta)
 	_update_topbar()
+	_refresh_inactive_operator_stack()
 	# Progresso dos ciclos anima a cada tick (barato); resto so a cada N ticks.
 	_full_update_counter += 1
 	var do_full: bool = _full_update_counter >= FULL_UPDATE_EVERY
 	if do_full:
 		_full_update_counter = 0
 		_update_tab_badges()
+		_refresh_boost_icons()
 	match _tab_atual:
 		"geradores":
 			for item in _items.values():
@@ -1387,16 +2263,47 @@ func _update_topbar() -> void:
 		_rev_label.text = ""
 	var current_era: int = _get_current_era()
 	_era_label.text = "Era " + str(current_era) + "  ·  " + Geradores.get_era_name(current_era)
-	if _era_progress != null:
-		var total_era := 0
-		var comprados_era := 0
-		for gen_id in GameState.geradores:
-			var data: Dictionary = Geradores.get_data(gen_id)
-			if int(data.get("era", 0)) == current_era and Geradores.get_adventure_for_id(gen_id) == _current_adventure:
-				total_era += 1
-				if int(GameState.geradores[gen_id].get("qtd", 0)) > 0:
-					comprados_era += 1
-		_era_progress.value = float(comprados_era) / float(max(1, total_era))
+	_refresh_era_operator_grid()
+
+func _refresh_era_operator_grid() -> void:
+	if _era_operator_grid == null:
+		return
+	var generators := Geradores.get_by_adventure(_current_adventure)
+	var expected_ids: Array[int] = []
+	for generator in generators:
+		expected_ids.append(int(generator.id))
+	var existing_ids: Array[int] = []
+	for generator_id in _era_squares:
+		existing_ids.append(int(generator_id))
+	expected_ids.sort()
+	existing_ids.sort()
+	if expected_ids != existing_ids:
+		for child in _era_operator_grid.get_children():
+			child.queue_free()
+		_era_squares.clear()
+		for generator in generators:
+			var generator_id := int(generator.id)
+			var slot := Control.new()
+			slot.custom_minimum_size = Vector2(0, 30)
+			slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			_era_operator_grid.add_child(slot)
+			var square: EraProgressSquare = EraProgressSquareScript.new()
+			square.set_anchors_preset(Control.PRESET_FULL_RECT)
+			square.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.add_child(square)
+			_era_squares[generator_id] = square
+	for generator in generators:
+		var generator_id := int(generator.id)
+		var square: EraProgressSquare = _era_squares.get(generator_id)
+		var unlocked := GameState.is_unlocked(generator_id)
+		square.visible = unlocked
+		if not unlocked:
+			continue
+		var state: Dictionary = GameState.geradores.get(generator_id, {})
+		var quantity := int(state.get("qtd", 0))
+		var complete := quantity >= OPERATOR_PROGRESS_TARGET
+		var fill := clampf(float(quantity) / float(OPERATOR_PROGRESS_TARGET), 0.0, 1.0)
+		square.set_state(fill, complete, str(generator.nome) + " · " + str(quantity) + "/" + str(OPERATOR_PROGRESS_TARGET))
 
 func _get_current_era() -> int:
 	var adventure_generators := Geradores.get_by_adventure(_current_adventure)
@@ -1423,6 +2330,7 @@ func _update_all() -> void:
 	_refresh_adventure_selector()
 	for item in _items.values():
 		item.update()
+	_refresh_inactive_operator_stack()
 	if _panel_estudo != null and _tab_atual == "estudo":
 		_panel_estudo.refresh()
 
@@ -1433,7 +2341,9 @@ func _on_prophet(gen_id: int) -> void:
 	GameState.buy_prophet(gen_id)
 
 func _on_cycle_start(gen_id: int) -> void:
-	GameState.start_cycle(gen_id)
+	if GameState.start_cycle(gen_id):
+		_update_item(gen_id)
+		_refresh_inactive_operator_stack()
 
 func _on_prestige() -> void:
 	var ganhos: int = GameState.get_santos_proximo_prestige()
@@ -1466,7 +2376,30 @@ func _load_ui_config() -> void:
 	_apply_font_scale()
 
 func _apply_font_scale() -> void:
-	get_window().content_scale_factor = _font_scale
+	get_window().content_scale_factor = 1.0
+	theme = ManaTheme.make_theme(_font_scale)
+	_apply_font_scale_to_tree(self)
+
+func _apply_font_scale_to_tree(node: Node) -> void:
+	if node is Control:
+		_apply_font_scale_to_control(node)
+	for child in node.get_children():
+		_apply_font_scale_to_tree(child)
+
+func _apply_font_scale_to_control(control: Control) -> void:
+	for theme_key in [&"font_size", &"normal_font_size"]:
+		if not control.has_theme_font_size_override(theme_key):
+			continue
+		var base_meta := "mana_base_" + str(theme_key)
+		if not control.has_meta(base_meta):
+			control.set_meta(base_meta, control.get_theme_font_size(theme_key))
+		var base_size := int(control.get_meta(base_meta))
+		control.add_theme_font_size_override(theme_key, maxi(1, roundi(float(base_size) * _font_scale)))
+
+func _on_tree_node_added(node: Node) -> void:
+	if is_equal_approx(_font_scale, 1.0) or node == self or not is_ancestor_of(node):
+		return
+	call_deferred("_apply_font_scale_to_tree", node)
 
 func _set_font_scale(scale: float) -> void:
 	_font_scale = scale

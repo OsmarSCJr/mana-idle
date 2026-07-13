@@ -38,26 +38,31 @@ assíduo desbloqueia em ~3-4 dias sem pagar; comprador pula a espera.
 Punhado quase chega, o da Bolsa desbloqueia e sobra p/ boosts. Preços em BRL;
 na Play Store usar tiers equivalentes.
 
-## Boosts (interface implementada — mecânica pendente)
+## Boosts (implementado)
 
 Local: coluna lateral do painel Jornada, abaixo dos ícones de capítulo
-(`_build_future_boost_space` em Main.gd). Os cinco impulsos já aparecem como
-peças visuais sem moldura externa; compra, ativação e timer persistente ainda
-precisam ser ligados ao estado do jogo.
+(`_build_future_boost_space` em Main.gd). A compra de cargas fica na TENDA,
+em cards quadrados. Os cinco impulsos aparecem como ícones sem moldura
+externa; o contador no canto da arte mostra as cargas disponíveis e o clique
+abre o modal de uso. Duração e inventário persistem no save.
 
 | Boost | Efeito | Duração | Gemas | Vídeo |
 |---|---|---|---|---|
 | Fervor | Produção ×2 | 4 h | 20 💎 | 1 vídeo = 30 min |
 | Pentecoste | Produção ×5 | 15 min | 10 💎 | — |
-| Colheita | Ganha 2 h de produção offline instantânea | imediato | 15 💎 | 1 vídeo = 15 min |
-| Passo Ligeiro | Ciclos 2× mais rápidos | 1 h | 12 💎 | — |
-| Mãos Santas | Toque manual conta ×10 | 30 min | 8 💎 | 1 vídeo |
+| Colheita | Ganha 2 h de produção offline instantânea | imediato | 15 💎 | — |
+| Passo Ligeiro | Ciclos 2× mais rápidos | 1 h | 12 💎 | 1 vídeo = 30 min |
+| Mãos Santas | Toque manual conta ×10 | 30 min | 8 💎 | — |
 
 Regras:
-- Boosts de mesmo tipo não acumulam (renovam a duração).
-- Duração persiste no save como timestamp de expiração (`boosts: {id: unix_expira}`).
+- Gemas compram uma carga de boost; comprar não ativa o efeito imediatamente.
+- Cada uso consome uma carga. Boosts de duração renovam/estendem o tempo ativo.
+- Duração persiste como timestamp de expiração (`boosts: {id: unix_expira}`) e as
+  cargas em inventário (`boostInventory: {id: quantidade}`).
 - Multiplicadores entram em `Economy.get_multiplicador_global()` (um ponto só).
-- Vídeo: máx. 6 recompensas/dia (contador diário no save) — protege o valor da gema.
+- Vídeo: máx. 6 recompensas a cada 24 h (contador persistido no save), compartilhadas entre gemas e boosts — protege o valor da gema.
+- Bênção Diária: uma carga aleatória de boost por vídeo, uma vez a cada 24 h;
+  revela o impulso recebido, usa contador próprio e não reduz a cota de seis vídeos.
 
 ## Integração de anúncios (rewarded video)
 

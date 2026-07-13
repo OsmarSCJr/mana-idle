@@ -44,15 +44,16 @@ static func body_semibold() -> Font:
 		_body_semibold.variation_opentype = {"wght": 650}
 	return _body_semibold
 
-static func make_theme() -> Theme:
+static func make_theme(font_scale: float = 1.0) -> Theme:
+	var safe_font_scale := maxf(0.1, font_scale)
 	var result := Theme.new()
 	result.default_font = BODY_FONT
-	result.default_font_size = 36
+	result.default_font_size = maxi(1, roundi(36.0 * safe_font_scale))
 
 	result.set_font("font", "Label", BODY_FONT)
 	result.set_font("font", "Button", body_semibold())
 	result.set_font("title_font", "Window", serif_bold())
-	result.set_font_size("font_size", "Button", 35)
+	result.set_font_size("font_size", "Button", maxi(1, roundi(35.0 * safe_font_scale)))
 	result.set_color("font_color", "Label", CREAM)
 	result.set_color("font_color", "Button", CREAM)
 	result.set_color("font_hover_color", "Button", Color("#fff3cf"))

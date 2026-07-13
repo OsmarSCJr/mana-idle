@@ -21,6 +21,12 @@ var _santo_bonus_extra: float = 0.0  # aditivo por Santo (dadiva Comunhao)
 var _offline_mult: float = 1.0
 var _offline_cap_mult: float = 1.0
 var _offline_cap_bonus: float = 0.0
+var _manual_knowledge_mult: float = 1.0
+var _prophet_cost_mult: float = 1.0
+var _boost_duration_mult: float = 1.0
+var _study_faith_mult: float = 1.0
+var _adventure_fe_discount: float = 1.0
+var _adventure_gem_discount: float = 1.0
 var _x100_unlocked: bool = false
 
 func recompute_multiplicadores() -> void:
@@ -32,6 +38,12 @@ func recompute_multiplicadores() -> void:
 	_offline_mult = 1.0
 	_offline_cap_mult = 1.0
 	_offline_cap_bonus = 0.0
+	_manual_knowledge_mult = 1.0
+	_prophet_cost_mult = 1.0
+	_boost_duration_mult = 1.0
+	_study_faith_mult = 1.0
+	_adventure_fe_discount = 1.0
+	_adventure_gem_discount = 1.0
 	_x100_unlocked = false
 
 	for uid in GameState.upgrades_comprados:
@@ -68,8 +80,8 @@ func recompute_multiplicadores() -> void:
 				for i in range(1, Geradores.count() + 1):
 					_custo_gen[i] = _custo_gen.get(i, 1.0) * d.mult
 
-	# Conhecimentos sao permanentes e comprados com Sabedoria.
-	for knowledge_id in GameState.conhecimentos_comprados:
+	# Conhecimentos comprados podem ser ativados ou guardados para outra build.
+	for knowledge_id in GameState.conhecimentos_ativos:
 		var knowledge: Dictionary = Conhecimentos.get_data(knowledge_id)
 		if knowledge.is_empty():
 			continue
@@ -85,6 +97,23 @@ func recompute_multiplicadores() -> void:
 					_custo_gen[i] = _custo_gen.get(i, 1.0) * value
 			"global_prod":
 				_global_prod *= value
+			"global_speed":
+				for i in range(1, Geradores.count() + 1):
+					_tempo_gen[i] = _tempo_gen.get(i, 1.0) * value
+			"manual_mult":
+				_manual_knowledge_mult *= value
+			"santo_bonus":
+				_santo_bonus_extra += value
+			"prophet_discount":
+				_prophet_cost_mult *= value
+			"boost_duration":
+				_boost_duration_mult *= value
+			"study_faith":
+				_study_faith_mult *= value
+			"adventure_fe_discount":
+				_adventure_fe_discount *= value
+			"adventure_gem_discount":
+				_adventure_gem_discount *= value
 
 	# Paginas Iluminadas concedem um bonus pequeno apenas a sua era.
 	var pages: Array = GameState.estudo_progresso.get("paginasIluminadas", [])
@@ -146,6 +175,8 @@ func get_desconto(gen_id: int) -> float:
 func get_tempo_ciclo(gen_id: int) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
 	var tempo: float = data.tempo * _tempo_gen.get(gen_id, 1.0)
+	if GameState.is_boost_active("passo_ligeiro"):
+		tempo *= 0.5
 	# tempo_min e o teto de aceleracao do gerador: com todas as bencaos de
 	# velocidade ativas, o ciclo chega exatamente ai e nao passa disso.
 	return max(tempo, float(data.get("tempo_min", 0.1)))
@@ -200,13 +231,28 @@ func get_multiplicador_santos() -> float:
 	return 1.0 + float(GameState.santos) * value_per_saint
 
 func get_multiplicador_global() -> float:
-	return get_multiplicador_santos() * _global_prod
+	return get_multiplicador_santos() * _global_prod * GameState.get_boost_production_multiplier()
 
 func get_offline_mult() -> float:
 	return _offline_mult
 
 func get_offline_cap() -> float:
 	return OFFLINE_CAP_BASE * _offline_cap_mult + _offline_cap_bonus
+
+func get_manual_knowledge_multiplier() -> float:
+	return _manual_knowledge_mult
+
+func get_boost_duration_multiplier() -> float:
+	return _boost_duration_mult
+
+func get_study_faith_multiplier() -> float:
+	return _study_faith_mult
+
+func get_adventure_fe_discount() -> float:
+	return _adventure_fe_discount
+
+func get_adventure_gem_discount() -> float:
+	return _adventure_gem_discount
 
 func profeta_disponivel(gen_id: int) -> bool:
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
@@ -219,7 +265,7 @@ func get_profeta_custo(gen_id: int) -> float:
 	if data.is_empty():
 		return 0.0
 	var custo_liberacao: float = data.custo_base * (pow(GROWTH_RATE, PROFETA_LIBERACAO_QTD) - 1.0) / (GROWTH_RATE - 1.0)
-	return custo_liberacao * PROFETA_CUSTO_MULT
+	return custo_liberacao * PROFETA_CUSTO_MULT * _prophet_cost_mult
 
 func profeta_pode_comprar(gen_id: int) -> bool:
 	if not profeta_disponivel(gen_id):

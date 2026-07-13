@@ -84,7 +84,7 @@ func _reward_amount(study: Dictionary, kind: String) -> float:
 	var minimums: Dictionary = study.get("reward_minimums", {})
 	var ratio := float(ratios.get(kind, 0.0))
 	var minimum := float(minimums.get(kind, 0.0))
-	return max(minimum, floor(_reward_target(study) * ratio))
+	return max(minimum, floor(_reward_target(study) * ratio)) * Economy.get_study_faith_multiplier()
 
 func _claim_reward(reward_id: String, faith: float = 0.0, wisdom: int = 0) -> bool:
 	if reward_id in _list("recompensasResgatadas"):
@@ -194,18 +194,85 @@ func buy_knowledge(knowledge_id: String) -> Dictionary:
 		return {"ok": false, "reason": "missing"}
 	if knowledge_id in GameState.conhecimentos_comprados:
 		return {"ok": false, "reason": "owned"}
+	if not _knowledge_requirements_met(knowledge, GameState.conhecimentos_comprados):
+		return {"ok": false, "reason": "prerequisite"}
 	var cost := int(knowledge.get("cost", 0))
 	if GameState.sabedoria < cost:
 		return {"ok": false, "reason": "insufficient"}
 	GameState.sabedoria -= cost
 	GameState.conhecimentos_comprados.append(knowledge_id)
+	if _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos):
+		GameState.conhecimentos_ativos.append(knowledge_id)
 	Economy.recompute_multiplicadores()
 	EventBus.wisdom_changed.emit(GameState.sabedoria)
 	EventBus.knowledge_purchased.emit(knowledge_id)
+	EventBus.knowledge_activation_changed.emit(knowledge_id)
 	EventBus.study_progress_changed.emit("")
 	EventBus.toast_requested.emit("Conhecimento adquirido: " + str(knowledge.get("title", knowledge_id)))
 	_request_save()
-	return {"ok": true, "cost": cost}
+	return {"ok": true, "cost": cost, "active": knowledge_id in GameState.conhecimentos_ativos}
+
+func can_purchase_knowledge(knowledge_id: String) -> bool:
+	var knowledge := Conhecimentos.get_data(knowledge_id)
+	return not knowledge.is_empty() and knowledge_id not in GameState.conhecimentos_comprados and _knowledge_requirements_met(knowledge, GameState.conhecimentos_comprados) and GameState.sabedoria >= int(knowledge.get("cost", 0))
+
+func can_activate_knowledge(knowledge_id: String) -> bool:
+	var knowledge := Conhecimentos.get_data(knowledge_id)
+	return not knowledge.is_empty() and knowledge_id in GameState.conhecimentos_comprados and knowledge_id not in GameState.conhecimentos_ativos and _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos)
+
+func set_knowledge_active(knowledge_id: String, should_be_active: bool) -> Dictionary:
+	var knowledge := Conhecimentos.get_data(knowledge_id)
+	if knowledge.is_empty() or knowledge_id not in GameState.conhecimentos_comprados:
+		return {"ok": false, "reason": "missing"}
+	var was_active := knowledge_id in GameState.conhecimentos_ativos
+	if should_be_active:
+		if was_active:
+			return {"ok": true, "changed": false}
+		if not _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos):
+			return {"ok": false, "reason": "inactive_prerequisite"}
+		GameState.conhecimentos_ativos.append(knowledge_id)
+	else:
+		if not was_active:
+			return {"ok": true, "changed": false}
+		GameState.conhecimentos_ativos.erase(knowledge_id)
+		_prune_invalid_active_knowledge()
+	Economy.recompute_multiplicadores()
+	EventBus.knowledge_activation_changed.emit(knowledge_id)
+	EventBus.study_progress_changed.emit("")
+	_request_save()
+	return {"ok": true, "changed": true, "active": should_be_active}
+
+func clear_active_knowledge() -> bool:
+	if GameState.conhecimentos_ativos.is_empty():
+		return false
+	GameState.conhecimentos_ativos.clear()
+	Economy.recompute_multiplicadores()
+	EventBus.knowledge_activation_changed.emit("")
+	EventBus.study_progress_changed.emit("")
+	_request_save()
+	return true
+
+func _knowledge_requirements_met(knowledge: Dictionary, source: Array) -> bool:
+	for required_id in Conhecimentos.get_requires(knowledge):
+		if str(required_id) not in source:
+			return false
+	var requires_any := Conhecimentos.get_requires_any(knowledge)
+	if not requires_any.is_empty():
+		for required_id in requires_any:
+			if str(required_id) in source:
+				return true
+		return false
+	return true
+
+func _prune_invalid_active_knowledge() -> void:
+	var changed := true
+	while changed:
+		changed = false
+		for active_id in GameState.conhecimentos_ativos.duplicate():
+			var knowledge := Conhecimentos.get_data(str(active_id))
+			if knowledge.is_empty() or not _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos):
+				GameState.conhecimentos_ativos.erase(active_id)
+				changed = true
 
 func get_progress_summary() -> Dictionary:
 	var total := EstudosBiblicos.count()
@@ -229,6 +296,7 @@ func get_progress_summary() -> Dictionary:
 		"title": str(GameState.estudo_progresso.get("titulo", "")),
 		"purchased_knowledge": GameState.conhecimentos_comprados.duplicate(),
 		"conhecimentos_comprados": GameState.conhecimentos_comprados.duplicate(),
+		"active_knowledge": GameState.conhecimentos_ativos.duplicate(),
 		"read_chapters": _list("capitulosLidos").size(),
 	}
 

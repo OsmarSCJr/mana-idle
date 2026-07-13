@@ -15,6 +15,7 @@ const STATE_LOCKED := "locked"
 const STATE_NEW := "new"
 const STATE_READ := "read"
 const STATE_MASTERED := "mastered"
+const OLIVE_TREE_TEXTURE: Texture2D = preload("res://assets/ui/knowledge_olive_tree.png")
 
 var _built := false
 var _refreshing := false
@@ -30,7 +31,14 @@ var _detail_view: VBoxContainer
 var _knowledge_view: VBoxContainer
 var _bible_reader: BibleReaderPanel
 var _studies_list: VBoxContainer
-var _knowledge_list: VBoxContainer
+var _knowledge_tree_canvas: Control
+var _knowledge_detail_title: Label
+var _knowledge_detail_effect: Label
+var _knowledge_detail_state: Label
+var _knowledge_detail_action: Button
+var _knowledge_build_label: Label
+var _knowledge_clear_button: Button
+var _selected_knowledge_id := "knowledge_good_seed"
 
 var _progress_label: Label
 var _progress_bar: ProgressBar
@@ -57,7 +65,7 @@ func refresh() -> void:
 	_summary = StudySystem.get_progress_summary()
 	_refresh_header()
 	_refresh_studies_list()
-	_refresh_knowledge_list()
+	_refresh_knowledge_tree()
 	if not _active_study_id.is_empty() and _detail_view != null and _detail_view.visible:
 		_show_study_detail(_active_study_id)
 	_refreshing = false
@@ -75,7 +83,7 @@ func show_section(section: String) -> void:
 	if section == SECTION_BIBLE:
 		_bible_reader.refresh_books()
 	elif section == SECTION_KNOWLEDGE:
-		_refresh_knowledge_list()
+		_refresh_knowledge_tree()
 	else:
 		_refresh_studies_list()
 
@@ -126,6 +134,8 @@ func _connect_signals() -> void:
 		EventBus.study_unlocked.connect(_on_study_unlocked)
 	if not EventBus.wisdom_changed.is_connected(_on_wisdom_changed):
 		EventBus.wisdom_changed.connect(_on_wisdom_changed)
+	if not EventBus.knowledge_activation_changed.is_connected(_on_knowledge_activation_changed):
+		EventBus.knowledge_activation_changed.connect(_on_knowledge_activation_changed)
 
 
 func _build_header() -> PanelContainer:
@@ -221,8 +231,8 @@ func _build_section_tabs() -> PanelContainer:
 
 	var definitions := [
 		[SECTION_STUDIES, "Estudos"],
-		[SECTION_BIBLE, "Bíblia"],
 		[SECTION_KNOWLEDGE, "Conhecimentos"],
+		[SECTION_BIBLE, "Leia a Bíblia"],
 	]
 	for definition in definitions:
 		var button := Button.new()
@@ -273,32 +283,85 @@ func _build_studies_view() -> VBoxContainer:
 
 func _build_knowledge_view() -> VBoxContainer:
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 12)
+	root.add_theme_constant_override("separation", 10)
 
+	var heading := HBoxContainer.new()
+	heading.add_theme_constant_override("separation", 14)
+	root.add_child(heading)
+	var heading_copy := VBoxContainer.new()
+	heading_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading_copy.add_theme_constant_override("separation", -3)
+	heading.add_child(heading_copy)
 	var title := Label.new()
-	title.text = "Conhecimentos permanentes"
+	title.text = "Oliveira da Sabedoria"
 	title.add_theme_font_override("font", ManaTheme.serif_bold())
-	title.add_theme_font_size_override("font_size", 41)
+	title.add_theme_font_size_override("font_size", 38)
 	title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
-	root.add_child(title)
+	heading_copy.add_child(title)
 	var explanation := Label.new()
-	explanation.text = "Use a Sabedoria conquistada nos estudos. Os efeitos adquiridos permanecem após a Ressurreição."
-	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	explanation.add_theme_font_override("font", ManaTheme.SERIF_ITALIC_FONT)
-	explanation.add_theme_font_size_override("font_size", 25)
+	explanation.text = "Compre nos permanentes e ative os ramos que deseja usar na sua build."
+	explanation.add_theme_font_size_override("font_size", 18)
 	explanation.add_theme_color_override("font_color", ManaTheme.CREAM_MUTED)
-	root.add_child(explanation)
+	heading_copy.add_child(explanation)
+	var build_panel := PanelContainer.new()
+	build_panel.custom_minimum_size = Vector2(196, 62)
+	build_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#173447"), 16, Color("#79e6e8"), 1, 10, true))
+	heading.add_child(build_panel)
+	_knowledge_build_label = Label.new()
+	_knowledge_build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_knowledge_build_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_knowledge_build_label.add_theme_font_override("font", ManaTheme.body_semibold())
+	_knowledge_build_label.add_theme_font_size_override("font_size", 17)
+	_knowledge_build_label.add_theme_color_override("font_color", Color("#d9fdff"))
+	build_panel.add_child(_knowledge_build_label)
+	_knowledge_clear_button = Button.new()
+	_knowledge_clear_button.text = "LIMPAR"
+	_knowledge_clear_button.custom_minimum_size = Vector2(98, 62)
+	_knowledge_clear_button.add_theme_font_size_override("font_size", 14)
+	ManaTheme.apply_secondary_light_button(_knowledge_clear_button)
+	_knowledge_clear_button.pressed.connect(_clear_knowledge_build)
+	heading.add_child(_knowledge_clear_button)
+
+	var detail := PanelContainer.new()
+	detail.custom_minimum_size = Vector2(0, 166)
+	detail.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#18233e"), 18, Color("#d3ad5a"), 1, 16, true))
+	root.add_child(detail)
+	var detail_row := HBoxContainer.new()
+	detail_row.add_theme_constant_override("separation", 14)
+	detail.add_child(detail_row)
+	var detail_copy := VBoxContainer.new()
+	detail_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_copy.add_theme_constant_override("separation", 2)
+	detail_row.add_child(detail_copy)
+	_knowledge_detail_title = Label.new()
+	_knowledge_detail_title.add_theme_font_override("font", ManaTheme.serif_bold())
+	_knowledge_detail_title.add_theme_font_size_override("font_size", 30)
+	_knowledge_detail_title.add_theme_color_override("font_color", ManaTheme.CREAM)
+	detail_copy.add_child(_knowledge_detail_title)
+	_knowledge_detail_effect = Label.new()
+	_knowledge_detail_effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_knowledge_detail_effect.add_theme_font_size_override("font_size", 19)
+	_knowledge_detail_effect.add_theme_color_override("font_color", Color("#91e6d0"))
+	detail_copy.add_child(_knowledge_detail_effect)
+	_knowledge_detail_state = Label.new()
+	_knowledge_detail_state.add_theme_font_override("font", ManaTheme.body_semibold())
+	_knowledge_detail_state.add_theme_font_size_override("font_size", 16)
+	_knowledge_detail_state.add_theme_color_override("font_color", ManaTheme.CREAM_MUTED)
+	detail_copy.add_child(_knowledge_detail_state)
+	_knowledge_detail_action = Button.new()
+	_knowledge_detail_action.custom_minimum_size = Vector2(210, 84)
+	_knowledge_detail_action.add_theme_font_size_override("font_size", 18)
+	_knowledge_detail_action.pressed.connect(_on_knowledge_action)
+	detail_row.add_child(_knowledge_detail_action)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	root.add_child(scroll)
-	_knowledge_list = VBoxContainer.new()
-	_knowledge_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_knowledge_list.add_theme_constant_override("separation", 14)
-	scroll.add_child(_knowledge_list)
-	ManaTheme.enable_touch_scroll(scroll, _knowledge_list)
+	_knowledge_tree_canvas = Control.new()
+	_knowledge_tree_canvas.custom_minimum_size = Vector2(880, 1560)
+	scroll.add_child(_knowledge_tree_canvas)
+	ManaTheme.enable_touch_scroll(scroll, _knowledge_tree_canvas)
 	return root
 
 
@@ -749,77 +812,184 @@ func _back_to_studies() -> void:
 	_set_view_visibility()
 
 
-func _refresh_knowledge_list() -> void:
-	if _knowledge_list == null:
+func _refresh_knowledge_tree() -> void:
+	if _knowledge_tree_canvas == null:
 		return
-	_clear_children(_knowledge_list)
-	var purchased: Array = _summary.get("purchased_knowledge", _summary.get("conhecimentos_comprados", []))
-	for knowledge_variant in Conhecimentos.all():
+	_clear_children(_knowledge_tree_canvas)
+	var background := TextureRect.new()
+	background.texture = OLIVE_TREE_TEXTURE
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	background.modulate = Color(1.0, 1.0, 1.0, 0.94)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_knowledge_tree_canvas.add_child(background)
+
+	var knowledge_data := Conhecimentos.all()
+	for knowledge_variant in knowledge_data:
 		var knowledge: Dictionary = knowledge_variant
-		_knowledge_list.add_child(_build_knowledge_card(knowledge, purchased))
+		for required_id in Conhecimentos.get_requires(knowledge):
+			_add_knowledge_link(str(required_id), str(knowledge.get("id", "")))
+		for required_id in Conhecimentos.get_requires_any(knowledge):
+			_add_knowledge_link(str(required_id), str(knowledge.get("id", "")))
+	for knowledge_variant in knowledge_data:
+		var knowledge: Dictionary = knowledge_variant
+		_knowledge_tree_canvas.add_child(_build_knowledge_node(knowledge))
+	_refresh_knowledge_detail()
 
+func _add_knowledge_link(parent_id: String, child_id: String) -> void:
+	var parent := Conhecimentos.get_data(parent_id)
+	var child := Conhecimentos.get_data(child_id)
+	if parent.is_empty() or child.is_empty():
+		return
+	var link := Line2D.new()
+	link.add_point(_knowledge_position(parent))
+	link.add_point(_knowledge_position(child))
+	var linked_active := parent_id in GameState.conhecimentos_ativos and child_id in GameState.conhecimentos_ativos
+	var linked_owned := parent_id in GameState.conhecimentos_comprados and child_id in GameState.conhecimentos_comprados
+	link.width = 6.0 if linked_active else 3.0
+	link.default_color = Color("#ffe08a") if linked_active else (Color("#82b5ac") if linked_owned else Color(1.0, 1.0, 1.0, 0.16))
+	link.z_index = 1
+	_knowledge_tree_canvas.add_child(link)
 
-func _build_knowledge_card(knowledge: Dictionary, purchased: Array) -> PanelContainer:
+func _knowledge_position(knowledge: Dictionary) -> Vector2:
+	var value: Variant = knowledge.get("position", [440, 780])
+	if value is Array and value.size() >= 2:
+		return Vector2(float(value[0]), float(value[1]))
+	return Vector2(440, 780)
+
+func _build_knowledge_node(knowledge: Dictionary) -> Button:
 	var knowledge_id := str(knowledge.get("id", ""))
-	var owned := knowledge_id in purchased
-	var cost := int(knowledge.get("cost", 0))
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(0, 126)
-	var bg := ManaTheme.PARCHMENT if owned else ManaTheme.SURFACE_HIGH
-	var border := ManaTheme.GREEN if owned else Color(ManaTheme.GOLD_LIGHT, 0.24)
-	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(bg, 22, border, 2, 20, owned))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 18)
-	panel.add_child(row)
-
-	var symbol := Label.new()
-	symbol.text = "✓" if owned else "✦"
-	symbol.custom_minimum_size = Vector2(62, 0)
-	symbol.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	symbol.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	symbol.add_theme_font_override("font", ManaTheme.serif_bold())
-	symbol.add_theme_font_size_override("font_size", 43)
-	symbol.add_theme_color_override("font_color", ManaTheme.GREEN if owned else ManaTheme.GOLD_LIGHT)
-	row.add_child(symbol)
-
-	var info := VBoxContainer.new()
-	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info.add_theme_constant_override("separation", 5)
-	row.add_child(info)
-	var title := Label.new()
-	title.text = str(knowledge.get("name", knowledge.get("title", "Conhecimento")))
-	title.add_theme_font_override("font", ManaTheme.serif_bold())
-	title.add_theme_font_size_override("font_size", 34)
-	title.add_theme_color_override("font_color", ManaTheme.INK if owned else ManaTheme.CREAM)
-	info.add_child(title)
-	var effect := Label.new()
-	effect.text = str(knowledge.get("effect_text", "Bônus permanente"))
-	effect.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	effect.add_theme_font_size_override("font_size", 24)
-	effect.add_theme_color_override("font_color", ManaTheme.INK_MUTED if owned else ManaTheme.CREAM_MUTED)
-	info.add_child(effect)
-
-	var buy := Button.new()
-	buy.text = "Adquirido" if owned else (str(cost) + " Sabedoria")
-	buy.custom_minimum_size = Vector2(230, 70)
-	buy.add_theme_font_size_override("font_size", 24)
-	buy.disabled = owned or GameState.sabedoria < cost
-	buy.pressed.connect(_buy_knowledge.bind(knowledge_id))
+	var owned := knowledge_id in GameState.conhecimentos_comprados
+	var active := knowledge_id in GameState.conhecimentos_ativos
+	var category := str(knowledge.get("category", "roots"))
+	var accent := Conhecimentos.category_color(category)
+	var node := Button.new()
+	node.custom_minimum_size = Vector2(76, 76)
+	node.size = Vector2(76, 76)
+	node.position = _knowledge_position(knowledge) - Vector2(38, 38)
+	node.tooltip_text = str(knowledge.get("name", "Conhecimento")) + "\n" + str(knowledge.get("effect_text", ""))
+	node.add_theme_stylebox_override("normal", ManaTheme.button_style(Color(accent, 0.88) if active else Color(accent, 0.12), Color("#fff9e7") if active else Color(accent, 0.60), 38, 3 if active else 2, 6, 4))
+	node.add_theme_stylebox_override("hover", ManaTheme.button_style(Color(accent, 0.35), Color("#fff0bd"), 38, 3, 6, 4))
+	node.add_theme_stylebox_override("pressed", ManaTheme.button_style(Color(accent, 0.45), Color.WHITE, 38, 3, 6, 4))
 	if not owned:
-		ManaTheme.apply_primary_button(buy)
-	row.add_child(buy)
-	return panel
+		node.modulate = Color(0.70, 0.70, 0.76, 0.82)
+	if knowledge_id == _selected_knowledge_id:
+		node.add_theme_stylebox_override("normal", ManaTheme.button_style(Color(accent, 0.96) if active else Color(accent, 0.36), Color.WHITE if active else Color("#fff0bd"), 38, 4, 6, 4))
+	var icon := TextureRect.new()
+	icon.texture = GameArt.knowledge_icon(category)
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.offset_left = 12
+	icon.offset_top = 12
+	icon.offset_right = -12
+	icon.offset_bottom = -12
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.add_child(icon)
+	var cost := Label.new()
+	cost.text = str(int(knowledge.get("cost", 0)))
+	cost.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	cost.offset_left = -23
+	cost.offset_right = -1
+	cost.offset_top = 2
+	cost.offset_bottom = 24
+	cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	cost.add_theme_font_override("font", ManaTheme.body_semibold())
+	cost.add_theme_font_size_override("font_size", 12)
+	cost.add_theme_color_override("font_color", ManaTheme.INK)
+	cost.add_theme_stylebox_override("normal", ManaTheme.panel_style(ManaTheme.GOLD_LIGHT, 9, ManaTheme.GOLD, 1, 2, true))
+	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.add_child(cost)
+	node.pressed.connect(_select_knowledge.bind(knowledge_id))
+	node.z_index = 2
+	return node
 
+func _select_knowledge(knowledge_id: String) -> void:
+	_selected_knowledge_id = knowledge_id
+	_refresh_knowledge_tree()
 
-func _buy_knowledge(knowledge_id: String) -> void:
-	var result: Dictionary = StudySystem.buy_knowledge(knowledge_id)
+func _refresh_knowledge_detail() -> void:
+	var knowledge := Conhecimentos.get_data(_selected_knowledge_id)
+	if knowledge.is_empty():
+		var all := Conhecimentos.all()
+		if all.is_empty():
+			return
+		knowledge = all[0]
+		_selected_knowledge_id = str(knowledge.get("id", ""))
+	var knowledge_id := str(knowledge.get("id", ""))
+	var owned := knowledge_id in GameState.conhecimentos_comprados
+	var active := knowledge_id in GameState.conhecimentos_ativos
+	var purchased_prerequisites := _knowledge_requirements_met(knowledge, GameState.conhecimentos_comprados)
+	var active_prerequisites := _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos)
+	_knowledge_build_label.text = "BUILD  " + str(GameState.conhecimentos_ativos.size()) + " ATIVOS"
+	_knowledge_clear_button.disabled = GameState.conhecimentos_ativos.is_empty()
+	_knowledge_detail_title.text = str(knowledge.get("name", "Conhecimento"))
+	_knowledge_detail_effect.text = str(knowledge.get("effect_text", ""))
+	if active:
+		_knowledge_detail_state.text = "ATIVO  ·  efeito aplicado"
+		_knowledge_detail_action.text = "DESATIVAR"
+		_knowledge_detail_action.disabled = false
+		ManaTheme.apply_secondary_light_button(_knowledge_detail_action)
+	elif owned:
+		_knowledge_detail_state.text = "ADQUIRIDO  ·  " + _knowledge_requirement_text(knowledge, true)
+		_knowledge_detail_action.text = "ATIVAR"
+		_knowledge_detail_action.disabled = not active_prerequisites
+		ManaTheme.apply_primary_button(_knowledge_detail_action)
+	else:
+		_knowledge_detail_state.text = _knowledge_requirement_text(knowledge, false)
+		_knowledge_detail_action.text = "ADQUIRIR  ·  " + str(int(knowledge.get("cost", 0))) + " SAB"
+		_knowledge_detail_action.disabled = not purchased_prerequisites or GameState.sabedoria < int(knowledge.get("cost", 0))
+		ManaTheme.apply_primary_button(_knowledge_detail_action)
+
+func _knowledge_requirements_met(knowledge: Dictionary, source: Array) -> bool:
+	for required_id in Conhecimentos.get_requires(knowledge):
+		if str(required_id) not in source:
+			return false
+	var requires_any := Conhecimentos.get_requires_any(knowledge)
+	if not requires_any.is_empty():
+		for required_id in requires_any:
+			if str(required_id) in source:
+				return true
+		return false
+	return true
+
+func _knowledge_requirement_text(knowledge: Dictionary, use_active: bool) -> String:
+	var source := GameState.conhecimentos_ativos if use_active else GameState.conhecimentos_comprados
+	if _knowledge_requirements_met(knowledge, source):
+		return "PRONTO PARA " + ("ATIVAR" if use_active else "ADQUIRIR")
+	var labels: Array[String] = []
+	for required_id in Conhecimentos.get_requires(knowledge):
+		labels.append(str(Conhecimentos.get_data(str(required_id)).get("name", "ramo anterior")))
+	var requires_any := Conhecimentos.get_requires_any(knowledge)
+	if not requires_any.is_empty():
+		labels.append("uma especializacao da copa")
+	return "REQUER  " + ", ".join(labels)
+
+func _on_knowledge_action() -> void:
+	var knowledge := Conhecimentos.get_data(_selected_knowledge_id)
+	if knowledge.is_empty():
+		return
+	var owned := _selected_knowledge_id in GameState.conhecimentos_comprados
+	var result := StudySystem.set_knowledge_active(_selected_knowledge_id, not (_selected_knowledge_id in GameState.conhecimentos_ativos)) if owned else StudySystem.buy_knowledge(_selected_knowledge_id)
 	if not bool(result.get("ok", false)):
-		if str(result.get("reason", "")) == "insufficient":
-			EventBus.toast_requested.emit("Sabedoria insuficiente para este conhecimento.")
+		match str(result.get("reason", "")):
+			"insufficient": EventBus.toast_requested.emit("Sabedoria insuficiente para este conhecimento.")
+			"prerequisite": EventBus.toast_requested.emit("Adquira primeiro o ramo anterior da oliveira.")
+			"inactive_prerequisite": EventBus.toast_requested.emit("Ative primeiro o ramo anterior desta build.")
+			_: EventBus.toast_requested.emit("Este conhecimento nao pode ser alterado agora.")
 		return
 	_summary = StudySystem.get_progress_summary()
 	_refresh_header()
-	_refresh_knowledge_list()
+	_refresh_knowledge_tree()
+
+func _clear_knowledge_build() -> void:
+	if StudySystem.clear_active_knowledge():
+		EventBus.toast_requested.emit("Build da oliveira limpa.")
+	_summary = StudySystem.get_progress_summary()
+	_refresh_header()
+	_refresh_knowledge_tree()
 
 
 func _set_view_visibility() -> void:
@@ -857,6 +1027,9 @@ func _on_study_unlocked(_study_id: String = "") -> void:
 
 
 func _on_wisdom_changed(_amount: int = 0) -> void:
+	refresh()
+
+func _on_knowledge_activation_changed(_knowledge_id: String = "") -> void:
 	refresh()
 
 

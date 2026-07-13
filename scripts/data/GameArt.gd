@@ -109,6 +109,33 @@ const GIFT_ICONS := {
 const SANTOS_ICON: Texture2D = preload("res://assets/icons/ui/ui_santos.png")
 const RELIQUIAS_ICON: Texture2D = preload("res://assets/icons/ui/ui_reliquias.png")
 const GEM_ICON: Texture2D = preload("res://assets/icons/ui/ui_gema_256.png")
+const DAILY_BLESSING_ICON: Texture2D = preload("res://assets/icons/ui/ui_daily_blessing.png")
+const FAITH_ICON: Texture2D = preload("res://assets/icons/ui/ui_fe.png")
+const SETTINGS_ICON: Texture2D = preload("res://assets/icons/ui/ui_settings_wood.png")
+const MANA_ICON: Texture2D = preload("res://assets/icons/geradores/g05_mana_ceu.png")
+const OPEN_BIBLE_ICON: Texture2D = preload("res://assets/icons/ui/ui_open_bible.png")
+
+const KNOWLEDGE_ICONS := {
+	"roots": preload("res://assets/icons/knowledge/knowledge_roots.png"),
+	"word": preload("res://assets/icons/knowledge/knowledge_word.png"),
+	"work": preload("res://assets/icons/knowledge/knowledge_work.png"),
+	"communion": preload("res://assets/icons/knowledge/knowledge_communion.png"),
+	"mission": preload("res://assets/icons/knowledge/knowledge_mission.png"),
+	"crown": DAILY_BLESSING_ICON,
+}
+
+const SIDEBAR_ADVENTURE_ICONS := {
+	"vida_cristo": preload("res://assets/icons/sidebar/adventure_christ.png"),
+	"igreja_apocalipse": preload("res://assets/icons/sidebar/adventure_apocalypse.png"),
+}
+
+const SIDEBAR_BOOST_ICONS := {
+	"fervor": preload("res://assets/icons/sidebar/boost_fervor.png"),
+	"pentecoste": preload("res://assets/icons/sidebar/boost_pentecost.png"),
+	"colheita": preload("res://assets/icons/sidebar/boost_harvest.png"),
+	"passo_ligeiro": preload("res://assets/icons/sidebar/boost_swift_step.png"),
+	"maos_santas": preload("res://assets/icons/sidebar/boost_holy_hands.png"),
+}
 
 
 static func generator_icon(generator_id: int) -> Texture2D:
@@ -129,3 +156,12 @@ static func special_prophet_portrait(upgrade_id: String) -> Texture2D:
 
 static func gift_icon(gift_id: String) -> Texture2D:
 	return GIFT_ICONS.get(gift_id) as Texture2D
+
+static func sidebar_adventure_icon(adventure_id: String) -> Texture2D:
+	return SIDEBAR_ADVENTURE_ICONS.get(adventure_id) as Texture2D
+
+static func sidebar_boost_icon(boost_id: String) -> Texture2D:
+	return SIDEBAR_BOOST_ICONS.get(boost_id) as Texture2D
+
+static func knowledge_icon(category: String) -> Texture2D:
+	return KNOWLEDGE_ICONS.get(category, DAILY_BLESSING_ICON) as Texture2D
