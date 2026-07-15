@@ -17,8 +17,8 @@ const GOLD: Color = ManaTheme.GOLD
 const GREEN: Color = ManaTheme.GREEN
 
 const MAX_FLOATS: int = 3  # limite de labels "+Fe" simultaneas
-const CARD_MIN_HEIGHT: float = 252.0
-const ICON_SIZE: float = 94.0
+const CARD_MIN_HEIGHT: float = 264.0
+const ICON_SIZE: float = 100.0
 const FAST_CYCLE_THRESHOLD: float = 1.1
 
 var gen_id: int = 0
@@ -160,7 +160,7 @@ func _build_ui() -> void:
 	_name_label = Label.new()
 	_name_label.text = data.get("nome", "???")
 	_name_label.add_theme_font_override("font", ManaTheme.serif_bold())
-	_name_label.add_theme_font_size_override("font_size", 33)
+	_name_label.add_theme_font_size_override("font_size", 37)
 	_name_label.add_theme_color_override("font_color", TEXT_COLOR)
 	_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_name_label.tooltip_text = _name_label.text
@@ -174,7 +174,7 @@ func _build_ui() -> void:
 
 	_qty_label = Label.new()
 	_qty_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_qty_label.add_theme_font_size_override("font_size", 23)
+	_qty_label.add_theme_font_size_override("font_size", 25)
 	_qty_label.add_theme_color_override("font_color", ManaTheme.GOLD_DARK)
 	_qty_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sub_hbox.add_child(_qty_label)
@@ -184,7 +184,7 @@ func _build_ui() -> void:
 	sub_hbox.add_child(_status_chip)
 	_status_label = Label.new()
 	_status_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_status_label.add_theme_font_size_override("font_size", 16)
+	_status_label.add_theme_font_size_override("font_size", 17)
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -200,7 +200,7 @@ func _build_ui() -> void:
 
 	_rev_label = Label.new()
 	_rev_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_rev_label.add_theme_font_size_override("font_size", 23)
+	_rev_label.add_theme_font_size_override("font_size", 25)
 	_rev_label.add_theme_color_override("font_color", GREEN)
 	_rev_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_rev_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -210,7 +210,7 @@ func _build_ui() -> void:
 	_flavor_label = Label.new()
 	_flavor_label.text = data.get("flavor", "")
 	_flavor_label.add_theme_font_override("font", ManaTheme.SERIF_ITALIC_FONT)
-	_flavor_label.add_theme_font_size_override("font_size", 20)
+	_flavor_label.add_theme_font_size_override("font_size", 22)
 	_flavor_label.add_theme_color_override("font_color", TEXT_DIM)
 	_flavor_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_flavor_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -230,7 +230,7 @@ func _build_ui() -> void:
 	_buy_quantity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_buy_quantity_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_buy_quantity_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_buy_quantity_label.add_theme_font_size_override("font_size", 23)
+	_buy_quantity_label.add_theme_font_size_override("font_size", 24)
 	_buy_quantity_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_buy_btn.add_child(_buy_quantity_label)
 	_buy_divider = ColorRect.new()
@@ -259,7 +259,7 @@ func _build_ui() -> void:
 	cost_row.add_child(_buy_faith_icon)
 	_buy_cost_label = Label.new()
 	_buy_cost_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_buy_cost_label.add_theme_font_size_override("font_size", 20)
+	_buy_cost_label.add_theme_font_size_override("font_size", 21)
 	_buy_cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_buy_cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cost_row.add_child(_buy_cost_label)
@@ -271,14 +271,14 @@ func _build_ui() -> void:
 	vbox.add_child(cycle_header)
 	_cycle_state_label = Label.new()
 	_cycle_state_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_cycle_state_label.add_theme_font_size_override("font_size", 18)
+	_cycle_state_label.add_theme_font_size_override("font_size", 19)
 	_cycle_state_label.add_theme_color_override("font_color", ManaTheme.INK_MUTED)
 	_cycle_state_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_cycle_state_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cycle_header.add_child(_cycle_state_label)
 	_cycle_time_label = Label.new()
 	_cycle_time_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_cycle_time_label.add_theme_font_size_override("font_size", 18)
+	_cycle_time_label.add_theme_font_size_override("font_size", 19)
 	_cycle_time_label.add_theme_color_override("font_color", ManaTheme.GOLD_DARK)
 	_cycle_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_cycle_time_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -297,7 +297,7 @@ func _build_ui() -> void:
 	_hint_label = Label.new()
 	_hint_label.text = "AGUARDANDO"
 	_hint_label.add_theme_font_override("font", ManaTheme.body_semibold())
-	_hint_label.add_theme_font_size_override("font_size", 18)
+	_hint_label.add_theme_font_size_override("font_size", 19)
 	_hint_label.add_theme_color_override("font_color", ManaTheme.INK)
 	_hint_label.add_theme_color_override("font_outline_color", Color(1.0, 0.98, 0.91, 0.82))
 	_hint_label.add_theme_constant_override("outline_size", 2)

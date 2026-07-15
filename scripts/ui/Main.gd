@@ -14,6 +14,8 @@ const GOLD: Color = ManaTheme.GOLD
 const ACCENT: Color = ManaTheme.GOLD_LIGHT
 const GREEN: Color = ManaTheme.GREEN
 const SANTO_COLOR: Color = ManaTheme.SILVER
+const TOP_SAFE_AREA_HEIGHT: float = 46.0
+const RESOURCE_PILL_WIDTH: float = 190.0
 
 var _tick_timer: Timer
 var _faith_label: Label
@@ -87,6 +89,8 @@ var _inactive_operator_button: Button
 var _inactive_operator_layers: Array[TextureRect] = []
 var _inactive_operator_count: Label
 var _inactive_operator_queue: Array[int] = []
+var _inactive_operator_motion: Tween
+var _inactive_operator_bottom_gap: Control
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -129,6 +133,7 @@ func _build_ui() -> void:
 	main_vbox.add_theme_constant_override("separation", 18)
 	root.add_child(main_vbox)
 
+	main_vbox.add_child(_build_top_safe_area())
 	main_vbox.add_child(_build_topbar())
 
 	# Area central: uma aba visivel por vez.
@@ -148,6 +153,15 @@ func _build_ui() -> void:
 	main_vbox.add_child(_build_tabbar())
 	_build_notification()
 	_show_tab("geradores")
+
+
+func _build_top_safe_area() -> Control:
+	# Reserva fixa para recortes, sensores e a barra de status dos celulares.
+	var safe_area := Control.new()
+	safe_area.custom_minimum_size = Vector2(0, TOP_SAFE_AREA_HEIGHT)
+	safe_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return safe_area
+
 
 func _build_topbar() -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
@@ -258,20 +272,21 @@ func _build_resource_pill(caption: String, accent: Color) -> Dictionary:
 	if caption == "SANTOS":
 		palette = [Color("#252836"), Color("#9298aa"), Color("#e2e5ef"), Color("#35394b")]
 	var panel := _build_framed_button(palette[0], palette[1], palette[2], palette[3])
-	panel.custom_minimum_size = Vector2(182, 72)
+	panel.custom_minimum_size = Vector2(RESOURCE_PILL_WIDTH, 64)
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
+	row.add_theme_constant_override("separation", 8)
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 14
-	row.offset_right = -14
-	row.offset_top = 10
-	row.offset_bottom = -10
+	row.offset_left = 10
+	row.offset_right = -10
+	row.offset_top = 8
+	row.offset_bottom = -8
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(row)
 	if caption == "SANTOS" or caption == "FÉ":
 		var icon_texture := TextureRect.new()
 		icon_texture.texture = GameArt.SANTOS_ICON if caption == "SANTOS" else GameArt.FAITH_ICON
-		icon_texture.custom_minimum_size = Vector2(38, 38)
+		icon_texture.custom_minimum_size = Vector2(30, 30)
 		icon_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -290,14 +305,15 @@ func _build_resource_pill(caption: String, accent: Color) -> Dictionary:
 	var label := Label.new()
 	label.text = caption
 	label.add_theme_font_override("font", ManaTheme.body_semibold())
-	label.add_theme_font_size_override("font_size", 19)
+	label.add_theme_font_size_override("font_size", 15)
 	label.add_theme_color_override("font_color", TEXT_DIM)
 	label.clip_text = true
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	text.add_child(label)
 	var value := Label.new()
+	value.custom_minimum_size = Vector2(132, 0)
 	value.add_theme_font_override("font", ManaTheme.body_semibold())
-	value.add_theme_font_size_override("font_size", 34)
+	value.add_theme_font_size_override("font_size", 26)
 	value.add_theme_color_override("font_color", accent)
 	value.clip_text = true
 	value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -474,10 +490,24 @@ func _adventure_tab_style(bg: Color, border: Color, active: bool) -> StyleBoxFla
 
 func _build_future_boost_space() -> Control:
 	# Coluna lateral sem moldura: capitulos e impulsos flutuam diretamente sobre
-	# o fundo, deixando as ilustracoes ocuparem toda a area util.
+	# o fundo. A lista rola de forma independente para que os inativos nunca
+	# avancem sobre a navegacao inferior.
+	var side_column := VBoxContainer.new()
+	side_column.custom_minimum_size = Vector2(238, 0)
+	side_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side_column.add_theme_constant_override("separation", 0)
+
+	var icon_scroll := ScrollContainer.new()
+	icon_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	icon_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	icon_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	icon_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	side_column.add_child(icon_scroll)
+
 	var column := VBoxContainer.new()
-	column.custom_minimum_size = Vector2(224, 0)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 12)
+	icon_scroll.add_child(column)
 
 	column.add_child(_build_side_section_label("JORNADAS", TEXT_DIM))
 	for index in range(["vida_cristo", "igreja_apocalipse"].size()):
@@ -486,12 +516,12 @@ func _build_future_boost_space() -> Control:
 		btn.icon = GameArt.sidebar_adventure_icon(adventure_id)
 		btn.expand_icon = true
 		btn.text = "CRISTO" if adventure_id == "vida_cristo" else "APOC."
-		btn.add_theme_constant_override("icon_max_width", 123)
+		btn.add_theme_constant_override("icon_max_width", 134)
 		btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		btn.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		btn.custom_minimum_size = Vector2(0, 140)
+		btn.custom_minimum_size = Vector2(0, 148)
 		btn.add_theme_font_override("font", ManaTheme.body_semibold())
-		btn.add_theme_font_size_override("font_size", 16)
+		btn.add_theme_font_size_override("font_size", 17)
 		_apply_side_icon_style(btn)
 		btn.pressed.connect(_on_adventure_pressed.bind(adventure_id))
 		_adventure_icons[adventure_id] = btn
@@ -507,40 +537,37 @@ func _build_future_boost_space() -> Control:
 		column.add_child(btn)
 		_start_side_icon_motion(btn, index + 2)
 
-	var inactive_spacer := Control.new()
-	inactive_spacer.custom_minimum_size = Vector2(0, 18)
-	inactive_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(inactive_spacer)
 	_inactive_operator_panel = _build_inactive_operator_stack()
-	column.add_child(_inactive_operator_panel)
+	side_column.add_child(_inactive_operator_panel)
+	_inactive_operator_bottom_gap = Control.new()
+	_inactive_operator_bottom_gap.custom_minimum_size = Vector2(0, 34)
+	_inactive_operator_bottom_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_inactive_operator_bottom_gap.visible = false
+	side_column.add_child(_inactive_operator_bottom_gap)
 
-	var filler := Control.new()
-	filler.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	filler.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(filler)
-
+	ManaTheme.enable_touch_scroll(icon_scroll, column)
 	_refresh_adventure_icons()
 	_refresh_inactive_operator_stack()
-	return column
+	return side_column
 
 func _build_inactive_operator_stack() -> VBoxContainer:
 	var panel := VBoxContainer.new()
-	panel.custom_minimum_size = Vector2(0, 174)
+	panel.custom_minimum_size = Vector2(0, 188)
 	panel.add_theme_constant_override("separation", 4)
 	panel.visible = false
 	panel.add_child(_build_side_section_label("INATIVOS", ManaTheme.GOLD_LIGHT))
 
 	var stack_area := Control.new()
-	stack_area.custom_minimum_size = Vector2(0, 132)
+	stack_area.custom_minimum_size = Vector2(0, 146)
 	panel.add_child(stack_area)
 	for depth in range(2, 0, -1):
 		var layer := TextureRect.new()
 		layer.set_anchors_preset(Control.PRESET_CENTER)
 		var shift := float(depth * 8)
-		layer.offset_left = -54 + shift
-		layer.offset_right = 54 + shift
-		layer.offset_top = -56 + shift
-		layer.offset_bottom = 56 + shift
+		layer.offset_left = -60 + shift
+		layer.offset_right = 60 + shift
+		layer.offset_top = -62 + shift
+		layer.offset_bottom = 62 + shift
 		layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		layer.modulate = Color(0.76, 0.76, 0.86, 0.72 - float(depth - 1) * 0.18)
@@ -552,7 +579,7 @@ func _build_inactive_operator_stack() -> VBoxContainer:
 	_inactive_operator_button = Button.new()
 	_inactive_operator_button.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_inactive_operator_button.expand_icon = true
-	_inactive_operator_button.add_theme_constant_override("icon_max_width", 122)
+	_inactive_operator_button.add_theme_constant_override("icon_max_width", 136)
 	_inactive_operator_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_inactive_operator_button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 	_inactive_operator_button.tooltip_text = "Ativar ciclo manual"
@@ -598,8 +625,12 @@ func _refresh_inactive_operator_stack() -> void:
 	inactive_ids.sort()
 	_inactive_operator_queue = inactive_ids
 	_inactive_operator_panel.visible = not inactive_ids.is_empty()
+	if _inactive_operator_bottom_gap != null:
+		_inactive_operator_bottom_gap.visible = not inactive_ids.is_empty()
 	if inactive_ids.is_empty():
+		_stop_inactive_operator_motion()
 		return
+	_start_inactive_operator_motion()
 
 	var current_id := inactive_ids[0]
 	var current_data := Geradores.get_data(current_id)
@@ -613,6 +644,27 @@ func _refresh_inactive_operator_stack() -> void:
 			layer.texture = GameArt.generator_icon(inactive_ids[queue_index])
 	_inactive_operator_count.visible = inactive_ids.size() > 1
 	_inactive_operator_count.text = str(inactive_ids.size())
+
+
+func _start_inactive_operator_motion() -> void:
+	if _inactive_operator_button == null or is_instance_valid(_inactive_operator_motion):
+		return
+	_inactive_operator_button.call_deferred("set_pivot_offset", _inactive_operator_button.size * 0.5)
+	_inactive_operator_motion = create_tween()
+	_inactive_operator_motion.set_loops()
+	_inactive_operator_motion.tween_interval(3.0)
+	_inactive_operator_motion.tween_property(_inactive_operator_button, "rotation", -0.028, 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_inactive_operator_motion.tween_property(_inactive_operator_button, "rotation", 0.028, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_inactive_operator_motion.tween_property(_inactive_operator_button, "rotation", -0.018, 0.10).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_inactive_operator_motion.tween_property(_inactive_operator_button, "rotation", 0.0, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+
+func _stop_inactive_operator_motion() -> void:
+	if is_instance_valid(_inactive_operator_motion):
+		_inactive_operator_motion.kill()
+	_inactive_operator_motion = null
+	if _inactive_operator_button != null:
+		_inactive_operator_button.rotation = 0.0
 
 func _activate_next_inactive_operator() -> void:
 	if _inactive_operator_queue.is_empty() or _inactive_operator_button == null:
@@ -641,12 +693,12 @@ func _build_boost_icon(boost_id: String) -> Button:
 	button.text = _side_icon_short_name(boost_id)
 	button.icon = GameArt.sidebar_boost_icon(boost_id)
 	button.expand_icon = true
-	button.add_theme_constant_override("icon_max_width", 119)
+	button.add_theme_constant_override("icon_max_width", 130)
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-	button.custom_minimum_size = Vector2(0, 132)
+	button.custom_minimum_size = Vector2(0, 142)
 	button.add_theme_font_override("font", ManaTheme.body_semibold())
-	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_font_size_override("font_size", 16)
 	_apply_side_icon_style(button)
 	var inventory_badge := Label.new()
 	inventory_badge.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -1802,14 +1854,19 @@ func _show_offline_modal(ganho: float) -> void:
 	popup.popup_hide.connect(popup.queue_free)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 18)
-	vbox.custom_minimum_size = Vector2(minf(get_viewport_rect().size.x * 0.8, 760.0), 0)
+	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox.offset_left = 28
+	vbox.offset_right = -28
+	vbox.offset_top = 24
+	vbox.offset_bottom = -24
+	vbox.add_theme_constant_override("separation", 12)
 	popup.add_child(vbox)
 
 	var title := Label.new()
 	title.text = "Enquanto você esteve fora..."
 	title.add_theme_font_override("font", ManaTheme.serif_bold())
-	title.add_theme_font_size_override("font_size", 38)
+	title.add_theme_font_size_override("font_size", 34)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(title)
@@ -1817,14 +1874,14 @@ func _show_offline_modal(ganho: float) -> void:
 	var ganho_label := Label.new()
 	ganho_label.text = "Seus profetas coletaram\n+" + NumberFormat.format(ganho) + " Fé"
 	ganho_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ganho_label.add_theme_font_size_override("font_size", 34)
+	ganho_label.add_theme_font_size_override("font_size", 30)
 	ganho_label.add_theme_color_override("font_color", GOLD)
 	vbox.add_child(ganho_label)
 
 	var video_btn := Button.new()
 	video_btn.text = "▶  Dobrar com vídeo  ·  +" + NumberFormat.format(ganho)
-	video_btn.custom_minimum_size = Vector2(0, 84)
-	video_btn.add_theme_font_size_override("font_size", 26)
+	video_btn.custom_minimum_size = Vector2(0, 70)
+	video_btn.add_theme_font_size_override("font_size", 20)
 	video_btn.pressed.connect(func():
 		video_btn.disabled = true
 		video_btn.text = "Reproduzindo vídeo..."
@@ -1838,8 +1895,8 @@ func _show_offline_modal(ganho: float) -> void:
 
 	var gema_btn := Button.new()
 	gema_btn.text = "Triplicar por " + str(OFFLINE_TRIPLO_GEMAS) + " Gemas  ·  +" + NumberFormat.format(ganho * 2.0)
-	gema_btn.custom_minimum_size = Vector2(0, 84)
-	gema_btn.add_theme_font_size_override("font_size", 26)
+	gema_btn.custom_minimum_size = Vector2(0, 70)
+	gema_btn.add_theme_font_size_override("font_size", 20)
 	gema_btn.disabled = GameState.gemas < OFFLINE_TRIPLO_GEMAS
 	gema_btn.pressed.connect(func():
 		if GameState.spend_gemas(OFFLINE_TRIPLO_GEMAS):
@@ -1851,12 +1908,13 @@ func _show_offline_modal(ganho: float) -> void:
 
 	var coletar_btn := Button.new()
 	coletar_btn.text = "Coletar"
-	coletar_btn.custom_minimum_size = Vector2(0, 84)
+	coletar_btn.custom_minimum_size = Vector2(0, 70)
+	coletar_btn.add_theme_font_size_override("font_size", 22)
 	ManaTheme.apply_primary_button(coletar_btn)
 	coletar_btn.pressed.connect(popup.hide)
 	vbox.add_child(coletar_btn)
 
-	popup.popup_centered()
+	_popup_center_compact(popup, Vector2(640, 560))
 
 func _on_video_pressed() -> void:
 	# Placeholder do rewarded ad: aqui entra o SDK (AdMob) no futuro.

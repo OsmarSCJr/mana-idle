@@ -645,23 +645,28 @@ func _build_text_card(title_text: String, body_text: String, reflection: bool) -
 
 func _build_completed_banner(title_text: String, body_text: String) -> PanelContainer:
 	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(0, 64)
 	panel.add_theme_stylebox_override(
-		"panel", ManaTheme.panel_style(Color(ManaTheme.GREEN, 0.18), 18, Color(ManaTheme.GREEN, 0.66), 2, 16)
+		"panel", ManaTheme.panel_style(Color(ManaTheme.GREEN, 0.18), 16, Color(ManaTheme.GREEN, 0.66), 2, 12)
 	)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
+	row.add_theme_constant_override("separation", 10)
 	panel.add_child(row)
 	var mark := Label.new()
 	mark.text = "✓"
+	mark.custom_minimum_size = Vector2(34, 0)
+	mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mark.add_theme_font_override("font", ManaTheme.serif_bold())
-	mark.add_theme_font_size_override("font_size", 37)
+	mark.add_theme_font_size_override("font_size", 30)
 	mark.add_theme_color_override("font_color", ManaTheme.GREEN.lightened(0.24))
 	row.add_child(mark)
 	var label := Label.new()
 	label.text = title_text + "  ·  " + body_text
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_font_size_override("font_size", 23)
+	label.add_theme_font_size_override("font_size", 19)
 	label.add_theme_color_override("font_color", ManaTheme.CREAM)
 	row.add_child(label)
 	return panel
@@ -706,17 +711,20 @@ func _build_quiz_card(study: Dictionary, reading_complete: bool, mastered: bool)
 		var option_id := str(option.get("id", ""))
 		var button := Button.new()
 		button.text = str(option.get("text", ""))
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.custom_minimum_size = Vector2(0, 62)
-		button.add_theme_font_size_override("font_size", 24)
+		button.custom_minimum_size = Vector2(0, 78)
+		button.add_theme_font_size_override("font_size", 23)
 		button.disabled = mastered
+		_apply_quiz_option_style(button, false)
 		button.pressed.connect(_select_answer.bind(option_id))
 		_answer_buttons[option_id] = button
 		column.add_child(button)
 
 	_quiz_feedback_label = Label.new()
 	_quiz_feedback_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_quiz_feedback_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_quiz_feedback_label.add_theme_font_override("font", ManaTheme.SERIF_ITALIC_FONT)
 	_quiz_feedback_label.add_theme_font_size_override("font_size", 23)
 	_quiz_feedback_label.visible = mastered
@@ -750,16 +758,22 @@ func _select_answer(option_id: String) -> void:
 func _update_answer_styles() -> void:
 	for option_id in _answer_buttons:
 		var button: Button = _answer_buttons[option_id]
-		if option_id == _selected_option_id:
-			button.add_theme_color_override("font_color", ManaTheme.INK)
-			button.add_theme_color_override("font_hover_color", ManaTheme.INK)
-			button.add_theme_stylebox_override(
-				"normal", ManaTheme.button_style(ManaTheme.GOLD_LIGHT, ManaTheme.GOLD, 16, 2, 18, 12)
-			)
-		else:
-			button.remove_theme_color_override("font_color")
-			button.remove_theme_color_override("font_hover_color")
-			button.remove_theme_stylebox_override("normal")
+		_apply_quiz_option_style(button, option_id == _selected_option_id)
+
+
+func _apply_quiz_option_style(button: Button, selected: bool) -> void:
+	if selected:
+		button.add_theme_color_override("font_color", Color("#f7fff8"))
+		button.add_theme_color_override("font_hover_color", Color("#ffffff"))
+		button.add_theme_stylebox_override("normal", ManaTheme.button_style(Color("#24766f"), Color("#c7fff5"), 16, 3, 20, 14))
+		button.add_theme_stylebox_override("hover", ManaTheme.button_style(Color("#2e8b82"), Color.WHITE, 16, 3, 20, 14))
+		button.add_theme_stylebox_override("pressed", ManaTheme.button_style(Color("#1c625c"), Color("#d8fff8"), 16, 3, 20, 14))
+		return
+	button.add_theme_color_override("font_color", ManaTheme.CREAM)
+	button.add_theme_color_override("font_hover_color", Color("#fff4d4"))
+	button.add_theme_stylebox_override("normal", ManaTheme.button_style(Color("#242d4b"), Color("#526885"), 16, 2, 20, 14))
+	button.add_theme_stylebox_override("hover", ManaTheme.button_style(Color("#304267"), Color("#8acfd1"), 16, 2, 20, 14))
+	button.add_theme_stylebox_override("pressed", ManaTheme.button_style(Color("#1b243d"), Color("#d8fff8"), 16, 2, 20, 14))
 
 
 func _complete_reading(study_id: String) -> void:
