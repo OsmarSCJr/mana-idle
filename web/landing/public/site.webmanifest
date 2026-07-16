@@ -1,0 +1,12 @@
+{
+  "name": "Maná Idle",
+  "short_name": "Maná Idle",
+  "description": "Jogo bíblico incremental para Android.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#071329",
+  "theme_color": "#071329",
+  "icons": [
+    { "src": "/mana-mark.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

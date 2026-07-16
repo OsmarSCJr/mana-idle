@@ -4,10 +4,19 @@ const FINAL_JOURNEY_TARGET: float = 3.55e39
 const ERA_MASTERY_WISDOM: int = 2
 const JOURNEY_MASTERY_WISDOM: int = 3
 
+var _mutations_suspended: bool = false
+var _refresh_pending: bool = false
+
 func _ready() -> void:
 	EventBus.generator_changed.connect(func(_id: int): refresh_unlocks())
 	EventBus.prestige_done.connect(func(): refresh_unlocks(false))
 	call_deferred("refresh_unlocks", false)
+
+func set_mutations_suspended(suspended: bool) -> void:
+	_mutations_suspended = suspended
+	if not suspended and _refresh_pending:
+		_refresh_pending = false
+		refresh_unlocks(false)
 
 func _list(key: String) -> Array:
 	if not GameState.estudo_progresso.has(key) or GameState.estudo_progresso[key] is not Array:
@@ -38,6 +47,9 @@ func _requirement_met(study: Dictionary) -> bool:
 	return highest >= required
 
 func refresh_unlocks(emit_events: bool = true) -> int:
+	if _mutations_suspended:
+		_refresh_pending = true
+		return 0
 	var unlocked_count := 0
 	for study in EstudosBiblicos.all():
 		var study_id := str(study.get("id", ""))
@@ -333,6 +345,8 @@ func get_read_chapter_count() -> int:
 	return _list("capitulosLidos").size()
 
 func _request_save() -> void:
+	if _mutations_suspended:
+		return
 	var save_system := get_node_or_null("/root/SaveSystem")
 	if save_system != null:
 		save_system.save_game()

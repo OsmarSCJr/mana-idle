@@ -19,3 +19,9 @@ signal adventure_completed(adventure_id: String)
 signal relics_changed(new_amount: int)
 signal gems_changed(new_amount: int)
 signal boosts_changed()
+
+# Save online. O payload nunca trafega em sinais de UI: apenas hash/metadados.
+signal game_state_dirty(payload_sha256: String)
+signal sync_state_changed(state: String, message: String)
+signal cloud_conflict_detected(summary: Dictionary)
+signal cloud_identity_changed(authenticated: bool)

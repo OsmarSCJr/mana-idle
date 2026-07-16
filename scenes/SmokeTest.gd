@@ -13,13 +13,13 @@ func _ready() -> void:
 	GameState.dadivas_compradas.clear()
 	Economy.recompute_multiplicadores()
 
-	# 1) Upgrade PROD: compra 10 Haja Luz, compra u1_1 (x3)
-	GameState.buy_generator(1, 10)
+	# 1) Upgrade PROD: requisito atual de 25 Haja Luz, u1_1 (x2)
+	GameState.buy_generator(1, 25)
 	var mult_antes := Economy.get_gerador_multiplicador(1)
 	var comprou_upg := GameState.buy_upgrade("u1_1")
 	var mult_depois := Economy.get_gerador_multiplicador(1)
 	print("[T1] u1_1 comprado=", comprou_upg, " mult ", mult_antes, " -> ", mult_depois)
-	ok = ok and comprou_upg and is_equal_approx(mult_depois, mult_antes * 3.0)
+	ok = ok and comprou_upg and is_equal_approx(mult_depois, mult_antes * 2.0)
 
 	# 2) Requisito bloqueia: u2_1 requer 10x G2 (temos 0)
 	var bloqueado := GameState.buy_upgrade("u2_1")
@@ -27,8 +27,8 @@ func _ready() -> void:
 	ok = ok and not bloqueado
 
 	# 3) Upgrade SPEED via era (profeta especial Elias: -25% tempo Era 1)
-	GameState.fe_total_vida = 1e7
-	GameState.fe = 1e7
+	GameState.fe_total_vida = 2e8
+	GameState.fe = 2e8
 	var tempo_antes := Economy.get_tempo_ciclo(1)
 	var comprou_elias := GameState.buy_upgrade("pe_elias")
 	var tempo_depois := Economy.get_tempo_ciclo(1)
@@ -56,8 +56,9 @@ func _ready() -> void:
 	var comprou_dad := GameState.buy_dadiva("d_evangelismo")
 	var global_depois := Economy.get_multiplicador_global()
 	print("[T6] d_evangelismo=", comprou_dad, " santos=", GameState.santos, " global ", global_antes, " -> ", global_depois)
-	# Gastar Santos reduz o bonus deles (30->5); esperado: (1 + 5*0.02) * 1.25 = 1.375
-	ok = ok and comprou_dad and GameState.santos == 5 and is_equal_approx(global_depois, 1.375)
+	# Gastar Santos reduz o bônus deles (30->5); cada Santo vale 6% no balanceamento atual.
+	# Esperado: (1 + 5*0.06) * 1.25 = 1.625.
+	ok = ok and comprou_dad and GameState.santos == 5 and is_equal_approx(global_depois, 1.625)
 
 	# 7) Dadiva offline: Jo I (+50%) e Jo II (teto 16h)
 	GameState.santos = 100
@@ -67,7 +68,7 @@ func _ready() -> void:
 	ok = ok and is_equal_approx(Economy.get_offline_mult(), 1.5) and is_equal_approx(Economy.get_offline_cap(), 16.0 * 3600.0)
 
 	# 8) Prestige: upgrades resetam, dadivas ficam
-	GameState.fe_total_vida = 4e9  # sqrt(4) = 2 santos
+	GameState.fe_total_vida = 1.6e13 # cbrt(1.6e13 / 2e12) = 2 Santos
 	var santos_antes := GameState.santos
 	var ganhos := GameState.prestige()
 	print("[T8] prestige ganhos=", ganhos, " upgrades=", GameState.upgrades_comprados.size(), " dadivas=", GameState.dadivas_compradas.size(), " x100=", Economy.is_x100_unlocked())
@@ -78,8 +79,8 @@ func _ready() -> void:
 	ok = ok and is_equal_approx(Economy.get_tempo_ciclo(1), float(Geradores.get_data(1).tempo))
 
 	# 9) Save/load roundtrip preserva dadivas e upgrades
-	GameState.fe = 555.0
-	GameState.buy_generator(1, 10)
+	GameState.fe = 1e6
+	GameState.buy_generator(1, 25)
 	GameState.buy_upgrade("u1_1")
 	var save := GameState.get_save_data()
 	GameState._init_geradores()
@@ -87,7 +88,7 @@ func _ready() -> void:
 	GameState.dadivas_compradas = []
 	GameState.load_save_data(save)
 	print("[T9] roundtrip: upgrades=", GameState.upgrades_comprados, " dadivas=", GameState.dadivas_compradas.size(), " qtd G1=", GameState.geradores[1].qtd)
-	ok = ok and ("u1_1" in GameState.upgrades_comprados) and GameState.dadivas_compradas.size() == 3 and GameState.geradores[1].qtd == 10
+	ok = ok and ("u1_1" in GameState.upgrades_comprados) and GameState.dadivas_compradas.size() == 3 and GameState.geradores[1].qtd == 25
 
 	# 10) Upgrades.disponiveis ordenado e sem comprados
 	var disp := Upgrades.disponiveis()
@@ -99,4 +100,4 @@ func _ready() -> void:
 	ok = ok and not contem_comprado
 
 	print("=== SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
-	get_tree().quit()
+	get_tree().quit(0 if ok else 1)

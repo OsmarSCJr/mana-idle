@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 EventBus="*res://scripts/autoload/EventBus.gd"
+LiveOps="*res://scripts/autoload/LiveOps.gd"
 Geradores="*res://scripts/data/Geradores.gd"
 Upgrades="*res://scripts/data/Upgrades.gd"
 Dadivas="*res://scripts/data/Dadivas.gd"
@@ -29,6 +30,14 @@ Economy="*res://scripts/autoload/Economy.gd"
 GameState="*res://scripts/autoload/GameState.gd"
 StudySystem="*res://scripts/autoload/StudySystem.gd"
 SaveSystem="*res://scripts/autoload/SaveSystem.gd"
+CloudIdentity="*res://scripts/autoload/CloudIdentity.gd"
+CloudSave="*res://scripts/autoload/CloudSave.gd"
+
+[cloud_save]
+
+# API publica do ambiente de homologacao. Trocar pelo dominio de producao antes
+# do build destinado a Google Play.
+api_base_url="https://mana-save-staging.spankk-bolter.workers.dev/v1"
 
 [display]
 

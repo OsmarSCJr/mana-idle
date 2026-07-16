@@ -1,0 +1,39 @@
+{
+  "name": "@mana-idle/cloud-save",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local --persist-to .wrangler/state",
+    "types": "wrangler types ./worker-configuration.d.ts --env-file .dev.vars.example",
+    "types:check": "wrangler types --check ./worker-configuration.d.ts --env-file .dev.vars.example",
+    "typecheck": "tsc --noEmit && tsc -p test/tsconfig.json --noEmit",
+    "lint": "eslint src test --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run types:check && npm run typecheck && npm run lint && npm run test",
+    "build:dry": "wrangler deploy --dry-run --env=\"\" --outdir dist",
+    "db:migrate:local": "wrangler d1 migrations apply mana-save-local --local --persist-to .wrangler/state",
+    "db:migrate:local:deletions": "wrangler d1 migrations apply mana-delete-local --local --persist-to .wrangler/state",
+    "db:migrate:local:liveops": "wrangler d1 migrations apply mana-liveops-local --local --persist-to .wrangler/state",
+    "db:migrate:staging:liveops": "wrangler d1 migrations apply mana-liveops-staging --remote --env staging"
+  },
+  "dependencies": {
+    "hono": "4.12.30",
+    "jose": "6.2.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.5",
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.1.1",
+    "eslint": "10.7.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.64.0",
+    "vitest": "4.1.10",
+    "wrangler": "4.111.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

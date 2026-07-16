@@ -7,7 +7,7 @@ func _ready() -> void:
 	var study_errors := EstudosBiblicos.validate_data()
 	var knowledge_errors := Conhecimentos.validate_data()
 	ok = ok and EstudosBiblicos.count() == 36 and study_errors.is_empty()
-	ok = ok and Conhecimentos.count() == 5 and knowledge_errors.is_empty()
+	ok = ok and Conhecimentos.count() == 30 and knowledge_errors.is_empty()
 	print("[S0] catalogos estudos=", EstudosBiblicos.count(), " erros=", study_errors, " conhecimentos=", Conhecimentos.count(), " erros=", knowledge_errors)
 
 	GameState.fe = 1.0e8
@@ -28,9 +28,10 @@ func _ready() -> void:
 	var first_study: Dictionary = EstudosBiblicos.get_data("journey_genesis_01")
 	ok = ok and not first_study.is_empty()
 	ok = ok and StudySystem.refresh_unlocks(false) == 0
-	ok = ok and GameState.buy_generator(1, 10)
+	var first_requirement: int = int(first_study.get("required_quantity", 25))
+	ok = ok and GameState.buy_generator(1, first_requirement)
 	ok = ok and StudySystem.is_unlocked(first_study.id)
-	print("[S1] desbloqueio por 10 unidades=", StudySystem.is_unlocked(first_study.id))
+	print("[S1] desbloqueio por ", first_requirement, " unidades=", StudySystem.is_unlocked(first_study.id))
 
 	var faith_before := GameState.fe
 	var reading: Dictionary = StudySystem.complete_reading(first_study.id)
@@ -75,14 +76,14 @@ func _ready() -> void:
 	GameState.estudo_progresso = GameState._default_study_progress()
 	GameState.conhecimentos_comprados.clear()
 	GameState.load_save_data(save)
-	ok = ok and GameState.sabedoria == 0 # gastou os 2 pontos na Boa Semente
+	ok = ok and GameState.sabedoria == 1 # Boa Semente custa 1 dos 2 pontos.
 	ok = ok and "knowledge_good_seed" in GameState.conhecimentos_comprados
 	ok = ok and first_study.id in GameState.estudo_progresso.leiturasConcluidas
 	ok = ok and StudySystem.is_chapter_read("GEN", 1)
 	print("[S6] roundtrip save v2 conhecimento=", GameState.conhecimentos_comprados, " capitulos=", StudySystem.get_read_chapter_count())
 
-	GameState.fe_total_historica = 1.0e13
-	GameState.fe = 1.0e13
+	GameState.fe_total_historica = 3.0e14
+	GameState.fe = 3.0e14
 	var can_unlock_adventure := GameState.can_unlock_adventure("vida_cristo")
 	var unlocked_adventure := GameState.unlock_adventure("vida_cristo")
 	ok = can_unlock_adventure and unlocked_adventure and GameState.is_unlocked(13) and ok

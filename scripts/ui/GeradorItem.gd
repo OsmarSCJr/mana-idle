@@ -714,20 +714,21 @@ func update() -> void:
 	_buy_btn.disabled = not pode_comprar
 	_set_buy_availability(pode_comprar)
 
-	# Botao de profeta: progresso visivel desde a 1a unidade, compra aos 25.
+	# Botao de profeta: progresso visivel desde a 1a unidade ate o limite LiveOps.
 	if tem_profeta or qtd <= 0:
 		_prophet_btn.visible = false
 	else:
 		_prophet_btn.visible = true
 		var p_nome: String = data.get("profeta_nome", "?")
-		if qtd >= 25:
+		var unlock_quantity := LiveOps.prophet_unlock_quantity()
+		if qtd >= unlock_quantity:
 			_apply_prophet_button_style(true)
 			var custo_profeta: float = Economy.get_profeta_custo(gen_id)
 			_set_prophet_text("CONTRATAR " + p_nome.to_upper() + "  ·  " + NumberFormat.format(custo_profeta) + " Fé")
 			_prophet_btn.disabled = GameState.fe < custo_profeta
 		else:
 			_apply_prophet_button_style(false)
-			_set_prophet_text("AUTOMAÇÃO  ·  " + p_nome + "  —  " + str(qtd) + "/25 unidades")
+			_set_prophet_text("AUTOMAÇÃO  ·  " + p_nome + "  —  " + str(qtd) + "/" + str(unlock_quantity) + " unidades")
 			_prophet_btn.disabled = true
 
 func update_progress() -> void:

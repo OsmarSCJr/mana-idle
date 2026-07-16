@@ -183,7 +183,51 @@ func activate_boost_from_video(boost_id: String) -> bool:
 	return true
 
 func get_boost_data(boost_id: String) -> Dictionary:
-	return BOOSTS.get(boost_id, {})
+	var source: Dictionary = BOOSTS.get(boost_id, {})
+	if source.is_empty():
+		return {}
+	var data := source.duplicate(true)
+	match boost_id:
+		"fervor":
+			var multiplier := LiveOps.fervor_production_multiplier()
+			data.efeito = "Produção global ×" + _compact_liveops_number(multiplier)
+			data.descricao = "Multiplica por ×" + _compact_liveops_number(multiplier) + " toda a Fé produzida por seus geradores."
+		"pentecoste":
+			var multiplier := LiveOps.pentecost_production_multiplier()
+			data.efeito = "Produção global ×" + _compact_liveops_number(multiplier)
+			data.descricao = "Uma explosão breve de produção global ×" + _compact_liveops_number(multiplier) + "."
+		"colheita":
+			var duration := _compact_liveops_duration(LiveOps.harvest_seconds())
+			data.efeito = "+" + duration + " de produção"
+			data.descricao = "Receba instantaneamente " + duration + " da sua produção automática atual."
+		"passo_ligeiro":
+			var time_multiplier := LiveOps.swift_step_time_multiplier()
+			if time_multiplier <= 1.0:
+				var speed_multiplier := 1.0 / time_multiplier
+				data.efeito = "Ciclos " + _compact_liveops_number(speed_multiplier) + "× mais rápidos"
+				data.descricao = "Acelera por ×" + _compact_liveops_number(speed_multiplier) + " os ciclos de todos os geradores."
+			else:
+				data.efeito = "Duração dos ciclos ×" + _compact_liveops_number(time_multiplier)
+				data.descricao = "Multiplica por ×" + _compact_liveops_number(time_multiplier) + " a duração dos ciclos."
+		"maos_santas":
+			var multiplier := LiveOps.holy_hands_manual_multiplier()
+			data.efeito = "Toque manual ×" + _compact_liveops_number(multiplier)
+			data.descricao = "Cada ciclo iniciado manualmente entrega ×" + _compact_liveops_number(multiplier) + " mais Fé."
+	return data
+
+
+func _compact_liveops_number(value: float) -> String:
+	if is_equal_approx(value, roundf(value)):
+		return str(roundi(value))
+	return str(snappedf(value, 0.01))
+
+
+func _compact_liveops_duration(seconds: float) -> String:
+	if seconds >= 3600.0:
+		return _compact_liveops_number(seconds / 3600.0) + " h"
+	if seconds >= 60.0:
+		return _compact_liveops_number(seconds / 60.0) + " min"
+	return _compact_liveops_number(seconds) + " s"
 
 func get_boost_inventory(boost_id: String) -> int:
 	return maxi(0, int(boost_inventory.get(boost_id, 0)))
@@ -197,13 +241,13 @@ func is_boost_active(boost_id: String) -> bool:
 func get_boost_production_multiplier() -> float:
 	var mult := 1.0
 	if is_boost_active("fervor"):
-		mult *= 2.0
+		mult *= LiveOps.fervor_production_multiplier()
 	if is_boost_active("pentecoste"):
-		mult *= 5.0
+		mult *= LiveOps.pentecost_production_multiplier()
 	return mult
 
 func get_manual_boost_multiplier() -> float:
-	var boost_multiplier := 10.0 if is_boost_active("maos_santas") else 1.0
+	var boost_multiplier := LiveOps.holy_hands_manual_multiplier() if is_boost_active("maos_santas") else 1.0
 	return boost_multiplier * Economy.get_manual_knowledge_multiplier()
 
 func buy_boost_charge(boost_id: String) -> bool:
@@ -226,7 +270,7 @@ func use_boost_charge(boost_id: String) -> bool:
 	else:
 		boost_inventory[boost_id] = available - 1
 	if boost_id == "colheita":
-		var harvest := get_receita_por_segundo() * 7200.0
+		var harvest := get_receita_por_segundo() * LiveOps.harvest_seconds()
 		add_fe_bonus(harvest)
 		EventBus.toast_requested.emit("Colheita recebida: +" + NumberFormat.format(harvest) + " Fé")
 	else:
@@ -397,7 +441,7 @@ func _check_adventure_completion(gen_id: int) -> void:
 	EventBus.adventure_completed.emit(adventure_id)
 	EventBus.toast_requested.emit("Aventura concluída: +" + str(relic_reward) + " Relíquias")
 	# Gemas por conclusao: fonte gratuita principal da moeda premium.
-	add_gemas(50 if adventure_id == "vida_cristo" else 100, "aventura concluída")
+	add_gemas(LiveOps.scale_free_gem_reward(50 if adventure_id == "vida_cristo" else 100), "aventura concluída")
 
 func buy_prophet(gen_id: int) -> bool:
 	if not Economy.profeta_disponivel(gen_id):
@@ -520,7 +564,7 @@ func prestige() -> int:
 	santos += ganhos
 	estatisticas.prestiges += 1
 	# Gemas por ressurreicao: 1a paga bem (funil p/ conhecer a moeda), depois goteja.
-	add_gemas(10 if estatisticas.prestiges == 1 else 2, "Ressurreição")
+	add_gemas(LiveOps.scale_free_gem_reward(10 if estatisticas.prestiges == 1 else 2), "Ressurreição")
 	# Sem fe inicial o jogador nao consegue comprar o 1o gerador e trava.
 	fe = FE_INICIAL
 	fe_total_vida = 0.0
@@ -601,7 +645,9 @@ func load_save_data(data: Dictionary) -> void:
 	boosts.clear()
 	var saved_boosts: Dictionary = data.get("boosts", {})
 	for boost_id in saved_boosts:
-		if BOOSTS.has(str(boost_id)) and float(saved_boosts[boost_id]) > Time.get_unix_time_from_system():
+		# Expirações recentes também são necessárias para segmentar corretamente
+		# os impulsos que terminaram durante o período offline.
+		if BOOSTS.has(str(boost_id)) and float(saved_boosts[boost_id]) > 0.0:
 			boosts[str(boost_id)] = float(saved_boosts[boost_id])
 	boost_inventory.clear()
 	var saved_boost_inventory: Dictionary = data.get("boostInventory", {})
@@ -657,23 +703,82 @@ func load_save_data(data: Dictionary) -> void:
 	EventBus.faith_changed.emit(fe)
 	EventBus.wisdom_changed.emit(sabedoria)
 
+func _boost_active_at_adjusted_time(boost_id: String, at_time: float) -> bool:
+	var local_expiry := float(boosts.get(boost_id, 0.0))
+	var adjusted_expiry := local_expiry + LiveOps.server_time_offset_seconds()
+	return local_expiry > 0.0 and at_time < adjusted_expiry
+
+
+func _offline_weighted_multiplier(start_at: float, end_at: float, generator_id: int) -> float:
+	if end_at <= start_at:
+		return 1.0
+	var weighted := 0.0
+	var total_duration := end_at - start_at
+	for campaign_segment_value: Variant in LiveOps.effect_segments(start_at, end_at):
+		var campaign_segment: Dictionary = campaign_segment_value as Dictionary
+		var segment_start := float(campaign_segment.startsAt)
+		var segment_end := float(campaign_segment.endsAt)
+		var boundaries: Array[float] = [segment_start, segment_end]
+		for boost_id: String in ["fervor", "pentecoste", "passo_ligeiro"]:
+			var expiry := float(boosts.get(boost_id, 0.0)) + LiveOps.server_time_offset_seconds()
+			if expiry > segment_start and expiry < segment_end:
+				boundaries.append(expiry)
+		boundaries.sort()
+		for index in range(boundaries.size() - 1):
+			var part_start := boundaries[index]
+			var part_end := boundaries[index + 1]
+			var midpoint := part_start + (part_end - part_start) * 0.5
+			var effects: Dictionary = campaign_segment.effects as Dictionary
+			var generator_multiplier := float(
+				(effects.generatorProductionMultipliers as Dictionary).get(str(generator_id), 1.0)
+			)
+			var multiplier := float(effects.globalProductionMultiplier) \
+				* float(effects.offlineProductionMultiplier) \
+				* generator_multiplier
+			if _boost_active_at_adjusted_time("fervor", midpoint):
+				multiplier *= LiveOps.fervor_production_multiplier()
+			if _boost_active_at_adjusted_time("pentecoste", midpoint):
+				multiplier *= LiveOps.pentecost_production_multiplier()
+			if _boost_active_at_adjusted_time("passo_ligeiro", midpoint):
+				multiplier *= 1.0 / LiveOps.swift_step_time_multiplier()
+			multiplier = minf(multiplier, LiveOps.MAX_EFFECTIVE_PRODUCTION_MULTIPLIER)
+			weighted += (part_end - part_start) * multiplier
+	return weighted / total_duration
+
+
 func apply_offline_production(seconds: float) -> float:
 	var cap: float = Economy.get_offline_cap()
 	if seconds > cap:
 		seconds = cap
+	if seconds <= 0.0:
+		return 0.0
+	# O intervalo termina no relógio ajustado pelo Worker. Cada gerador integra
+	# campanhas por segmentos [startsAt, endsAt), inclusive eventos já encerrados
+	# que ainda vieram na janela histórica do endpoint.
+	var interval_end := LiveOps.server_adjusted_now()
+	var interval_start := interval_end - seconds
 	var total: float = 0.0
 	for gen_id in geradores:
 		var state: Dictionary = geradores[gen_id]
 		if not state.tem_profeta or state.qtd <= 0:
 			continue
 		var data: Dictionary = Geradores.get_data(gen_id)
-		var ciclos: float = seconds / Economy.get_tempo_ciclo(gen_id)
-		var receita: float = data.receita_base * float(state.qtd) * Economy.get_gerador_multiplicador(gen_id) * ciclos
+		var ciclos: float = seconds / Economy.get_tempo_ciclo_persistent(gen_id)
+		var campaign_weight := _offline_weighted_multiplier(interval_start, interval_end, gen_id)
+		var receita: float = data.receita_base \
+			* float(state.qtd) \
+			* Economy.get_gerador_multiplicador_offline_base(gen_id) \
+			* campaign_weight \
+			* ciclos
 		total += receita
-	total *= Economy.get_offline_mult()
+	# O multiplicador LiveOps offline já foi integrado em campaign_weight.
+	total *= Economy.get_offline_mult_base()
 	if total > 0:
 		fe += total
 		fe_total_vida += total
 		fe_total_historica += total
 		EventBus.faith_changed.emit(fe)
+	for boost_id: Variant in boosts.keys():
+		if float(boosts[boost_id]) <= Time.get_unix_time_from_system():
+			boosts.erase(boost_id)
 	return total

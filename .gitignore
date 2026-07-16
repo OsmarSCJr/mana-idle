@@ -5,3 +5,18 @@ export_presets.cfg
 *.tmp
 *.bak
 build/
+
+# Tooling and Cloudflare local state
+**/node_modules/
+**/dist/
+**/.wrangler/
+**/.playwright-cli/
+output/
+**/.dev.vars
+**/.env
+!**/.env.example
+!**/.dev.vars.example
+
+# Android signing material must remain local
+*.keystore
+*.jks

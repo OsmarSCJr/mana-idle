@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Maná Idle">
+  <rect width="64" height="64" rx="16" fill="#071329"/>
+  <path d="M22 20 27 6h10l5 14-5-4-5 5-5-5-5 4Z" fill="#f2b632"/>
+  <path d="M14 29c4 1 7 0 10-2 5-3 11-3 16 0 3 2 6 3 10 2l-4 19H18l-4-19Z" fill="#f2b632" stroke="#fff0be" stroke-width="2"/>
+  <path d="M22 33c5 3 15 3 20 0" fill="none" stroke="#071329" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="25" cy="25" r="3" fill="#fff0be"/><circle cx="33" cy="25" r="3" fill="#fff0be"/><circle cx="40" cy="25" r="3" fill="#fff0be"/>
+</svg>

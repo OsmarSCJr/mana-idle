@@ -1,0 +1,9 @@
+# Nomes incluídos para que `wrangler types` gere bindings de secrets.
+# Copie para .dev.vars e substitua por valores aleatórios locais. Nunca reutilize em produção.
+TOKEN_PEPPER_V1=dev-only-replace-with-at-least-32-random-bytes
+RECOVERY_PEPPER_V1=dev-only-replace-with-another-32-random-bytes
+DELETION_PEPPER_V1=dev-only-replace-with-a-third-32-random-bytes
+# Defina V2 antes de alterar CURRENT_*_KEY_VERSION para 2; mantenha V1 durante a janela de rotação.
+TOKEN_PEPPER_V2=dev-only-inactive-v2-token-pepper
+RECOVERY_PEPPER_V2=dev-only-inactive-v2-recovery-pepper
+DEV_ADMIN_TOKEN=dev-only-replace-with-a-long-random-token

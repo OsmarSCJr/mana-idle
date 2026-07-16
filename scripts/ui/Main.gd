@@ -30,9 +30,12 @@ var _future_boost_space: Control
 var _prestige_btn: Button
 var _notification_label: Label
 var _notification_timer: Timer
+var _liveops_banner: Label
 var _items: Dictionary = {}
 var _game_loaded: bool = false
 var _pause_time: float = 0.0
+var _pending_resume_away: float = 0.0
+var _resume_refresh_in_progress: bool = false
 const MODO_ORDEM: Array[String] = ["x1", "x10", "x100", "Next", "Max"]
 var _modo_compra: String = "x1"
 var _modo_btn: Button = null
@@ -67,12 +70,12 @@ var _dadivas_cards: Dictionary = {}
 
 # Painel Gemas
 const VIDEO_COOLDOWN_S: int = 300
-const VIDEO_GEMAS: int = 5
 var _panel_gemas: VBoxContainer
 var _gemas_label: Label
 var _gemas_total_label: Label
 var _video_btn: Button
 var _video_status_label: Label
+var _video_reward_title_label: Label
 var _video_cooldown_until: float = 0.0
 var _gem_wallet_panel: PanelContainer
 var _gem_sources_button: Button
@@ -100,7 +103,21 @@ func _ready() -> void:
 	get_window().content_scale_factor = 1.0
 	theme = ManaTheme.make_theme(_font_scale)
 	get_tree().node_added.connect(_on_tree_node_added)
-	_game_loaded = SaveSystem.load_game()
+	var loading_label := Label.new()
+	loading_label.text = "Consultando seu pergaminho..."
+	loading_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	loading_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	loading_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	loading_label.add_theme_font_override("font", ManaTheme.serif_bold())
+	loading_label.add_theme_font_size_override("font_size", 34)
+	loading_label.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	add_child(loading_label)
+	# Defaults/cache já estão ativos. A consulta recebe somente uma janela curta
+	# para que LiveOps nunca impeça a abertura offline do jogo.
+	await LiveOps.bootstrap(1.25)
+	var bootstrap: Dictionary = await CloudSave.bootstrap(3.0)
+	_game_loaded = bool(bootstrap.get("loaded", false))
+	loading_label.queue_free()
 	_build_ui()
 	_apply_font_scale()
 	get_viewport().size_changed.connect(_layout_tenda_wallet)
@@ -108,6 +125,8 @@ func _ready() -> void:
 	_setup_timer()
 	_setup_signals()
 	_update_all()
+	if CloudSave.has_conflict():
+		call_deferred("_show_cloud_conflict_dialog", CloudSave.conflict_summary())
 	if not _game_loaded:
 		EventBus.toast_requested.emit("Bem-vindo a Maná Idle! Compre Haja Luz e toque no cartão para gerar Fé.")
 	if SaveSystem.pending_offline_gain > 0.0:
@@ -134,6 +153,7 @@ func _build_ui() -> void:
 	root.add_child(main_vbox)
 
 	main_vbox.add_child(_build_top_safe_area())
+	main_vbox.add_child(_build_liveops_banner())
 	main_vbox.add_child(_build_topbar())
 
 	# Area central: uma aba visivel por vez.
@@ -152,6 +172,7 @@ func _build_ui() -> void:
 
 	main_vbox.add_child(_build_tabbar())
 	_build_notification()
+	_refresh_liveops_banner()
 	_show_tab("geradores")
 
 
@@ -161,6 +182,31 @@ func _build_top_safe_area() -> Control:
 	safe_area.custom_minimum_size = Vector2(0, TOP_SAFE_AREA_HEIGHT)
 	safe_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return safe_area
+
+
+func _build_liveops_banner() -> Label:
+	_liveops_banner = Label.new()
+	_liveops_banner.visible = false
+	_liveops_banner.custom_minimum_size = Vector2(0, 42)
+	_liveops_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_liveops_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_liveops_banner.add_theme_font_override("font", ManaTheme.body_semibold())
+	_liveops_banner.add_theme_font_size_override("font_size", 18)
+	_liveops_banner.add_theme_color_override("font_color", Color("#fff0b3"))
+	_liveops_banner.add_theme_stylebox_override(
+		"normal",
+		ManaTheme.button_style(Color("#443413"), Color("#d8b65c"), 14, 1, 12, 6)
+	)
+	_liveops_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return _liveops_banner
+
+
+func _refresh_liveops_banner() -> void:
+	if _liveops_banner == null:
+		return
+	var names := LiveOps.active_campaign_names()
+	_liveops_banner.visible = not names.is_empty()
+	_liveops_banner.text = "EVENTO ATIVO  ·  " + "  •  ".join(names) if not names.is_empty() else ""
 
 
 func _build_topbar() -> PanelContainer:
@@ -1525,12 +1571,12 @@ func _build_daily_gem_reward() -> PanelContainer:
 	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	copy.add_theme_constant_override("separation", 0)
 	row.add_child(copy)
-	var title := Label.new()
-	title.text = "+" + str(VIDEO_GEMAS) + " GEMAS"
-	title.add_theme_font_override("font", ManaTheme.serif_bold())
-	title.add_theme_font_size_override("font_size", 28)
-	title.add_theme_color_override("font_color", ManaTheme.INK)
-	copy.add_child(title)
+	_video_reward_title_label = Label.new()
+	_video_reward_title_label.text = "+" + str(_video_gem_reward()) + " GEMAS"
+	_video_reward_title_label.add_theme_font_override("font", ManaTheme.serif_bold())
+	_video_reward_title_label.add_theme_font_size_override("font_size", 28)
+	_video_reward_title_label.add_theme_color_override("font_color", ManaTheme.INK)
+	copy.add_child(_video_reward_title_label)
 	_video_status_label = Label.new()
 	_video_status_label.add_theme_font_size_override("font_size", 16)
 	_video_status_label.add_theme_color_override("font_color", ManaTheme.INK_MUTED)
@@ -1731,9 +1777,9 @@ func _show_gem_sources_modal() -> void:
 	intro.add_theme_color_override("font_color", TEXT_DIM)
 	content.add_child(intro)
 	for source in [
-		["RESSURREIÇÃO", "+10", "Depois, +2 por jornada"],
-		["VIDA DE CRISTO", "+50", "Ao concluir o capítulo"],
-		["IGREJA & APOCALIPSE", "+100", "Ao concluir o capítulo"],
+		["RESSURREIÇÃO", "+" + str(LiveOps.scale_free_gem_reward(10)), "Depois, +" + str(LiveOps.scale_free_gem_reward(2)) + " por jornada"],
+		["VIDA DE CRISTO", "+" + str(LiveOps.scale_free_gem_reward(50)), "Ao concluir o capítulo"],
+		["IGREJA & APOCALIPSE", "+" + str(LiveOps.scale_free_gem_reward(100)), "Ao concluir o capítulo"],
 	]:
 		content.add_child(_build_gem_source_row(str(source[0]), str(source[1]), str(source[2])))
 	var close := Button.new()
@@ -1790,9 +1836,15 @@ func _build_gem_package(name: String, amount: int, price: String, featured: bool
 func _refresh_gemas() -> void:
 	_gemas_label.text = str(GameState.gemas) + " Gemas"
 	_gemas_total_label.text = str(GameState.gemas_total) + " conquistadas desde o início"
+	if _video_reward_title_label != null:
+		_video_reward_title_label.text = "+" + str(_video_gem_reward()) + " GEMAS"
 	_refresh_video_button()
 	_refresh_daily_boost_video_card()
 	_refresh_boost_store()
+
+
+func _video_gem_reward() -> int:
+	return LiveOps.scale_free_gem_reward(LiveOps.video_gems())
 
 func _refresh_boost_store() -> void:
 	for boost_id in _boost_store_buttons:
@@ -1845,8 +1897,6 @@ func _refresh_tenda_timers() -> void:
 
 # Modal de coleta offline: o ganho base ja foi creditado; as opcoes de
 # video (x2) e gema (x3) somam o EXTRA por cima.
-const OFFLINE_TRIPLO_GEMAS: int = 3
-
 func _show_offline_modal(ganho: float) -> void:
 	var popup := PopupPanel.new()
 	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE, 24, ManaTheme.GOLD_DARK, 2, 36))
@@ -1894,12 +1944,13 @@ func _show_offline_modal(ganho: float) -> void:
 	vbox.add_child(video_btn)
 
 	var gema_btn := Button.new()
-	gema_btn.text = "Triplicar por " + str(OFFLINE_TRIPLO_GEMAS) + " Gemas  ·  +" + NumberFormat.format(ganho * 2.0)
+	var offline_triple_cost := LiveOps.offline_triple_gem_cost()
+	gema_btn.text = "Triplicar por " + str(offline_triple_cost) + " Gemas  ·  +" + NumberFormat.format(ganho * 2.0)
 	gema_btn.custom_minimum_size = Vector2(0, 70)
 	gema_btn.add_theme_font_size_override("font_size", 20)
-	gema_btn.disabled = GameState.gemas < OFFLINE_TRIPLO_GEMAS
+	gema_btn.disabled = GameState.gemas < offline_triple_cost
 	gema_btn.pressed.connect(func():
-		if GameState.spend_gemas(OFFLINE_TRIPLO_GEMAS):
+		if GameState.spend_gemas(offline_triple_cost):
 			GameState.add_fe_bonus(ganho * 2.0)
 			EventBus.toast_requested.emit("Ganho offline triplicado: +" + NumberFormat.format(ganho * 2.0) + " Fé")
 		popup.hide()
@@ -1923,7 +1974,7 @@ func _on_video_pressed() -> void:
 	_video_btn.text = "Reproduzindo vídeo..."
 	await get_tree().create_timer(2.0).timeout
 	if GameState.consume_reward_video():
-		GameState.add_gemas(VIDEO_GEMAS, "vídeo")
+		GameState.add_gemas(_video_gem_reward(), "vídeo")
 		SaveSystem.save_game()
 	_refresh_gemas()
 
@@ -2005,7 +2056,7 @@ func _refresh_santos() -> void:
 	# Objetivo visivel: quanto falta de fe acumulada para o proximo Santo.
 	# Espelha a formula cubica de Economy.santos_ganhos.
 	var santos_prox: int = GameState.get_santos_proximo_prestige()
-	var proximo_alvo: float = pow(float(santos_prox + 1), 3.0) * Economy.PRESTIGE_DIVISOR
+	var proximo_alvo: float = pow(float(santos_prox + 1), 3.0) * Economy.get_prestige_divisor()
 	var falta: float = maxf(0.0, proximo_alvo - GameState.fe_total_vida)
 	_santos_mult_label.text = "Fé nesta jornada: " + NumberFormat.format(GameState.fe_total_vida) \
 		+ "  ·  faltam " + NumberFormat.format(falta) + " p/ " + ("+1 Santo" if santos_prox > 0 else "o 1º Santo") \
@@ -2218,6 +2269,7 @@ func _setup_timer() -> void:
 	_last_tick_msec = Time.get_ticks_msec()
 
 func _setup_signals() -> void:
+	LiveOps.config_changed.connect(_on_liveops_config_changed)
 	EventBus.faith_changed.connect(func(_a: float): _update_topbar())
 	EventBus.generator_changed.connect(func(id: int): _update_item(id))
 	EventBus.prophet_changed.connect(func(id: int): _update_item(id))
@@ -2249,6 +2301,20 @@ func _setup_signals() -> void:
 			_refresh_gemas()
 		_update_all()
 	)
+	EventBus.cloud_conflict_detected.connect(_show_cloud_conflict_dialog)
+	EventBus.sync_state_changed.connect(func(_state: String, message: String):
+		if CloudIdentity.is_authenticated() and _notification_label != null:
+			_notification_label.tooltip_text = message
+	)
+
+
+func _on_liveops_config_changed(_summary: Dictionary) -> void:
+	_refresh_liveops_banner()
+	if _gemas_label != null:
+		_refresh_gemas()
+	if _game_loaded:
+		_update_all()
+
 
 func _on_study_changed() -> void:
 	_update_tab_badges()
@@ -2503,11 +2569,39 @@ func _show_settings() -> void:
 		if is_equal_approx(scale, _font_scale):
 			ManaTheme.apply_primary_button(btn)
 			btn.disabled = true
-		btn.pressed.connect(func():
-			_set_font_scale(scale)
-			popup.hide()
-		)
+		else:
+			btn.pressed.connect(func():
+				_set_font_scale(scale)
+				popup.hide()
+			)
 		fonte_row.add_child(btn)
+
+	var cloud_divider := HSeparator.new()
+	vbox.add_child(cloud_divider)
+
+	var cloud_title := Label.new()
+	cloud_title.text = "Conta de Peregrino"
+	cloud_title.add_theme_font_override("font", ManaTheme.serif_bold())
+	cloud_title.add_theme_font_size_override("font_size", 30)
+	cloud_title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	vbox.add_child(cloud_title)
+
+	var cloud_status := Label.new()
+	cloud_status.text = CloudSave.state_message()
+	cloud_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cloud_status.add_theme_font_size_override("font_size", 21)
+	cloud_status.add_theme_color_override("font_color", TEXT_DIM)
+	vbox.add_child(cloud_status)
+
+	var cloud_btn := Button.new()
+	cloud_btn.text = "Gerenciar save online" if CloudIdentity.is_authenticated() else "Ativar ou recuperar save online"
+	cloud_btn.custom_minimum_size = Vector2(0, 70)
+	ManaTheme.apply_primary_button(cloud_btn)
+	cloud_btn.pressed.connect(func():
+		popup.hide()
+		_show_cloud_account()
+	)
+	vbox.add_child(cloud_btn)
 
 	var legal_btn := Button.new()
 	legal_btn.text = "Aviso legal"
@@ -2519,7 +2613,7 @@ func _show_settings() -> void:
 	vbox.add_child(legal_btn)
 
 	var reset_btn := Button.new()
-	reset_btn.text = "Apagar save e recomeçar"
+	reset_btn.text = "Apagar progresso deste aparelho"
 	reset_btn.custom_minimum_size = Vector2(0, 70)
 	reset_btn.add_theme_color_override("font_color", Color(1.0, 0.55, 0.5))
 	reset_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.65, 0.6))
@@ -2538,6 +2632,618 @@ func _show_settings() -> void:
 
 	popup.popup_centered()
 
+func _show_cloud_account() -> void:
+	var parts: Dictionary = _create_cloud_popup("Conta de Peregrino")
+	var popup: PopupPanel = parts.popup
+	var content: VBoxContainer = parts.content
+	var description := Label.new()
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.add_theme_font_size_override("font_size", 21)
+	description.add_theme_color_override("font_color", TEXT_DIM)
+	if CloudIdentity.is_authenticated():
+		description.text = CloudSave.state_message() + "\nConta: " + CloudIdentity.player_id().left(13) + "...  ·  revisão " + str(CloudSave.cloud_revision())
+	else:
+		description.text = "Opcional. Seu jogo continua funcionando offline. A conta permite restaurar o progresso após reinstalar e sincronizar aparelhos."
+	content.add_child(description)
+
+	if not CloudIdentity.is_authenticated():
+		var activate_btn := _cloud_action_button("Ativar save online", true)
+		activate_btn.pressed.connect(func():
+			popup.hide()
+			_confirm_activate_cloud()
+		)
+		content.add_child(activate_btn)
+		var recover_btn := _cloud_action_button("Recuperar com código", false)
+		recover_btn.pressed.connect(func():
+			popup.hide()
+			_prompt_recover_cloud()
+		)
+		content.add_child(recover_btn)
+	else:
+		var sync_btn := _cloud_action_button("Sincronizar agora", true)
+		sync_btn.disabled = CloudSave.has_conflict()
+		sync_btn.pressed.connect(func():
+			popup.hide()
+			_cloud_sync_pressed()
+		)
+		content.add_child(sync_btn)
+
+		if CloudSave.has_conflict():
+			var conflict_btn := _cloud_action_button("Resolver conflito", false)
+			conflict_btn.pressed.connect(func():
+				popup.hide()
+				_show_cloud_conflict_dialog(CloudSave.conflict_summary())
+			)
+			content.add_child(conflict_btn)
+
+		var devices_btn := _cloud_action_button("Aparelhos e sessões", false)
+		devices_btn.pressed.connect(func():
+			popup.hide()
+			_show_cloud_devices()
+		)
+		content.add_child(devices_btn)
+
+		var recovery_btn := _cloud_action_button("Segurança e código de recuperação", false)
+		recovery_btn.pressed.connect(func():
+			popup.hide()
+			_show_cloud_security()
+		)
+		content.add_child(recovery_btn)
+
+		var logout_btn := _cloud_action_button("Desvincular este aparelho", false)
+		logout_btn.pressed.connect(func():
+			popup.hide()
+			_confirm_cloud_logout()
+		)
+		content.add_child(logout_btn)
+
+		var delete_btn := _cloud_action_button("Excluir conta e save da nuvem", false, true)
+		delete_btn.pressed.connect(func():
+			popup.hide()
+			_show_cloud_deletion_options()
+		)
+		content.add_child(delete_btn)
+
+	var close_btn := _cloud_action_button("Fechar", false)
+	close_btn.pressed.connect(popup.hide)
+	content.add_child(close_btn)
+	_popup_cloud(parts)
+
+
+func _create_cloud_popup(title_text: String) -> Dictionary:
+	var popup := PopupPanel.new()
+	popup.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE, 24, ManaTheme.OUTLINE, 2, 30))
+	add_child(popup)
+	popup.popup_hide.connect(popup.queue_free)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(minf(get_viewport_rect().size.x * 0.86, 820.0), minf(get_viewport_rect().size.y * 0.72, 1100.0))
+	popup.add_child(scroll)
+	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 16)
+	scroll.add_child(content)
+	var title := Label.new()
+	title.text = title_text
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	content.add_child(title)
+	return {"popup": popup, "content": content}
+
+
+func _popup_cloud(parts: Dictionary) -> void:
+	var popup: PopupPanel = parts.popup
+	popup.popup_centered(Vector2i(
+		int(minf(get_viewport_rect().size.x * 0.9, 860.0)),
+		int(minf(get_viewport_rect().size.y * 0.78, 1180.0))
+	))
+
+
+func _cloud_action_button(text_value: String, primary: bool = false, destructive: bool = false) -> Button:
+	var button := Button.new()
+	button.text = text_value
+	button.custom_minimum_size = Vector2(0, 70)
+	if primary:
+		ManaTheme.apply_primary_button(button)
+	if destructive:
+		button.add_theme_color_override("font_color", Color("#ff9d91"))
+		button.add_theme_color_override("font_hover_color", Color("#ffc0b8"))
+	return button
+
+
+func _confirm_activate_cloud() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Ativar save online"
+	dialog.dialog_text = "Será criada uma Conta de Peregrino anônima. Você receberá um código mostrado uma única vez. Guarde-o fora deste aparelho: sem o código e sem uma sessão ativa, não há como recuperar a conta.\n\nO save local continuará funcionando quando a internet cair."
+	dialog.get_ok_button().text = "Criar conta"
+	dialog.get_cancel_button().text = "Agora não"
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_activate_cloud_account()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _activate_cloud_account() -> void:
+	_show_notification("Criando Conta de Peregrino...")
+	var result: Dictionary = await CloudIdentity.create_account()
+	if not bool(result.get("ok", false)):
+		if bool(result.get("accountCreated", false)) and not str(result.get("recoveryCode", "")).is_empty():
+			_show_recovery_code_once(str(result.get("recoveryCode", "")), "Conta criada — sessão não salva")
+			return
+		_show_cloud_error(result)
+		return
+	var reconcile: Dictionary = await CloudSave.reconcile_account()
+	if not bool(reconcile.get("ok", false)):
+		_show_cloud_error(reconcile)
+	var recovery_code: String = str(result.get("recoveryCode", ""))
+	if recovery_code.is_empty():
+		_show_cloud_error({"message": "A conta foi criada, mas o servidor não retornou o código de recuperação."})
+		return
+	_show_recovery_code_once(recovery_code, "Código de recuperação")
+
+
+func _prompt_recover_cloud() -> void:
+	_show_cloud_text_prompt(
+		"Recuperar save online",
+		"Digite o código de recuperação. Antes de enviar qualquer progresso deste aparelho, a nuvem será consultada. Se ambos tiverem progresso, você escolherá qual manter.",
+		"R1-...",
+		func(value: String): _recover_cloud_account(value)
+	)
+
+
+func _recover_cloud_account(recovery_code: String) -> void:
+	_show_notification("Recuperando Conta de Peregrino...")
+	var result: Dictionary = await CloudIdentity.recover_account(recovery_code)
+	if not bool(result.get("ok", false)):
+		_show_cloud_error(result)
+		return
+	var reconcile: Dictionary = await CloudSave.reconcile_account()
+	if not bool(reconcile.get("ok", false)):
+		_show_cloud_error(reconcile)
+	elif bool(reconcile.get("conflict", false)):
+		_show_cloud_conflict_dialog(CloudSave.conflict_summary())
+	else:
+		_show_notification("Save online recuperado")
+
+
+func _cloud_sync_pressed() -> void:
+	_show_notification("Sincronizando...")
+	var result: Dictionary = await CloudSave.sync_now()
+	if bool(result.get("ok", false)):
+		_show_notification("Progresso sincronizado")
+	else:
+		_show_cloud_error(result)
+
+
+func _show_cloud_security() -> void:
+	var parts: Dictionary = _create_cloud_popup("Segurança da conta")
+	var popup: PopupPanel = parts.popup
+	var content: VBoxContainer = parts.content
+	var info := Label.new()
+	info.text = "O código não fica salvo no jogo. Rotacioná-lo revoga as outras sessões. Se ele foi perdido, um reset exige espera de 24 horas e pode ser cancelado por qualquer aparelho conectado."
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_theme_color_override("font_color", TEXT_DIM)
+	info.add_theme_font_size_override("font_size", 21)
+	content.add_child(info)
+
+	var rotate_btn := _cloud_action_button("Trocar código de recuperação", true)
+	rotate_btn.pressed.connect(func():
+		popup.hide()
+		_show_cloud_text_prompt("Trocar código", "Digite o código atual. O novo código será mostrado uma única vez e as outras sessões serão revogadas.", "Código atual", func(value: String): _rotate_cloud_recovery(value))
+	)
+	content.add_child(rotate_btn)
+
+	var lost_btn := _cloud_action_button("Perdi o código — iniciar espera de 24 h", false)
+	lost_btn.pressed.connect(func():
+		popup.hide()
+		_confirm_recovery_reset()
+	)
+	content.add_child(lost_btn)
+
+	var actions_btn := _cloud_action_button("Ver ações de segurança pendentes", false)
+	actions_btn.pressed.connect(func():
+		popup.hide()
+		_show_security_actions()
+	)
+	content.add_child(actions_btn)
+	var close_btn := _cloud_action_button("Voltar", false)
+	close_btn.pressed.connect(func():
+		popup.hide()
+		_show_cloud_account()
+	)
+	content.add_child(close_btn)
+	_popup_cloud(parts)
+
+
+func _rotate_cloud_recovery(current_code: String) -> void:
+	var result: Dictionary = await CloudIdentity.rotate_recovery_code(current_code)
+	if not bool(result.get("ok", false)):
+		_show_cloud_error(result)
+		return
+	_show_recovery_code_once(str(result.get("recoveryCode", "")), "Novo código de recuperação")
+
+
+func _confirm_recovery_reset() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Iniciar reset do código"
+	dialog.dialog_text = "O reset ficará pendente por 24 horas. Qualquer sessão ativa poderá cancelá-lo. Depois da espera, somente este aparelho poderá concluí-lo; as outras sessões serão revogadas."
+	dialog.get_ok_button().text = "Iniciar espera"
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_request_recovery_reset()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _request_recovery_reset() -> void:
+	var result: Dictionary = await CloudIdentity.request_recovery_reset()
+	if bool(result.get("ok", false)):
+		_show_notification("Reset agendado para daqui a 24 horas")
+	else:
+		_show_cloud_error(result)
+
+
+func _show_security_actions() -> void:
+	var result: Dictionary = await CloudIdentity.list_security_actions()
+	if not bool(result.get("ok", false)):
+		_show_cloud_error(result)
+		return
+	var parts: Dictionary = _create_cloud_popup("Ações de segurança")
+	var popup: PopupPanel = parts.popup
+	var content: VBoxContainer = parts.content
+	var items: Array = result.get("items", []) as Array
+	if items.is_empty():
+		var empty := Label.new()
+		empty.text = "Nenhuma ação pendente."
+		empty.add_theme_color_override("font_color", TEXT_DIM)
+		content.add_child(empty)
+	for action_value: Variant in items:
+		if action_value is not Dictionary:
+			continue
+		var action: Dictionary = action_value as Dictionary
+		var action_id: String = str(action.get("id", ""))
+		var row := VBoxContainer.new()
+		var action_label := Label.new()
+		var kind_label: String = "Reset do código" if str(action.get("kind", "")) == "recovery_reset" else "Exclusão da conta"
+		action_label.text = kind_label + " · " + str(action.get("status", "")) + "\nDisponível em: " + Time.get_datetime_string_from_unix_time(int(action.get("executeAfter", 0)), true)
+		action_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row.add_child(action_label)
+		if str(action.get("status", "")) == "pending":
+			var cancel_btn := _cloud_action_button("Cancelar", false)
+			cancel_btn.pressed.connect(func():
+				popup.hide()
+				_cancel_security_action(action_id)
+			)
+			row.add_child(cancel_btn)
+			if str(action.get("kind", "")) == "recovery_reset" and bool(action.get("requestedByThisDevice", false)) and Time.get_unix_time_from_system() >= float(action.get("executeAfter", 0)):
+				var complete_btn := _cloud_action_button("Concluir e receber novo código", true)
+				complete_btn.pressed.connect(func():
+					popup.hide()
+					_complete_security_action(action_id)
+				)
+				row.add_child(complete_btn)
+		content.add_child(row)
+		content.add_child(HSeparator.new())
+	var back_btn := _cloud_action_button("Voltar", false)
+	back_btn.pressed.connect(func():
+		popup.hide()
+		_show_cloud_security()
+	)
+	content.add_child(back_btn)
+	_popup_cloud(parts)
+
+
+func _cancel_security_action(action_id: String) -> void:
+	var result: Dictionary = await CloudIdentity.cancel_security_action(action_id)
+	if bool(result.get("ok", false)):
+		_show_notification("Ação de segurança cancelada")
+	else:
+		_show_cloud_error(result)
+
+
+func _complete_security_action(action_id: String) -> void:
+	var result: Dictionary = await CloudIdentity.complete_security_action(action_id)
+	if not bool(result.get("ok", false)):
+		_show_cloud_error(result)
+		return
+	_show_recovery_code_once(str(result.get("recoveryCode", "")), "Novo código de recuperação")
+
+
+func _show_cloud_devices() -> void:
+	var result: Dictionary = await CloudIdentity.list_devices()
+	if not bool(result.get("ok", false)):
+		_show_cloud_error(result)
+		return
+	var parts: Dictionary = _create_cloud_popup("Aparelhos e sessões")
+	var popup: PopupPanel = parts.popup
+	var content: VBoxContainer = parts.content
+	for device_value: Variant in result.get("items", []) as Array:
+		if device_value is not Dictionary:
+			continue
+		var device: Dictionary = device_value as Dictionary
+		var target_id: String = str(device.get("id", ""))
+		var label := Label.new()
+		label.text = str(device.get("label", "Aparelho")) + (" · este aparelho" if bool(device.get("isCurrent", false)) else "") + "\nÚltimo acesso: " + Time.get_datetime_string_from_unix_time(int(device.get("lastSeenAt", 0)), true) + " · sessões: " + str(device.get("activeSessions", 0))
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		content.add_child(label)
+		if not bool(device.get("isCurrent", false)) and device.get("revokedAt", null) == null:
+			var revoke_btn := _cloud_action_button("Revogar aparelho", false, true)
+			revoke_btn.pressed.connect(func():
+				popup.hide()
+				_revoke_cloud_device(target_id)
+			)
+			content.add_child(revoke_btn)
+		content.add_child(HSeparator.new())
+	var revoke_others := _cloud_action_button("Encerrar todas as outras sessões", false, true)
+	revoke_others.pressed.connect(func():
+		popup.hide()
+		_revoke_other_cloud_sessions()
+	)
+	content.add_child(revoke_others)
+	var back_btn := _cloud_action_button("Voltar", false)
+	back_btn.pressed.connect(func():
+		popup.hide()
+		_show_cloud_account()
+	)
+	content.add_child(back_btn)
+	_popup_cloud(parts)
+
+
+func _revoke_cloud_device(target_id: String) -> void:
+	var result: Dictionary = await CloudIdentity.revoke_device(target_id)
+	if bool(result.get("ok", false)):
+		_show_notification("Aparelho revogado")
+	else:
+		_show_cloud_error(result)
+
+
+func _revoke_other_cloud_sessions() -> void:
+	var result: Dictionary = await CloudIdentity.revoke_other_sessions()
+	if bool(result.get("ok", false)):
+		_show_notification("Outras sessões encerradas")
+	else:
+		_show_cloud_error(result)
+
+
+func _confirm_cloud_logout() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Desvincular aparelho"
+	dialog.dialog_text = "O progresso local será mantido, mas este aparelho deixará de sincronizar. Para entrar novamente, será necessário o código de recuperação."
+	dialog.get_ok_button().text = "Desvincular"
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_cloud_logout()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _cloud_logout() -> void:
+	var result: Dictionary = await CloudIdentity.logout()
+	if bool(result.get("ok", false)):
+		_show_notification("Este aparelho foi desvinculado")
+	else:
+		_show_cloud_error(result)
+
+
+func _show_cloud_deletion_options() -> void:
+	var parts: Dictionary = _create_cloud_popup("Excluir conta online")
+	var popup: PopupPanel = parts.popup
+	var content: VBoxContainer = parts.content
+	var warning := Label.new()
+	warning.text = "Isto apaga a conta e o save da nuvem. O progresso deste aparelho só será apagado pelo comando separado nas Configurações."
+	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warning.add_theme_color_override("font_color", Color("#ffb0a6"))
+	content.add_child(warning)
+	var immediate := _cloud_action_button("Excluir agora com código", false, true)
+	immediate.pressed.connect(func():
+		popup.hide()
+		_show_cloud_text_prompt("Exclusão imediata", "Digite o código de recuperação. Depois haverá uma confirmação final. Esta ação não pode ser desfeita.", "Código de recuperação", func(value: String): _confirm_immediate_cloud_deletion(value))
+	)
+	content.add_child(immediate)
+	var delayed := _cloud_action_button("Não tenho o código — agendar em 7 dias", false, true)
+	delayed.pressed.connect(func():
+		popup.hide()
+		_confirm_delayed_cloud_deletion()
+	)
+	content.add_child(delayed)
+	var back := _cloud_action_button("Cancelar", false)
+	back.pressed.connect(func():
+		popup.hide()
+		_show_cloud_account()
+	)
+	content.add_child(back)
+	_popup_cloud(parts)
+
+
+func _confirm_immediate_cloud_deletion(recovery_code: String) -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Confirmação final"
+	dialog.dialog_text = "Excluir permanentemente a Conta de Peregrino e todo o save online? Esta ação não pode ser desfeita."
+	dialog.get_ok_button().text = "EXCLUIR"
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_delete_cloud_account(recovery_code)
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _confirm_delayed_cloud_deletion() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Agendar exclusão"
+	dialog.dialog_text = "A exclusão será agendada para daqui a 7 dias. Durante a espera, qualquer sessão ativa poderá cancelá-la em Segurança."
+	dialog.get_ok_button().text = "Agendar exclusão"
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_delete_cloud_account("")
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _delete_cloud_account(recovery_code: String) -> void:
+	var result: Dictionary = await CloudIdentity.delete_cloud_account(recovery_code)
+	if not bool(result.get("ok", false)):
+		_show_cloud_error(result)
+		return
+	if int(result.get("status", 0)) == 204:
+		_show_notification("Conta online excluída")
+	else:
+		_show_notification("Exclusão agendada para daqui a 7 dias")
+
+
+func _show_cloud_text_prompt(title_text: String, explanation: String, placeholder: String, submitted: Callable) -> void:
+	var parts: Dictionary = _create_cloud_popup(title_text)
+	var popup: PopupPanel = parts.popup
+	var content: VBoxContainer = parts.content
+	var label := Label.new()
+	label.text = explanation
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_color", TEXT_DIM)
+	content.add_child(label)
+	var input := LineEdit.new()
+	input.placeholder_text = placeholder
+	input.secret = true
+	input.custom_minimum_size = Vector2(0, 68)
+	content.add_child(input)
+	var submit_btn := _cloud_action_button("Continuar", true)
+	submit_btn.pressed.connect(func():
+		var value: String = input.text.strip_edges()
+		if value.is_empty():
+			input.grab_focus()
+			return
+		popup.hide()
+		submitted.call(value)
+	)
+	content.add_child(submit_btn)
+	var cancel_btn := _cloud_action_button("Cancelar", false)
+	cancel_btn.pressed.connect(popup.hide)
+	content.add_child(cancel_btn)
+	_popup_cloud(parts)
+	input.grab_focus()
+
+
+func _show_recovery_code_once(recovery_code: String, title_text: String) -> void:
+	if recovery_code.is_empty():
+		_show_cloud_error({"message": "O servidor não retornou um novo código."})
+		return
+	var dialog := AcceptDialog.new()
+	dialog.title = title_text
+	dialog.dialog_text = "Guarde este código fora do aparelho. Ele não ficará salvo no jogo e não será mostrado novamente.\n\n" + recovery_code
+	dialog.get_ok_button().text = "Já guardei"
+	dialog.add_button("Copiar código", true, "copy")
+	dialog.custom_action.connect(func(action: StringName):
+		if action == &"copy":
+			DisplayServer.clipboard_set(recovery_code)
+			_show_notification("Código copiado")
+	)
+	dialog.confirmed.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _show_cloud_error(result: Dictionary) -> void:
+	var message: String = str(result.get("message", "Não foi possível concluir agora."))
+	var request_id: String = str(result.get("requestId", ""))
+	if not request_id.is_empty():
+		message += "\n\nCódigo de suporte: " + request_id
+	var dialog := AcceptDialog.new()
+	dialog.title = "Save online"
+	dialog.dialog_text = message
+	dialog.get_ok_button().text = "Entendi"
+	dialog.confirmed.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _show_cloud_conflict_dialog(summary: Dictionary) -> void:
+	if summary.is_empty() or not CloudSave.has_conflict():
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Dois progressos encontrados"
+	dialog.dialog_text = "Este aparelho e a nuvem avançaram separadamente. Nada será substituído sem sua escolha.\n\nNeste aparelho: " + NumberFormat.format(float(summary.get("localHistoricalFaith", 0.0))) + " Fé histórica, " + str(summary.get("localSaints", 0)) + " Santos e " + str(summary.get("localGems", 0)) + " Gemas.\nNuvem: revisão " + str(summary.get("cloudRevision", 0)) + ".\n\nOs dois candidatos já foram preservados neste aparelho."
+	dialog.get_ok_button().text = "Manter este aparelho"
+	dialog.get_cancel_button().text = "Decidir depois"
+	var cloud_button: Button = dialog.add_button("Usar nuvem", true, "use_cloud")
+	cloud_button.disabled = not bool(summary.get("cloudHasPayload", false))
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_confirm_keep_device_conflict()
+	)
+	dialog.custom_action.connect(func(action: StringName):
+		if action == &"use_cloud":
+			dialog.queue_free()
+			_confirm_use_cloud_conflict()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _confirm_keep_device_conflict() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Sobrescrever save online?"
+	dialog.dialog_text = "O progresso deste aparelho será enviado como a próxima revisão. A cópia da nuvem já foi preservada para recuperação curta. Confirmar?"
+	dialog.get_ok_button().text = "Manter este aparelho"
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_resolve_keep_device_conflict()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _confirm_use_cloud_conflict() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Usar save da nuvem?"
+	dialog.dialog_text = "O estado atual do jogo será substituído pela nuvem. A cópia local já foi preservada fora do backup rotativo. Confirmar?"
+	dialog.get_ok_button().text = "Usar nuvem"
+	dialog.confirmed.connect(func():
+		dialog.queue_free()
+		_resolve_use_cloud_conflict()
+	)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_fit_dialog_to_screen(dialog)
+	dialog.popup_centered()
+
+
+func _resolve_keep_device_conflict() -> void:
+	var result: Dictionary = await CloudSave.resolve_conflict_keep_device()
+	if bool(result.get("ok", false)):
+		_show_notification("Este aparelho foi sincronizado")
+	else:
+		_show_cloud_error(result)
+
+
+func _resolve_use_cloud_conflict() -> void:
+	var result: Dictionary = CloudSave.resolve_conflict_use_cloud()
+	if bool(result.get("ok", false)):
+		_update_all()
+		_show_notification("Save da nuvem aplicado")
+	else:
+		_show_cloud_error(result)
+
 func _confirm_reset_save() -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.title = "Apagar save"
@@ -2547,6 +3253,8 @@ func _confirm_reset_save() -> void:
 	dialog.confirmed.connect(func():
 		SaveSystem.set_persistence_enabled(false)
 		SaveSystem.delete_save()
+		CloudIdentity.clear_local_session()
+		CloudSave.clear_local_sync_state(true)
 		get_tree().quit()
 	)
 	dialog.canceled.connect(func(): dialog.queue_free())
@@ -2572,18 +3280,36 @@ func _fit_dialog_to_screen(dialog: AcceptDialog) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		SaveSystem.save_game()
+		CloudSave.notify_app_paused()
 		get_tree().quit()
 	elif what == NOTIFICATION_APPLICATION_PAUSED:
 		_pause_time = Time.get_unix_time_from_system()
 		SaveSystem.save_game()
+		CloudSave.notify_app_paused()
 	elif what == NOTIFICATION_APPLICATION_RESUMED:
 		if _pause_time > 0:
-			var away: float = Time.get_unix_time_from_system() - _pause_time
-			# Credita produzido durante a pausa (o cap fica em apply_offline_production).
-			if away > 5.0:
-				var ganho: float = GameState.apply_offline_production(away)
-				if ganho > 0 and away > 60.0:
-					_show_offline_modal(ganho)
+			_pending_resume_away += maxf(0.0, Time.get_unix_time_from_system() - _pause_time)
 			_last_tick_msec = Time.get_ticks_msec()
 			_pause_time = 0.0
-			_update_all()
+			call_deferred("_resume_after_liveops_refresh")
+
+
+func _resume_after_liveops_refresh() -> void:
+	if _resume_refresh_in_progress:
+		return
+	_resume_refresh_in_progress = true
+	while _pending_resume_away > 0.0:
+		var away := _pending_resume_away
+		_pending_resume_away = 0.0
+		# Atualiza campanhas antes de integrar o intervalo pausado. Falha de rede
+		# continua segura porque LiveOps preserva o cache/default embutido.
+		await LiveOps.bootstrap(2.0)
+		if away > 5.0:
+			var ganho: float = GameState.apply_offline_production(away)
+			if ganho > 0 and away > 60.0:
+				_show_offline_modal(ganho)
+		_last_tick_msec = Time.get_ticks_msec()
+		_update_all()
+		SaveSystem.save_game()
+		CloudSave.notify_app_resumed()
+	_resume_refresh_in_progress = false

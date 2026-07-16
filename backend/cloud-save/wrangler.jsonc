@@ -1,0 +1,141 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mana-save-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "minify": true,
+  "vars": {
+    "ENVIRONMENT": "development",
+    "ENABLE_DEV_ADMIN": "true",
+    "PUBLIC_WEB_ORIGIN": "http://localhost:5173",
+    "ADMIN_WEB_ORIGIN": "http://localhost:5174",
+    "ACCESS_TEAM_DOMAIN": "https://replace-me.cloudflareaccess.com",
+    "ACCESS_AUD": "replace-after-access-app-is-created",
+    "CURRENT_TOKEN_KEY_VERSION": "1",
+    "CURRENT_RECOVERY_KEY_VERSION": "1",
+    "SUPPORTED_SAVE_SCHEMA": "8",
+    "WALLET_MIGRATION_CAP": "500",
+    "DAILY_FREE_GEMS": "5"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mana-save-local",
+      "migrations_dir": "migrations/main"
+    },
+    {
+      "binding": "DELETIONS_DB",
+      "database_name": "mana-delete-local",
+      "migrations_dir": "migrations/deletions"
+    },
+    {
+      "binding": "LIVEOPS_DB",
+      "database_name": "mana-liveops-local",
+      "migrations_dir": "migrations/liveops"
+    }
+  ],
+  "ratelimits": [
+    { "name": "ACCOUNT_CREATE_LIMITER", "namespace_id": "11001", "simple": { "limit": 2, "period": 60 } },
+    { "name": "ACCOUNT_CREATE_IP_LIMITER", "namespace_id": "11007", "simple": { "limit": 5, "period": 60 } },
+    { "name": "ACCOUNT_RECOVERY_LIMITER", "namespace_id": "11002", "simple": { "limit": 5, "period": 60 } },
+    { "name": "ACCOUNT_RECOVERY_IP_LIMITER", "namespace_id": "11008", "simple": { "limit": 20, "period": 60 } },
+    { "name": "SAVE_READ_LIMITER", "namespace_id": "11003", "simple": { "limit": 30, "period": 60 } },
+    { "name": "SAVE_WRITE_LIMITER", "namespace_id": "11004", "simple": { "limit": 12, "period": 60 } },
+    { "name": "SECURITY_LIMITER", "namespace_id": "11005", "simple": { "limit": 3, "period": 60 } },
+    { "name": "WALLET_LIMITER", "namespace_id": "11006", "simple": { "limit": 20, "period": 60 } }
+  ],
+  "triggers": { "crons": ["15 3 * * *"] },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": true },
+    "traces": { "enabled": true, "head_sampling_rate": 0.05 }
+  },
+  "env": {
+    "staging": {
+      "name": "mana-save-staging",
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "ENABLE_DEV_ADMIN": "false",
+        "PUBLIC_WEB_ORIGIN": "https://mana-idle-landing-staging.spankk-bolter.workers.dev",
+        "ADMIN_WEB_ORIGIN": "https://mana-idle-admin-staging.spankk-bolter.workers.dev",
+        "ACCESS_TEAM_DOMAIN": "https://still-field-f0c4.cloudflareaccess.com",
+        "ACCESS_AUD": "368085a329cfae1189f8e756d90f55822733dce0232dd2a4c9a6ebbaa496cc32",
+        "CURRENT_TOKEN_KEY_VERSION": "1",
+        "CURRENT_RECOVERY_KEY_VERSION": "1",
+        "SUPPORTED_SAVE_SCHEMA": "8",
+        "WALLET_MIGRATION_CAP": "500",
+        "DAILY_FREE_GEMS": "5"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "mana-save-staging",
+          "database_id": "1a3e9c83-ab6e-409f-85e9-c63cd17be4c7",
+          "migrations_dir": "migrations/main"
+        },
+        {
+          "binding": "DELETIONS_DB",
+          "database_name": "mana-delete-staging",
+          "database_id": "7adbe92e-1009-474d-b8e0-432d299f4bd9",
+          "migrations_dir": "migrations/deletions"
+        },
+        {
+          "binding": "LIVEOPS_DB",
+          "database_name": "mana-liveops-staging",
+          "database_id": "71771587-b05e-4911-8e0d-ad25bbb377a4",
+          "migrations_dir": "migrations/liveops"
+        }
+      ],
+      "ratelimits": [
+        { "name": "ACCOUNT_CREATE_LIMITER", "namespace_id": "526471865", "simple": { "limit": 2, "period": 60 } },
+        { "name": "ACCOUNT_CREATE_IP_LIMITER", "namespace_id": "974737808", "simple": { "limit": 5, "period": 60 } },
+        { "name": "ACCOUNT_RECOVERY_LIMITER", "namespace_id": "193636160", "simple": { "limit": 5, "period": 60 } },
+        { "name": "ACCOUNT_RECOVERY_IP_LIMITER", "namespace_id": "993797729", "simple": { "limit": 20, "period": 60 } },
+        { "name": "SAVE_READ_LIMITER", "namespace_id": "603488916", "simple": { "limit": 30, "period": 60 } },
+        { "name": "SAVE_WRITE_LIMITER", "namespace_id": "752105354", "simple": { "limit": 12, "period": 60 } },
+        { "name": "SECURITY_LIMITER", "namespace_id": "600265611", "simple": { "limit": 3, "period": 60 } },
+        { "name": "WALLET_LIMITER", "namespace_id": "222376932", "simple": { "limit": 20, "period": 60 } }
+      ]
+    },
+    "production": {
+      "name": "mana-save-prod",
+      "workers_dev": false,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ENABLE_DEV_ADMIN": "false",
+        "PUBLIC_WEB_ORIGIN": "https://manaidle.com",
+        "ADMIN_WEB_ORIGIN": "https://admin.manaidle.com",
+        "ACCESS_TEAM_DOMAIN": "https://replace-me.cloudflareaccess.com",
+        "ACCESS_AUD": "replace-after-production-access-app-is-created",
+        "CURRENT_TOKEN_KEY_VERSION": "1",
+        "CURRENT_RECOVERY_KEY_VERSION": "1",
+        "SUPPORTED_SAVE_SCHEMA": "8",
+        "WALLET_MIGRATION_CAP": "500",
+        "DAILY_FREE_GEMS": "5"
+      },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "mana-save-prod", "migrations_dir": "migrations/main" },
+        { "binding": "DELETIONS_DB", "database_name": "mana-delete-prod", "migrations_dir": "migrations/deletions" },
+        {
+          "binding": "LIVEOPS_DB",
+          "database_name": "mana-liveops-prod",
+          "database_id": "REPLACE_WITH_NEW_LIVEOPS_PRODUCTION_D1_ID",
+          "migrations_dir": "migrations/liveops"
+        }
+      ],
+      "ratelimits": [
+        { "name": "ACCOUNT_CREATE_LIMITER", "namespace_id": "13001", "simple": { "limit": 2, "period": 60 } },
+        { "name": "ACCOUNT_CREATE_IP_LIMITER", "namespace_id": "13007", "simple": { "limit": 5, "period": 60 } },
+        { "name": "ACCOUNT_RECOVERY_LIMITER", "namespace_id": "13002", "simple": { "limit": 5, "period": 60 } },
+        { "name": "ACCOUNT_RECOVERY_IP_LIMITER", "namespace_id": "13008", "simple": { "limit": 20, "period": 60 } },
+        { "name": "SAVE_READ_LIMITER", "namespace_id": "13003", "simple": { "limit": 30, "period": 60 } },
+        { "name": "SAVE_WRITE_LIMITER", "namespace_id": "13004", "simple": { "limit": 12, "period": 60 } },
+        { "name": "SECURITY_LIMITER", "namespace_id": "13005", "simple": { "limit": 3, "period": 60 } },
+        { "name": "WALLET_LIMITER", "namespace_id": "13006", "simple": { "limit": 20, "period": 60 } }
+      ]
+    }
+  }
+}

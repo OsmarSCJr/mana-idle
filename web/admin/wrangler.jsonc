@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mana-idle-admin",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-07-16",
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "html_handling": "drop-trailing-slash",
+    "run_worker_first": ["/api/*"]
+  },
+  "services": [
+    {
+      "binding": "CLOUD_SAVE",
+      "service": "mana-save-prod"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "env": {
+    "staging": {
+      "name": "mana-idle-admin-staging",
+      "workers_dev": true,
+      "services": [
+        {
+          "binding": "CLOUD_SAVE",
+          "service": "mana-save-staging"
+        }
+      ]
+    }
+  }
+}
