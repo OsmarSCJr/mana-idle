@@ -54,10 +54,10 @@ O plano executável do backend está em [Plano de save online — Worker + D1](.
 O projeto já está mais perto do APK público do que parecia:
 
 - Engine: Godot 4.7, GDScript, tela vertical.
-- Versão do projeto: 0.1.8-alpha.
+- Versão do projeto: 0.1.9-alpha.
 - Pacote: com.osmarscjr.manaidle.
 - APK release existente: 45.740.497 bytes, aproximadamente 43,6 MiB.
-- versionCode 9 e versionName 0.1.8-alpha.
+- versionCode 10 e versionName 0.1.9-alpha.
 - minSdk 24, targetSdk 36 e compileSdk 36.
 - Arquitetura: arm64-v8a.
 - Assinatura release válida, RSA 4096, esquemas APK v2 e v3.

@@ -17,7 +17,10 @@ func _ready() -> void:
 	var boost_space_ok := false
 	var fast_cycle_ok := false
 	var cloud_ui_ok := false
+	var cloud_scroll_ok := false
 	var special_cosmetics_ok := false
+	var santos_mobile_ok := false
+	var all_tabs_mobile_ok := false
 	if main != null:
 		var items: Dictionary = main.get("_items")
 		var tabs: Dictionary = main.get("_tab_buttons")
@@ -50,6 +53,65 @@ func _ready() -> void:
 			and CloudSave.state() == CloudSave.STATE_DISABLED \
 			and not CloudIdentity.installation_id().is_empty()
 		ok = ok and cloud_ui_ok
+		var cloud_parts: Dictionary = main.call("_create_cloud_popup", "Teste de toque")
+		var cloud_popup: PopupPanel = cloud_parts.popup
+		var cloud_content: VBoxContainer = cloud_parts.content
+		var dynamic_cloud_button := Button.new()
+		cloud_content.add_child(dynamic_cloud_button)
+		var cloud_scroll := _find_scroll_container(cloud_popup)
+		cloud_scroll_ok = cloud_scroll != null \
+			and cloud_scroll.scroll_deadzone == 12 \
+			and dynamic_cloud_button.mouse_filter == Control.MOUSE_FILTER_PASS
+		cloud_popup.queue_free()
+		ok = ok and cloud_scroll_ok
+
+		# A aba Santos precisa manter os cartoes dentro da largura util e deixar
+		# o gesto de arrasto atravessar inclusive filhos criados dinamicamente.
+		main.call("_show_tab", "santos")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var santos_panel: Control = main.get("_panel_santos")
+		var santos_scroll := _find_scroll_container(santos_panel)
+		var frutos_button: Button = main.get("_frutos_btn")
+		if santos_scroll != null and santos_scroll.get_child_count() == 1:
+			var scroll_content: Control = santos_scroll.get_child(0)
+			santos_mobile_ok = santos_scroll.scroll_deadzone == 12 \
+				and santos_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED \
+				and scroll_content.size.x <= santos_scroll.size.x + 1.0 \
+				and not _tree_blocks_touch_scroll(scroll_content) \
+				and frutos_button.get_parent() is VBoxContainer
+		ok = ok and santos_mobile_ok
+
+		# Faz a mesma auditoria nas cinco abas e nas duas modalidades de rolagem
+		# de Estudos. Listas verticais nao podem crescer para os lados nem reter
+		# o toque; a arvore de Conhecimentos deve preservar o pan horizontal.
+		var panel_by_tab := {
+			"geradores": main.get("_panel_geradores"),
+			"milagres": main.get("_panel_milagres"),
+			"estudo": study_panel,
+			"santos": santos_panel,
+			"gemas": main.get("_panel_gemas"),
+		}
+		all_tabs_mobile_ok = true
+		for tab_id: String in panel_by_tab:
+			main.call("_show_tab", tab_id)
+			await get_tree().process_frame
+			var active_panel: Control = panel_by_tab[tab_id]
+			all_tabs_mobile_ok = all_tabs_mobile_ok \
+				and active_panel.get_combined_minimum_size().x <= active_panel.size.x + 1.0 \
+				and _scroll_tree_is_mobile_safe(active_panel)
+		study_panel.show_section("knowledge")
+		await get_tree().process_frame
+		var knowledge_view: Control = study_panel.get("_knowledge_view")
+		var knowledge_scroll := _find_scroll_container(knowledge_view)
+		all_tabs_mobile_ok = all_tabs_mobile_ok \
+			and knowledge_scroll != null \
+			and knowledge_scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_AUTO \
+			and not _tree_blocks_touch_scroll(knowledge_scroll.get_child(0))
+		study_panel.show_section("studies")
+		ok = ok and all_tabs_mobile_ok
+		main.call("_show_tab", "geradores")
+		await get_tree().process_frame
 
 		# Valida o modo estável na nova faixa abaixo de 1100 ms e sua reversão.
 		var first_item: GeradorItem = items.get(2)
@@ -113,7 +175,9 @@ func _ready() -> void:
 			and frame.texture == GameArt.cosmetic_preview("moldura_templo")
 		ok = ok and special_cosmetics_ok
 	print("[UI] geradores=", item_count, " abas=", tab_count, " aventuras=", adventure_count)
-	print("[UI] lateral=", boost_space_ok, " cloud=", cloud_ui_ok, " ciclo_rapido=", fast_cycle_ok)
+	print("[UI] lateral=", boost_space_ok, " cloud=", cloud_ui_ok, " cloud_scroll=", cloud_scroll_ok, " ciclo_rapido=", fast_cycle_ok)
+	print("[UI] santos_mobile=", santos_mobile_ok)
+	print("[UI] todas_as_abas_mobile=", all_tabs_mobile_ok)
 	print("[UI] cosmeticos_especiais=", special_cosmetics_ok)
 	print("=== UI SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)
@@ -128,3 +192,40 @@ func _tree_has_text(node: Node, expected: String) -> bool:
 		if _tree_has_text(child, expected):
 			return true
 	return false
+
+
+func _find_scroll_container(node: Node) -> ScrollContainer:
+	if node is ScrollContainer:
+		return node
+	for child: Node in node.get_children():
+		var found := _find_scroll_container(child)
+		if found != null:
+			return found
+	return null
+
+
+func _tree_blocks_touch_scroll(node: Node) -> bool:
+	if node is Control and node.mouse_filter == Control.MOUSE_FILTER_STOP:
+		return true
+	for child: Node in node.get_children():
+		if _tree_blocks_touch_scroll(child):
+			return true
+	return false
+
+
+func _scroll_tree_is_mobile_safe(node: Node) -> bool:
+	if node is ScrollContainer:
+		var scroll := node as ScrollContainer
+		if scroll.scroll_deadzone != 12:
+			return false
+		for child: Node in scroll.get_children():
+			if _tree_blocks_touch_scroll(child):
+				return false
+			if scroll.horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED \
+				and child is Control \
+				and (child as Control).size.x > scroll.size.x + 1.0:
+				return false
+	for child: Node in node.get_children():
+		if not _scroll_tree_is_mobile_safe(child):
+			return false
+	return true

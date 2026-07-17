@@ -1300,12 +1300,21 @@ func _refresh_milagres() -> void:
 # e Dadivas (custo em Santos).
 func _build_upgrade_card(u: Dictionary, custo_em_santos: bool) -> Dictionary:
 	var panel: PanelContainer = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(0, 176)
+	panel.custom_minimum_size = Vector2(0, 250 if custo_em_santos else 176)
 	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE_HIGH, 22, Color(1.0, 0.77, 0.42, 0.16), 2, 22, true))
+
+	var stack: VBoxContainer = null
+	if custo_em_santos:
+		stack = VBoxContainer.new()
+		stack.add_theme_constant_override("separation", 12)
+		panel.add_child(stack)
 
 	var hbox: HBoxContainer = HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 20)
-	panel.add_child(hbox)
+	if stack != null:
+		stack.add_child(hbox)
+	else:
+		panel.add_child(hbox)
 
 	var art_texture: Texture2D = null
 	if custo_em_santos:
@@ -1348,6 +1357,7 @@ func _build_upgrade_card(u: Dictionary, custo_em_santos: bool) -> Dictionary:
 	nome.add_theme_font_override("font", ManaTheme.serif_bold())
 	nome.add_theme_font_size_override("font_size", 36)
 	nome.add_theme_color_override("font_color", TEXT_COLOR)
+	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_child(nome)
 
 	var efeito: Label = Label.new()
@@ -1367,7 +1377,7 @@ func _build_upgrade_card(u: Dictionary, custo_em_santos: bool) -> Dictionary:
 	info.add_child(flavor)
 
 	var btn: Button = Button.new()
-	btn.custom_minimum_size = Vector2(214, 88)
+	btn.custom_minimum_size = Vector2(0 if custo_em_santos else 214, 76 if custo_em_santos else 88)
 	btn.add_theme_font_size_override("font_size", 29)
 	ManaTheme.apply_primary_button(btn)
 	var moeda := "fe"
@@ -1378,7 +1388,10 @@ func _build_upgrade_card(u: Dictionary, custo_em_santos: bool) -> Dictionary:
 		moeda = Upgrades.currency_for(u)
 		btn.text = NumberFormat.format(u.custo) + " " + GameState.get_currency_name(moeda)
 		btn.pressed.connect(func(): GameState.buy_upgrade(u.id))
-	hbox.add_child(btn)
+	if stack != null:
+		stack.add_child(btn)
+	else:
+		hbox.add_child(btn)
 
 	return {"panel": panel, "btn": btn, "custo": float(u.custo), "moeda": moeda}
 
@@ -1417,11 +1430,13 @@ func _build_panel_santos() -> VBoxContainer:
 	_santos_info_label.add_theme_font_override("font", ManaTheme.serif_bold())
 	_santos_info_label.add_theme_font_size_override("font_size", 35)
 	_santos_info_label.add_theme_color_override("font_color", TEXT_COLOR)
+	_santos_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_vbox.add_child(_santos_info_label)
 
 	_santos_mult_label = Label.new()
 	_santos_mult_label.add_theme_font_size_override("font_size", 26)
 	_santos_mult_label.add_theme_color_override("font_color", TEXT_DIM)
+	_santos_mult_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_vbox.add_child(_santos_mult_label)
 
 	var relic_row := HBoxContainer.new()
@@ -1507,11 +1522,14 @@ func _build_panel_santos() -> VBoxContainer:
 # Card da escada "Frutos do Espirito": nivel infinito, custo geometrico.
 func _build_frutos_card() -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(0, 176)
+	panel.custom_minimum_size = Vector2(0, 250)
 	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#1d2440"), 22, ManaTheme.GOLD, 2, 22, true))
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 12)
+	panel.add_child(stack)
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 20)
-	panel.add_child(hbox)
+	stack.add_child(hbox)
 	var frutos_icon := TextureRect.new()
 	frutos_icon.texture = GameArt.gift_icon("d_frutos")
 	frutos_icon.custom_minimum_size = Vector2(112, 112)
@@ -1528,6 +1546,7 @@ func _build_frutos_card() -> PanelContainer:
 	nome.add_theme_font_override("font", ManaTheme.serif_bold())
 	nome.add_theme_font_size_override("font_size", 36)
 	nome.add_theme_color_override("font_color", TEXT_COLOR)
+	nome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_child(nome)
 	_frutos_info = Label.new()
 	_frutos_info.add_theme_font_override("font", ManaTheme.body_semibold())
@@ -1540,16 +1559,17 @@ func _build_frutos_card() -> PanelContainer:
 	flavor.add_theme_font_override("font", ManaTheme.SERIF_ITALIC_FONT)
 	flavor.add_theme_font_size_override("font_size", 23)
 	flavor.add_theme_color_override("font_color", TEXT_DIM)
+	flavor.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_child(flavor)
 	_frutos_btn = Button.new()
-	_frutos_btn.custom_minimum_size = Vector2(214, 88)
+	_frutos_btn.custom_minimum_size = Vector2(0, 76)
 	_frutos_btn.add_theme_font_size_override("font_size", 29)
 	ManaTheme.apply_primary_button(_frutos_btn)
 	_frutos_btn.pressed.connect(func():
 		if GameState.buy_dadiva_frutos():
 			_refresh_santos()
 	)
-	hbox.add_child(_frutos_btn)
+	stack.add_child(_frutos_btn)
 	return panel
 
 func _refresh_frutos_card() -> void:
@@ -1577,11 +1597,14 @@ func _refresh_cosmeticos() -> void:
 func _build_cosmetic_card(c: Dictionary) -> PanelContainer:
 	var raridade: Dictionary = Cosmeticos.raridade_info(str(c.raridade))
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(0, 132)
+	panel.custom_minimum_size = Vector2(0, 210)
 	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE_HIGH, 18, (raridade.cor as Color) * Color(1, 1, 1, 0.45), 2, 18, true))
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 10)
+	panel.add_child(stack)
 	var hbox := HBoxContainer.new()
 	hbox.add_theme_constant_override("separation", 18)
-	panel.add_child(hbox)
+	stack.add_child(hbox)
 	var preview := TextureRect.new()
 	preview.texture = GameArt.cosmetic_preview(str(c.id))
 	preview.custom_minimum_size = Vector2(96, 96)
@@ -1598,6 +1621,7 @@ func _build_cosmetic_card(c: Dictionary) -> PanelContainer:
 	titulo.add_theme_font_override("font", ManaTheme.serif_bold())
 	titulo.add_theme_font_size_override("font_size", 29)
 	titulo.add_theme_color_override("font_color", raridade.cor)
+	titulo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_child(titulo)
 	var descricao := Label.new()
 	descricao.text = str(c.descricao)
@@ -1606,10 +1630,10 @@ func _build_cosmetic_card(c: Dictionary) -> PanelContainer:
 	descricao.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.add_child(descricao)
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(200, 80)
+	btn.custom_minimum_size = Vector2(0, 72)
 	btn.add_theme_font_size_override("font_size", 24)
 	ManaTheme.apply_primary_button(btn)
-	hbox.add_child(btn)
+	stack.add_child(btn)
 	var cosmetic_id := str(c.id)
 	btn.pressed.connect(func():
 		if cosmetic_id in GameState.cosmeticos_comprados:
@@ -2994,6 +3018,7 @@ func _create_cloud_popup(title_text: String) -> Dictionary:
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 16)
 	scroll.add_child(content)
+	ManaTheme.enable_touch_scroll(scroll, content)
 	var title := Label.new()
 	title.text = title_text
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

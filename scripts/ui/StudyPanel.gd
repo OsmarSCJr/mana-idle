@@ -361,7 +361,7 @@ func _build_knowledge_view() -> VBoxContainer:
 	_knowledge_tree_canvas = Control.new()
 	_knowledge_tree_canvas.custom_minimum_size = Vector2(880, 1560)
 	scroll.add_child(_knowledge_tree_canvas)
-	ManaTheme.enable_touch_scroll(scroll, _knowledge_tree_canvas)
+	ManaTheme.enable_touch_scroll(scroll, _knowledge_tree_canvas, 12, true)
 	return root
 
 

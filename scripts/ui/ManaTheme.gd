@@ -82,16 +82,25 @@ static func make_theme(font_scale: float = 1.0) -> Theme:
 # Scroll por arrasto no toque: o ScrollContainer so inicia o pan se o press
 # chegar ate ele, entao nenhum filho da lista pode reter o evento (STOP).
 # O deadzone evita que o arrasto cancele toques legitimos nos botoes.
-static func enable_touch_scroll(scroll: ScrollContainer, list: Node, deadzone: int = 24) -> void:
+static func enable_touch_scroll(
+	scroll: ScrollContainer,
+	list: Node,
+	deadzone: int = 12,
+	allow_horizontal: bool = false
+) -> void:
 	scroll.scroll_deadzone = deadzone
-	_relax_mouse_filters(list)
-	list.child_entered_tree.connect(func(node: Node): _relax_mouse_filters.call_deferred(node))
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO if allow_horizontal else ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.clip_contents = true
+	_prepare_touch_scroll_branch(list)
 
-static func _relax_mouse_filters(node: Node) -> void:
+static func _prepare_touch_scroll_branch(node: Node) -> void:
 	if node is Control and node.mouse_filter == Control.MOUSE_FILTER_STOP:
 		node.mouse_filter = Control.MOUSE_FILTER_PASS
+	if not node.child_entered_tree.is_connected(_prepare_touch_scroll_branch):
+		node.child_entered_tree.connect(_prepare_touch_scroll_branch)
 	for child in node.get_children():
-		_relax_mouse_filters(child)
+		_prepare_touch_scroll_branch(child)
 
 static func panel_style(
 	bg: Color,
