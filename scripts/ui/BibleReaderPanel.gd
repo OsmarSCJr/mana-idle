@@ -28,10 +28,15 @@ var _font_value_label: Label
 var _read_chapter_button: Button
 var _bookmark_button: Button
 var _reading_stats_label: Label
+var _navigation_panel: PanelContainer
+var _reading_page: PanelContainer
+var _theme_ornament: TextureRect
 
 
 func _ready() -> void:
 	_ensure_built()
+	EventBus.cosmetic_changed.connect(_apply_cosmetic_theme)
+	_apply_cosmetic_theme()
 	refresh_books()
 
 
@@ -131,6 +136,7 @@ func _ensure_built() -> void:
 
 func _build_navigation() -> PanelContainer:
 	var panel := PanelContainer.new()
+	_navigation_panel = panel
 	panel.add_theme_stylebox_override(
 		"panel",
 		ManaTheme.panel_style(ManaTheme.SURFACE, 20, Color(ManaTheme.GOLD_LIGHT, 0.18), 1, 16)
@@ -188,6 +194,7 @@ func _build_navigation() -> PanelContainer:
 
 func _build_reading_page() -> PanelContainer:
 	var page := PanelContainer.new()
+	_reading_page = page
 	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.add_theme_stylebox_override(
 		"panel",
@@ -197,6 +204,15 @@ func _build_reading_page() -> PanelContainer:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 12)
 	page.add_child(column)
+
+	_theme_ornament = TextureRect.new()
+	_theme_ornament.texture = GameArt.cosmetic_preview("tema_leitor_pergaminho")
+	_theme_ornament.custom_minimum_size = Vector2(0, 92)
+	_theme_ornament.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_theme_ornament.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_theme_ornament.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_theme_ornament.visible = false
+	column.add_child(_theme_ornament)
 
 	_reference_label = Label.new()
 	_reference_label.add_theme_font_override("font", ManaTheme.serif_bold())
@@ -263,6 +279,39 @@ func _build_reading_page() -> PanelContainer:
 	column.add_child(_attribution_label)
 
 	return page
+
+func _apply_cosmetic_theme() -> void:
+	if _navigation_panel == null or _reading_page == null:
+		return
+	var parchment_active := Cosmeticos.is_active("tema_leitor_pergaminho")
+	if parchment_active:
+		_navigation_panel.add_theme_stylebox_override(
+			"panel",
+			ManaTheme.panel_style(Color("#3d2a20"), 16, Color("#a9742d"), 2, 16, true)
+		)
+		_reading_page.add_theme_stylebox_override(
+			"panel",
+			ManaTheme.panel_style(Color("#ead4a6"), 14, Color("#8a5928"), 4, 26, true)
+		)
+		_reference_label.add_theme_color_override("font_color", Color("#5b321b"))
+		_reading_text.add_theme_color_override("default_color", Color("#382417"))
+		_attribution_label.add_theme_color_override("font_color", Color("#6b4b32"))
+	else:
+		_navigation_panel.add_theme_stylebox_override(
+			"panel",
+			ManaTheme.panel_style(ManaTheme.SURFACE, 20, Color(ManaTheme.GOLD_LIGHT, 0.18), 1, 16)
+		)
+		_reading_page.add_theme_stylebox_override(
+			"panel",
+			ManaTheme.panel_style(ManaTheme.PARCHMENT, 24, ManaTheme.PARCHMENT_BORDER, 2, 24, true)
+		)
+		_reference_label.add_theme_color_override("font_color", ManaTheme.INK)
+		_reading_text.add_theme_color_override("default_color", ManaTheme.INK)
+		_attribution_label.add_theme_color_override("font_color", ManaTheme.INK_MUTED)
+	if _theme_ornament != null:
+		_theme_ornament.visible = parchment_active
+	if not _selected_book_code.is_empty():
+		_load_selected_chapter()
 
 
 func _on_book_selected(index: int) -> void:

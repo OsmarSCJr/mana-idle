@@ -7,9 +7,7 @@ extends Node
 ##   "tema_fundo" - paleta do SacredBackground (fundo procedural)
 ##   "titulo"     - titulo exibido no cabecalho (topbar)
 ##   "estrela"    - cores da Estrela Nova
-## Categorias cuja aplicacao visual ainda nao foi implementada
-## ("requer_implementacao": true) aparecem como EM BREVE. Seus previews ja
-## existem, mas a compra permanece bloqueada ate o efeito estar ligado a UI.
+## Todas as categorias abaixo possuem preview e aplicacao visual em runtime.
 
 const RARIDADES: Dictionary = {
 	"comum": {"nome": "Comum", "cor": Color("#9aa4b5")},
@@ -83,12 +81,12 @@ const DADOS: Array = [
 	{"id": "titulo_escriba", "categoria": "titulo", "raridade": "rara", "custo": 100, "nome": "Escriba Fiel", "descricao": "Nem um til passará.", "texto": "ESCRIBA FIEL"},
 	{"id": "titulo_profeta", "categoria": "titulo", "raridade": "epica", "custo": 250, "nome": "Voz no Deserto", "descricao": "Preparai o caminho.", "texto": "VOZ NO DESERTO"},
 	{"id": "titulo_vencedor", "categoria": "titulo", "raridade": "lendaria", "custo": 1000, "nome": "Mais que Vencedor", "descricao": "Em todas estas coisas.", "texto": "MAIS QUE VENCEDOR"},
-	# ---- Preview pronto; aplicacao visual ainda pendente ----
-	{"id": "retratos_iluminados_era1", "categoria": "retrato", "raridade": "rara", "custo": 100, "nome": "Retratos Iluminados — Gênesis", "descricao": "Os profetas da Era 1 em iluminura dourada.", "requer_implementacao": true},
-	{"id": "moldura_arca", "categoria": "moldura", "raridade": "rara", "custo": 75, "nome": "Moldura Madeira da Arca", "descricao": "Cartões de gerador em madeira de gofer.", "requer_implementacao": true},
-	{"id": "moldura_templo", "categoria": "moldura", "raridade": "epica", "custo": 250, "nome": "Moldura Ouro do Templo", "descricao": "Cartões folheados a ouro puro.", "requer_implementacao": true},
-	{"id": "efeito_pombas", "categoria": "efeito", "raridade": "rara", "custo": 100, "nome": "Ciclo das Pombas", "descricao": "Pombas brancas celebram cada ciclo completo.", "requer_implementacao": true},
-	{"id": "tema_leitor_pergaminho", "categoria": "tema_leitor", "raridade": "comum", "custo": 30, "nome": "Leitor Pergaminho", "descricao": "A Palavra sobre pergaminho antigo.", "requer_implementacao": true},
+	# ---- Cosméticos especiais ----
+	{"id": "retratos_iluminados_era1", "categoria": "retrato", "raridade": "rara", "custo": 100, "nome": "Retratos Iluminados — Gênesis", "descricao": "Os profetas da Era 1 em iluminura dourada."},
+	{"id": "moldura_arca", "categoria": "moldura", "raridade": "rara", "custo": 75, "nome": "Moldura Madeira da Arca", "descricao": "Cartões de gerador em madeira de gofer."},
+	{"id": "moldura_templo", "categoria": "moldura", "raridade": "epica", "custo": 250, "nome": "Moldura Ouro do Templo", "descricao": "Cartões folheados a ouro puro."},
+	{"id": "efeito_pombas", "categoria": "efeito", "raridade": "rara", "custo": 100, "nome": "Ciclo das Pombas", "descricao": "Pombas brancas celebram cada ciclo completo."},
+	{"id": "tema_leitor_pergaminho", "categoria": "tema_leitor", "raridade": "comum", "custo": 30, "nome": "Leitor Pergaminho", "descricao": "A Palavra sobre pergaminho antigo."},
 ]
 
 # Paleta padrao do santuario (nenhum tema ativo).
@@ -107,22 +105,19 @@ func all() -> Array:
 	return DADOS.duplicate()
 
 func compraveis() -> Array:
-	var result: Array = []
-	for c in DADOS:
-		if not bool(c.get("requer_implementacao", false)):
-			result.append(c)
+	var result: Array = DADOS.duplicate()
 	result.sort_custom(func(a, b): return int(a.custo) < int(b.custo))
-	return result
-
-func aguardando_implementacao() -> Array:
-	var result: Array = []
-	for c in DADOS:
-		if bool(c.get("requer_implementacao", false)):
-			result.append(c)
 	return result
 
 func raridade_info(raridade: String) -> Dictionary:
 	return RARIDADES.get(raridade, RARIDADES.comum)
+
+func active_id(categoria: String) -> String:
+	return str(GameState.cosmeticos_ativos.get(categoria, ""))
+
+func is_active(cosmetic_id: String) -> bool:
+	var data := get_data(cosmetic_id)
+	return not data.is_empty() and active_id(str(data.categoria)) == cosmetic_id
 
 # ---- Consultas de aplicacao (UI le daqui o cosmetico ativo) ----
 

@@ -17,6 +17,7 @@ func _ready() -> void:
 	var boost_space_ok := false
 	var fast_cycle_ok := false
 	var cloud_ui_ok := false
+	var special_cosmetics_ok := false
 	if main != null:
 		var items: Dictionary = main.get("_items")
 		var tabs: Dictionary = main.get("_tab_buttons")
@@ -79,8 +80,41 @@ func _ready() -> void:
 			and not bool(first_item.get("_fast_cycle_active")) \
 			and not fast_wave.visible
 		ok = ok and fast_cycle_ok
+
+		# Aplica os cinco cosmeticos especiais nos pontos reais da interface.
+		GameState.cosmeticos_comprados = [
+			"retratos_iluminados_era1", "moldura_arca", "moldura_templo",
+			"efeito_pombas", "tema_leitor_pergaminho",
+		]
+		GameState.cosmeticos_ativos = {
+			"retrato": "retratos_iluminados_era1",
+			"moldura": "moldura_arca",
+			"efeito": "efeito_pombas",
+			"tema_leitor": "tema_leitor_pergaminho",
+		}
+		EventBus.cosmetic_changed.emit()
+		await get_tree().process_frame
+		var genesis_item: GeradorItem = items.get(1)
+		var frame: TextureRect = genesis_item.get("_cosmetic_frame")
+		var prophet_button: Button = genesis_item.get("_prophet_btn")
+		var reader: BibleReaderPanel = study_panel.get("_bible_reader")
+		var ornament: TextureRect = reader.get("_theme_ornament")
+		var effect_layer: Control = main.get("_cosmetic_effect_layer")
+		main.call("_on_cosmetic_cycle_complete", 1, 1.0)
+		special_cosmetics_ok = frame.visible \
+			and frame.texture == GameArt.cosmetic_preview("moldura_arca") \
+			and prophet_button.icon == GameArt.illuminated_era1_portrait(1) \
+			and ornament.visible \
+			and effect_layer.get_child_count() == 1
+		GameState.cosmeticos_ativos.moldura = "moldura_templo"
+		EventBus.cosmetic_changed.emit()
+		await get_tree().process_frame
+		special_cosmetics_ok = special_cosmetics_ok \
+			and frame.texture == GameArt.cosmetic_preview("moldura_templo")
+		ok = ok and special_cosmetics_ok
 	print("[UI] geradores=", item_count, " abas=", tab_count, " aventuras=", adventure_count)
 	print("[UI] lateral=", boost_space_ok, " cloud=", cloud_ui_ok, " ciclo_rapido=", fast_cycle_ok)
+	print("[UI] cosmeticos_especiais=", special_cosmetics_ok)
 	print("=== UI SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)
 

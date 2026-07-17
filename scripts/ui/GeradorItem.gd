@@ -28,6 +28,7 @@ var _modo_compra: String = "x1"
 
 var _icon_panel: PanelContainer
 var _icon_texture_rect: TextureRect
+var _cosmetic_frame: TextureRect
 var _icon_label: Label
 var _name_label: Label
 var _qty_label: Label
@@ -77,6 +78,8 @@ func setup(id: int) -> void:
 	_build_ui()
 	_check_locked()
 	EventBus.generator_cycle_complete.connect(_on_cycle_complete)
+	EventBus.cosmetic_changed.connect(_refresh_cosmetics)
+	_refresh_cosmetics()
 
 func set_modo(modo: String) -> void:
 	_modo_compra = modo
@@ -150,6 +153,14 @@ func _build_ui() -> void:
 	_icon_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_icon_panel.add_child(_icon_label)
 	_apply_icon_texture()
+	_cosmetic_frame = TextureRect.new()
+	_cosmetic_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_cosmetic_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_cosmetic_frame.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_cosmetic_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cosmetic_frame.z_index = 3
+	_cosmetic_frame.visible = false
+	_icon_panel.add_child(_cosmetic_frame)
 
 	var info_vbox: VBoxContainer = VBoxContainer.new()
 	info_vbox.add_theme_constant_override("separation", 4)
@@ -341,11 +352,23 @@ func _apply_icon_texture() -> void:
 func _apply_prophet_texture() -> void:
 	if _prophet_btn == null:
 		return
-	_prophet_btn.icon = _prophet_texture
-	_prophet_btn.expand_icon = _prophet_texture != null
-	_prophet_btn.add_theme_constant_override("icon_max_width", 38 if _prophet_texture != null else 0)
+	var effective_texture := _prophet_texture
+	if gen_id <= 4 and Cosmeticos.is_active("retratos_iluminados_era1"):
+		effective_texture = GameArt.illuminated_era1_portrait(gen_id)
+	_prophet_btn.icon = effective_texture
+	_prophet_btn.expand_icon = effective_texture != null
+	_prophet_btn.add_theme_constant_override("icon_max_width", 42 if effective_texture != null else 0)
 	if _prophet_badge != null:
-		_prophet_badge.texture = _prophet_texture
+		_prophet_badge.texture = effective_texture
+
+func _refresh_cosmetics() -> void:
+	_apply_prophet_texture()
+	if _cosmetic_frame != null:
+		var frame_id := Cosmeticos.active_id("moldura")
+		_cosmetic_frame.texture = GameArt.cosmetic_preview(frame_id)
+		_cosmetic_frame.visible = frame_id == "moldura_arca" or frame_id == "moldura_templo"
+	_card_style_state = ""
+	_apply_card_style("locked" if is_locked else "unlocked")
 
 func _apply_prophet_button_style(is_ready: bool) -> void:
 	if _prophet_btn == null or _prophet_button_ready == is_ready and _prophet_btn.has_theme_stylebox_override("normal"):
@@ -388,7 +411,13 @@ func _apply_card_style(state: String) -> void:
 	if state == "locked":
 		add_theme_stylebox_override("panel", ManaTheme.panel_style(BG_COLOR_LOCKED, 24, Color(1.0, 1.0, 1.0, 0.07), 2, 20))
 	else:
-		add_theme_stylebox_override("panel", ManaTheme.panel_style(BG_COLOR, 24, BORDER_COLOR, 2, 20, true))
+		match Cosmeticos.active_id("moldura"):
+			"moldura_arca":
+				add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#f3e5c8"), 18, Color("#704426"), 4, 20, true))
+			"moldura_templo":
+				add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#fff7df"), 12, Color("#c79318"), 4, 20, true))
+			_:
+				add_theme_stylebox_override("panel", ManaTheme.panel_style(BG_COLOR, 24, BORDER_COLOR, 2, 20, true))
 
 func _apply_operating_state(state: String) -> void:
 	if state == _visual_state:

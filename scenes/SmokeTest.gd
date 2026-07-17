@@ -11,6 +11,8 @@ func _ready() -> void:
 	GameState._init_geradores()
 	GameState.upgrades_comprados.clear()
 	GameState.dadivas_compradas.clear()
+	GameState.cosmeticos_comprados.clear()
+	GameState.cosmeticos_ativos.clear()
 	Economy.recompute_multiplicadores()
 
 	# 1) Upgrade PROD: requisito atual de 25 Haja Luz, u1_1 (x2)
@@ -98,6 +100,31 @@ func _ready() -> void:
 			contem_comprado = true
 	print("[T10] disponiveis=", disp.size(), " contem comprado=", contem_comprado)
 	ok = ok and not contem_comprado
+
+	# 11) Os cinco cosmeticos especiais podem ser comprados e equipados.
+	GameState.reliquias = 1000
+	var especiais := [
+		"retratos_iluminados_era1", "moldura_arca", "moldura_templo",
+		"efeito_pombas", "tema_leitor_pergaminho",
+	]
+	var comprou_especiais := true
+	for cosmetic_id in especiais:
+		comprou_especiais = GameState.buy_cosmetic(cosmetic_id) and comprou_especiais
+	var especiais_ativos := Cosmeticos.is_active("retratos_iluminados_era1") \
+		and Cosmeticos.is_active("moldura_templo") \
+		and Cosmeticos.is_active("efeito_pombas") \
+		and Cosmeticos.is_active("tema_leitor_pergaminho")
+	print("[T11] cosmeticos especiais comprados=", comprou_especiais, " ativos=", especiais_ativos)
+	ok = ok and comprou_especiais and especiais_ativos
+	var cosmetics_save := GameState.get_save_data()
+	GameState.cosmeticos_comprados.clear()
+	GameState.cosmeticos_ativos.clear()
+	GameState.load_save_data(cosmetics_save)
+	var cosmetics_roundtrip := especiais.all(func(id: String): return id in GameState.cosmeticos_comprados) \
+		and Cosmeticos.is_active("moldura_templo") \
+		and Cosmeticos.is_active("tema_leitor_pergaminho")
+	print("[T12] cosmeticos especiais roundtrip=", cosmetics_roundtrip)
+	ok = ok and cosmetics_roundtrip
 
 	print("=== SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)

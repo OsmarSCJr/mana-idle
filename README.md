@@ -53,6 +53,7 @@ godot --headless --editor --path . --quit
 godot --headless --path . scenes/SmokeTest.tscn -- --smoke-test
 godot --headless --path . scenes/StudySmokeTest.tscn -- --smoke-test
 godot --headless --path . scenes/UISmokeTest.tscn -- --smoke-test
+godot --headless --path . scenes/CosmeticSmokeTest.tscn -- --smoke-test
 godot --headless --path . scenes/CloudSmokeTest.tscn -- --smoke-test
 ```
 

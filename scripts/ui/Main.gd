@@ -3,6 +3,7 @@ extends Control
 const PurchaseButtonScript = preload("res://scripts/ui/PurchaseButton.gd")
 const EraProgressSquareScript = preload("res://scripts/ui/EraProgressSquare.gd")
 const NovaStarScript = preload("res://scripts/ui/NovaStar.gd")
+const CosmeticEffectLayerScript = preload("res://scripts/ui/CosmeticEffectLayer.gd")
 const TICK_RATE: float = 10.0
 const BG_COLOR: Color = ManaTheme.BACKGROUND_TOP
 const TOPBAR_COLOR: Color = ManaTheme.SURFACE_LOW
@@ -26,6 +27,7 @@ var _brand_sub: Label
 var _marco_label: Label
 var _marco_icon: TextureRect
 var _nova_star: Control
+var _cosmetic_effect_layer: Control
 var _santos_label: Label
 var _rev_label: Label
 var _era_label: Label
@@ -187,6 +189,8 @@ func _build_ui() -> void:
 	_nova_star = NovaStarScript.new()
 	_nova_star.set("current_adventure_provider", func() -> String: return _current_adventure)
 	add_child(_nova_star)
+	_cosmetic_effect_layer = CosmeticEffectLayerScript.new()
+	add_child(_cosmetic_effect_layer)
 	_refresh_liveops_banner()
 	_show_tab("geradores")
 
@@ -1566,13 +1570,11 @@ func _refresh_cosmeticos() -> void:
 	if not _cosmeticos_built:
 		_cosmeticos_built = true
 		for c in Cosmeticos.compraveis():
-			_cosmeticos_list.add_child(_build_cosmetic_card(c, false))
-		for c in Cosmeticos.aguardando_implementacao():
-			_cosmeticos_list.add_child(_build_cosmetic_card(c, true))
+			_cosmeticos_list.add_child(_build_cosmetic_card(c))
 	for refresher in _cosmetic_refreshers:
 		refresher.call()
 
-func _build_cosmetic_card(c: Dictionary, em_breve: bool) -> PanelContainer:
+func _build_cosmetic_card(c: Dictionary) -> PanelContainer:
 	var raridade: Dictionary = Cosmeticos.raridade_info(str(c.raridade))
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(0, 132)
@@ -1620,10 +1622,6 @@ func _build_cosmetic_card(c: Dictionary, em_breve: bool) -> PanelContainer:
 	var categoria := str(c.categoria)
 	var custo := int(c.custo)
 	_cosmetic_refreshers.append(func():
-		if em_breve:
-			btn.text = "EM BREVE"
-			btn.disabled = true
-			return
 		if cosmetic_id in GameState.cosmeticos_comprados:
 			var ativo := str(GameState.cosmeticos_ativos.get(categoria, "")) == cosmetic_id
 			btn.text = "ATIVO ✓" if ativo else "EQUIPAR"
@@ -2514,6 +2512,7 @@ func _setup_signals() -> void:
 		_update_all()
 	)
 	EventBus.adventure_currency_changed.connect(func(_currency: String, _amount: float): _update_topbar())
+	EventBus.generator_cycle_complete.connect(_on_cosmetic_cycle_complete)
 	EventBus.marco_geral_reached.connect(func(_adventure_id: String, _quantity: int):
 		_refresh_marco_label()
 		_update_all()
@@ -2528,6 +2527,14 @@ func _setup_signals() -> void:
 		if CloudIdentity.is_authenticated() and _notification_label != null:
 			_notification_label.tooltip_text = message
 	)
+
+func _on_cosmetic_cycle_complete(gen_id: int, _revenue: float) -> void:
+	if not Cosmeticos.is_active("efeito_pombas") or _cosmetic_effect_layer == null:
+		return
+	var item: Control = _items.get(gen_id) as Control
+	if item == null or not item.is_visible_in_tree():
+		return
+	_cosmetic_effect_layer.call("play_doves", item.get_global_rect().get_center())
 
 
 func _refresh_titulo_cosmetico() -> void:

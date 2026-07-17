@@ -677,7 +677,7 @@ func buy_cosmetic(cosmetic_id: String) -> bool:
 	if cosmetic_id in cosmeticos_comprados:
 		return false
 	var data: Dictionary = Cosmeticos.get_data(cosmetic_id)
-	if data.is_empty() or bool(data.get("requer_implementacao", false)):
+	if data.is_empty():
 		return false
 	if reliquias < int(data.custo):
 		return false

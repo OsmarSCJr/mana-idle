@@ -97,6 +97,13 @@ const SPECIAL_PROPHET_PORTRAITS := {
 	"pe_daniel": preload("res://assets/icons/profetas/especiais/ps12_daniel.png"),
 }
 
+const ILLUMINATED_ERA1_PORTRAITS := [
+	preload("res://assets/icons/profetas/iluminados/p01_gabriel_iluminado.png"),
+	preload("res://assets/icons/profetas/iluminados/p02_adao_iluminado.png"),
+	preload("res://assets/icons/profetas/iluminados/p03_noe_iluminado.png"),
+	preload("res://assets/icons/profetas/iluminados/p04_nemrod_iluminado.png"),
+]
+
 const GIFT_ICONS := {
 	"d_comunhao": preload("res://assets/icons/dadivas/d_comunhao.png"),
 	"d_evangelismo": preload("res://assets/icons/dadivas/d_evangelismo.png"),
@@ -181,6 +188,11 @@ static func automation_portrait(generator_id: int) -> Texture2D:
 	if generator_id < 1 or generator_id > AUTOMATION_PORTRAITS.size():
 		return null
 	return AUTOMATION_PORTRAITS[generator_id - 1] as Texture2D
+
+static func illuminated_era1_portrait(generator_id: int) -> Texture2D:
+	if generator_id < 1 or generator_id > ILLUMINATED_ERA1_PORTRAITS.size():
+		return automation_portrait(generator_id)
+	return ILLUMINATED_ERA1_PORTRAITS[generator_id - 1] as Texture2D
 
 
 static func special_prophet_portrait(upgrade_id: String) -> Texture2D:
