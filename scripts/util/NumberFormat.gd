@@ -1,11 +1,19 @@
 class_name NumberFormat
 extends RefCounted
 
+# Cobre ate 1000^82 ~ 1e246: folga para o topo da corrida aos 10000
+# (custo unitario maximo ~1e95 com o softcap padrao).
 const SUFFIXES = [
 	"", "K", "M", "B", "T",
 	"aa", "ab", "ac", "ad", "ae", "af", "ag", "ah", "ai", "aj",
 	"ak", "al", "am", "an", "ao", "ap", "aq", "ar", "as", "at",
-	"au", "av", "aw", "ax", "ay", "az"
+	"au", "av", "aw", "ax", "ay", "az",
+	"ba", "bb", "bc", "bd", "be", "bf", "bg", "bh", "bi", "bj",
+	"bk", "bl", "bm", "bn", "bo", "bp", "bq", "br", "bs", "bt",
+	"bu", "bv", "bw", "bx", "by", "bz",
+	"ca", "cb", "cc", "cd", "ce", "cf", "cg", "ch", "ci", "cj",
+	"ck", "cl", "cm", "cn", "co", "cp", "cq", "cr", "cs", "ct",
+	"cu", "cv", "cw", "cx", "cy", "cz"
 ]
 
 static func format(num: float) -> String:

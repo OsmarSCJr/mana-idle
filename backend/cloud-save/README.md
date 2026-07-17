@@ -20,7 +20,7 @@ flowchart LR
 - `DB`: jogadores, aparelhos, sessões, saves, snapshots, carteira gratuita, ações de segurança, configuração operacional e auditoria administrativa.
 - `DELETIONS_DB`: registro separado de tombstones. Ele permite reaplicar exclusões se um backup antigo do banco principal for restaurado.
 - `LIVEOPS_DB`: balanceamentos e campanhas versionados e imutáveis, estado publicado e auditoria específica.
-- Worker: autenticação, validação do save v8, configuração remota, CAS por revisão, idempotência, limites de requisição, CORS, rotinas administrativas e manutenção agendada.
+- Worker: autenticação, validação do save v9, configuração remota LiveOps v2, CAS por revisão, idempotência, limites de requisição, CORS, rotinas administrativas e manutenção agendada.
 - Cloudflare Access: autenticação do painel administrativo em staging e produção.
 - Não há endpoint de compra, pagamento ou saldo pago. `paid_balance` é fixado em zero pelo banco.
 
@@ -30,7 +30,7 @@ flowchart LR
 - Save com `ETag`, `If-Match`, revisão monotônica e resposta `412` contendo o estado conflitante.
 - Repetição segura de upload, restore e operações da carteira por `mutationId`/`operationId`.
 - Limites de 96 KiB para o envelope e 64 KiB para o JSON do save.
-- Validação estrutural do save v8, checksum SHA-256 e proteção contra relógio mais de cinco minutos no futuro.
+- Validação estrutural do save v9, checksum SHA-256 e proteção contra relógio mais de cinco minutos no futuro.
 - Código de recuperação com rotação, revogação de outros aparelhos e redefinição atrasada em 24 horas.
 - Exclusão imediata com código ou atrasada em sete dias; tombstone separado com reconciliação automática.
 - Sessão web de exclusão restrita, com validade de 15 minutos.

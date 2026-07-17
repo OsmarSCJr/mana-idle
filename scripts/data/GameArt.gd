@@ -104,6 +104,13 @@ const GIFT_ICONS := {
 	"d_jo": preload("res://assets/icons/dadivas/d_jo.png"),
 	"d_jo2": preload("res://assets/icons/dadivas/d_jo2.png"),
 	"d_salomao": preload("res://assets/icons/dadivas/d_salomao.png"),
+	"d_primicias": preload("res://assets/icons/dadivas/d_primicias.png"),
+	"d_vigilia": preload("res://assets/icons/dadivas/d_vigilia.png"),
+	"d_primicias2": preload("res://assets/icons/dadivas/d_primicias2.png"),
+	"d_sopro": preload("res://assets/icons/dadivas/d_sopro.png"),
+	"d_primicias3": preload("res://assets/icons/dadivas/d_primicias3.png"),
+	"d_coroa": preload("res://assets/icons/dadivas/d_coroa.png"),
+	"d_frutos": preload("res://assets/icons/dadivas/d_frutos.png"),
 }
 
 const SANTOS_ICON: Texture2D = preload("res://assets/icons/ui/ui_santos.png")
@@ -114,6 +121,32 @@ const FAITH_ICON: Texture2D = preload("res://assets/icons/ui/ui_fe.png")
 const SETTINGS_ICON: Texture2D = preload("res://assets/icons/ui/ui_settings_wood.png")
 const MANA_ICON: Texture2D = preload("res://assets/icons/geradores/g05_mana_ceu.png")
 const OPEN_BIBLE_ICON: Texture2D = preload("res://assets/icons/ui/ui_open_bible.png")
+const GRACE_ICON: Texture2D = preload("res://assets/icons/currencies/ui_graca.png")
+const GLORY_ICON: Texture2D = preload("res://assets/icons/currencies/ui_gloria.png")
+const NOVA_STAR_ICON: Texture2D = preload("res://assets/icons/special/nova_star.png")
+const MILESTONE_10000_ICON: Texture2D = preload("res://assets/icons/special/milestone_10000.png")
+
+const COSMETIC_PREVIEWS := {
+	"fundo_aurora": preload("res://assets/icons/cosmetics/fundo_aurora.png"),
+	"fundo_belem": preload("res://assets/icons/cosmetics/fundo_belem.png"),
+	"fundo_mar": preload("res://assets/icons/cosmetics/fundo_mar.png"),
+	"fundo_vitral": preload("res://assets/icons/cosmetics/fundo_vitral.png"),
+	"fundo_jerusalem": preload("res://assets/icons/cosmetics/fundo_jerusalem.png"),
+	"estrela_cometa": preload("res://assets/icons/cosmetics/estrela_cometa.png"),
+	"estrela_serafim": preload("res://assets/icons/cosmetics/estrela_serafim.png"),
+	"estrela_alva": preload("res://assets/icons/cosmetics/estrela_alva.png"),
+	"titulo_peregrino": preload("res://assets/icons/cosmetics/titulo_peregrino.png"),
+	"titulo_semeador": preload("res://assets/icons/cosmetics/titulo_semeador.png"),
+	"titulo_guardiao": preload("res://assets/icons/cosmetics/titulo_guardiao.png"),
+	"titulo_escriba": preload("res://assets/icons/cosmetics/titulo_escriba.png"),
+	"titulo_profeta": preload("res://assets/icons/cosmetics/titulo_profeta.png"),
+	"titulo_vencedor": preload("res://assets/icons/cosmetics/titulo_vencedor.png"),
+	"retratos_iluminados_era1": preload("res://assets/icons/cosmetics/retratos_iluminados_era1.png"),
+	"moldura_arca": preload("res://assets/icons/cosmetics/moldura_arca.png"),
+	"moldura_templo": preload("res://assets/icons/cosmetics/moldura_templo.png"),
+	"efeito_pombas": preload("res://assets/icons/cosmetics/efeito_pombas.png"),
+	"tema_leitor_pergaminho": preload("res://assets/icons/cosmetics/tema_leitor_pergaminho.png"),
+}
 
 const KNOWLEDGE_ICONS := {
 	"roots": preload("res://assets/icons/knowledge/knowledge_roots.png"),
@@ -156,6 +189,15 @@ static func special_prophet_portrait(upgrade_id: String) -> Texture2D:
 
 static func gift_icon(gift_id: String) -> Texture2D:
 	return GIFT_ICONS.get(gift_id) as Texture2D
+
+static func currency_icon(currency_id: String) -> Texture2D:
+	match currency_id:
+		"graca": return GRACE_ICON
+		"gloria": return GLORY_ICON
+		_: return FAITH_ICON
+
+static func cosmetic_preview(cosmetic_id: String) -> Texture2D:
+	return COSMETIC_PREVIEWS.get(cosmetic_id) as Texture2D
 
 static func sidebar_adventure_icon(adventure_id: String) -> Texture2D:
 	return SIDEBAR_ADVENTURE_ICONS.get(adventure_id) as Texture2D

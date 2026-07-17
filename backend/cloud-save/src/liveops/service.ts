@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { ApiError } from "../errors";
 import { liveOpsStateEtag } from "../http";
 import { sha256Hex } from "../security/crypto";
-import { balanceConfigSchema, campaignEffectsSchema } from "./schemas";
+import { balanceConfigSchema, campaignEffectsSchema, DEFAULT_BALANCE_CONFIG } from "./schemas";
 import type {
   AdminCampaign,
   BalanceConfig,
@@ -114,8 +114,23 @@ function canonicalJson(value: unknown): string {
 function parseStored<T>(value: string, schema: z.ZodType<T>): T {
   const parsed: unknown = JSON.parse(value);
   const result = schema.safeParse(parsed);
-  if (!result.success) throw new Error("Stored LiveOps data does not match schema version 1.");
+  if (!result.success) throw new Error("Stored LiveOps data does not match its expected schema.");
   return result.data;
+}
+
+function parseBalanceConfig(value: string): BalanceConfig {
+  const parsed: unknown = JSON.parse(value);
+  const current = balanceConfigSchema.safeParse(parsed);
+  if (current.success) return current.data;
+  // Compatibilidade de leitura para bancos que ainda possuem o baseline v1.
+  // O contrato antigo nao representa a corrida aos 10.000; ele e promovido
+  // aos defaults v2 ate uma versao v2 ser publicada pelo painel administrativo.
+  if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+    && "economy" in parsed && parsed.economy !== null && typeof parsed.economy === "object"
+    && !Array.isArray(parsed.economy) && "growthRate" in parsed.economy) {
+    return structuredClone(DEFAULT_BALANCE_CONFIG);
+  }
+  throw new Error("Stored LiveOps balance does not match schema version 2.");
 }
 
 function parseMetadata(value: string): Record<string, unknown> {
@@ -130,7 +145,7 @@ function balanceVersion(row: BalanceVersionRow): BalanceVersion {
   return {
     id: row.id,
     status: row.status,
-    config: parseStored(row.config_json, balanceConfigSchema),
+    config: parseBalanceConfig(row.config_json),
     sha256: row.config_sha256,
     createdBy: row.created_by,
     createdAt: row.created_at,
@@ -346,19 +361,20 @@ export async function getPublicLiveOps(
       effects: parseStored(row.effects_json, campaignEffectsSchema),
     };
   });
+  const publicConfig = parseBalanceConfig(state.config_json);
   const publicHash = await hashLiveOpsValue({
     revision: state.state_revision,
-    balance: state.config_sha256,
+    balance: publicConfig,
     campaigns: campaignRows.map((row) => ({ id: row.id, sha256: row.payload_sha256 })),
   });
   return {
     body: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: state.state_revision,
       versionId: state.id,
       publishedAt: state.state_published_at,
       serverNow: now,
-      config: parseStored(state.config_json, balanceConfigSchema),
+      config: publicConfig,
       campaigns,
     },
     // serverNow muda a cada resposta; o ETag fraco representa apenas o
@@ -410,7 +426,7 @@ export async function getLiveOpsAdminSnapshot(db: D1Database, now: number): Prom
   }));
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: state.state_revision,
     etag: liveOpsStateEtag(state.state_revision),
     activeBalance: balanceVersion(state),

@@ -7,7 +7,7 @@ const AtomicFile = preload("res://scripts/cloud/AtomicFile.gd")
 const CloudApiScript = preload("res://scripts/cloud/CloudApi.gd")
 
 const CACHE_PATH: String = "user://liveops_config.json"
-const SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 2
 const CACHE_SCHEMA_VERSION: int = 1
 const MAX_CAMPAIGNS: int = 64
 const MAX_GENERATOR_ID: int = 36
@@ -16,21 +16,88 @@ const MAX_STACKED_MULTIPLIER: float = 1.0e6
 const MAX_FREE_GEM_STACKED_MULTIPLIER: float = 100.0
 const MAX_EFFECTIVE_PRODUCTION_MULTIPLIER: float = 1.0e12
 
+# Softcap de growth: o custo unitario cresce rate^N por faixa de quantidade.
+# maxQuantity 0 marca o ultimo segmento (sem teto). Sem softcap, 1.11^N estoura
+# o float64 em N~6800 e a corrida aos 10000 seria impossivel.
 const DEFAULT_CONFIG: Dictionary = {
 	"economy": {
-		"growthRate": 1.11,
-		"saintBonus": 0.06,
-		"prestigeDivisor": 2.0e12,
+		"growthSegments": [
+			{"maxQuantity": 300, "rate": 1.11},
+			{"maxQuantity": 1500, "rate": 1.05},
+			{"maxQuantity": 4000, "rate": 1.012},
+			{"maxQuantity": 0, "rate": 1.008},
+		],
+		"saintBonus": 0.20,
+		"prestigeDivisor": 2.0e11,
 		"prophetUnlockQuantity": 25,
-		"prophetCostMultiplier": 20.0,
+		"prophetCostMultiplier": 10.0,
+		"prophetSpeedMultiplier": 0.8,
 		"offlineCapSeconds": 8.0 * 3600.0,
+		"dadivaLadderBaseCost": 10.0,
+		"dadivaLadderCostGrowth": 1.8,
+		"dadivaLadderMultiplier": 1.3,
+		# Ciclo x1.5 / x3 / x7: o x7 cai nos numeros redondos (100, multiplos de 1000).
 		"milestones": [
-			{"quantity": 25, "multiplier": 1.0},
-			{"quantity": 50, "multiplier": 2.0},
-			{"quantity": 100, "multiplier": 2.0},
-			{"quantity": 200, "multiplier": 2.0},
-			{"quantity": 300, "multiplier": 2.0},
-			{"quantity": 400, "multiplier": 2.0},
+			{"quantity": 25, "multiplier": 1.5},
+			{"quantity": 50, "multiplier": 3.0},
+			{"quantity": 75, "multiplier": 3.0},
+			{"quantity": 100, "multiplier": 7.0},
+			{"quantity": 200, "multiplier": 1.5},
+			{"quantity": 300, "multiplier": 3.0},
+			{"quantity": 400, "multiplier": 1.5},
+			{"quantity": 500, "multiplier": 7.0},
+			{"quantity": 600, "multiplier": 1.5},
+			{"quantity": 700, "multiplier": 3.0},
+			{"quantity": 800, "multiplier": 1.5},
+			{"quantity": 900, "multiplier": 3.0},
+			{"quantity": 1000, "multiplier": 7.0},
+			{"quantity": 1250, "multiplier": 1.5},
+			{"quantity": 1500, "multiplier": 3.0},
+			{"quantity": 1750, "multiplier": 1.5},
+			{"quantity": 2000, "multiplier": 7.0},
+			{"quantity": 2250, "multiplier": 1.5},
+			{"quantity": 2500, "multiplier": 3.0},
+			{"quantity": 2750, "multiplier": 1.5},
+			{"quantity": 3000, "multiplier": 7.0},
+			{"quantity": 3250, "multiplier": 1.5},
+			{"quantity": 3500, "multiplier": 3.0},
+			{"quantity": 3750, "multiplier": 1.5},
+			{"quantity": 4000, "multiplier": 7.0},
+			{"quantity": 4250, "multiplier": 1.5},
+			{"quantity": 4500, "multiplier": 3.0},
+			{"quantity": 4750, "multiplier": 1.5},
+			{"quantity": 5000, "multiplier": 7.0},
+			{"quantity": 5250, "multiplier": 1.5},
+			{"quantity": 5500, "multiplier": 3.0},
+			{"quantity": 5750, "multiplier": 1.5},
+			{"quantity": 6000, "multiplier": 7.0},
+			{"quantity": 6250, "multiplier": 1.5},
+			{"quantity": 6500, "multiplier": 3.0},
+			{"quantity": 6750, "multiplier": 1.5},
+			{"quantity": 7000, "multiplier": 7.0},
+			{"quantity": 7250, "multiplier": 1.5},
+			{"quantity": 7500, "multiplier": 3.0},
+			{"quantity": 7750, "multiplier": 1.5},
+			{"quantity": 8000, "multiplier": 7.0},
+			{"quantity": 8250, "multiplier": 1.5},
+			{"quantity": 8500, "multiplier": 3.0},
+			{"quantity": 8750, "multiplier": 1.5},
+			{"quantity": 9000, "multiplier": 7.0},
+			{"quantity": 9250, "multiplier": 1.5},
+			{"quantity": 9500, "multiplier": 3.0},
+		],
+		# Marcos gerais: recompensa quando TODOS os geradores da aventura atingem
+		# a quantidade. Multiplicador vale por run; gemas/reliquias pagam 1x (ledger).
+		"generalMilestones": [
+			{"quantity": 25, "type": "speed", "multiplier": 1.5, "gems": 0, "relics": 0},
+			{"quantity": 50, "type": "speed", "multiplier": 1.5, "gems": 0, "relics": 0},
+			{"quantity": 100, "type": "speed", "multiplier": 2.0, "gems": 10, "relics": 0},
+			{"quantity": 250, "type": "prod", "multiplier": 3.0, "gems": 0, "relics": 0},
+			{"quantity": 500, "type": "prod", "multiplier": 5.0, "gems": 20, "relics": 0},
+			{"quantity": 1000, "type": "prod", "multiplier": 7.0, "gems": 0, "relics": 25},
+			{"quantity": 2500, "type": "prod", "multiplier": 10.0, "gems": 30, "relics": 0},
+			{"quantity": 5000, "type": "prod", "multiplier": 15.0, "gems": 0, "relics": 50},
+			{"quantity": 10000, "type": "prod", "multiplier": 20.0, "gems": 100, "relics": 100},
 		],
 	},
 	"boosts": {
@@ -43,6 +110,10 @@ const DEFAULT_CONFIG: Dictionary = {
 	"rewards": {
 		"videoGems": 5,
 		"offlineTripleGemCost": 3,
+		"novaStarMinSeconds": 300,
+		"novaStarMaxSeconds": 900,
+		"novaStarProductionSeconds": 120,
+		"novaStarDailyGems": 2,
 	},
 }
 
@@ -51,14 +122,19 @@ const TOP_LEVEL_KEYS: Array[String] = [
 ]
 const CONFIG_KEYS: Array[String] = ["economy", "boosts", "rewards"]
 const ECONOMY_KEYS: Array[String] = [
-	"growthRate", "saintBonus", "prestigeDivisor", "prophetUnlockQuantity",
-	"prophetCostMultiplier", "offlineCapSeconds", "milestones",
+	"growthSegments", "saintBonus", "prestigeDivisor", "prophetUnlockQuantity",
+	"prophetCostMultiplier", "prophetSpeedMultiplier", "offlineCapSeconds",
+	"dadivaLadderBaseCost", "dadivaLadderCostGrowth", "dadivaLadderMultiplier",
+	"milestones", "generalMilestones",
 ]
 const BOOST_KEYS: Array[String] = [
 	"fervorProductionMultiplier", "pentecostProductionMultiplier",
 	"holyHandsManualMultiplier", "swiftStepTimeMultiplier", "harvestSeconds",
 ]
-const REWARD_KEYS: Array[String] = ["videoGems", "offlineTripleGemCost"]
+const REWARD_KEYS: Array[String] = [
+	"videoGems", "offlineTripleGemCost",
+	"novaStarMinSeconds", "novaStarMaxSeconds", "novaStarProductionSeconds", "novaStarDailyGems",
+]
 const CAMPAIGN_KEYS: Array[String] = [
 	"id", "key", "versionId", "version", "name", "startsAt", "endsAt", "publishedAt", "effects",
 ]
@@ -225,8 +301,45 @@ func active_campaign_names() -> Array[String]:
 	return names
 
 
-func growth_rate() -> float:
-	return float(_economy().growthRate)
+# Segmentos normalizados do softcap: [{maxQuantity:int (0 = sem teto), rate:float}].
+func growth_segments() -> Array:
+	return (_economy().growthSegments as Array).duplicate(true)
+
+
+func prophet_speed_multiplier() -> float:
+	return float(_economy().prophetSpeedMultiplier)
+
+
+func dadiva_ladder_base_cost() -> float:
+	return float(_economy().dadivaLadderBaseCost)
+
+
+func dadiva_ladder_cost_growth() -> float:
+	return float(_economy().dadivaLadderCostGrowth)
+
+
+func dadiva_ladder_multiplier() -> float:
+	return float(_economy().dadivaLadderMultiplier)
+
+
+func general_milestones() -> Array:
+	return (_economy().generalMilestones as Array).duplicate(true)
+
+
+func nova_star_min_seconds() -> float:
+	return float(_rewards().novaStarMinSeconds)
+
+
+func nova_star_max_seconds() -> float:
+	return float(_rewards().novaStarMaxSeconds)
+
+
+func nova_star_production_seconds() -> float:
+	return float(_rewards().novaStarProductionSeconds)
+
+
+func nova_star_daily_gems() -> int:
+	return int(_rewards().novaStarDailyGems)
 
 
 func saint_bonus() -> float:
@@ -559,8 +672,9 @@ func _validate_economy(value: Variant) -> String:
 	if value is not Dictionary or not _has_exact_keys(value as Dictionary, ECONOMY_KEYS):
 		return "INVALID_ECONOMY_KEYS"
 	var economy: Dictionary = value as Dictionary
-	if not _number_in_range(economy.growthRate, 1.000001, 2.0):
-		return "INVALID_GROWTH_RATE"
+	var segments_error := _validate_growth_segments(economy.growthSegments)
+	if not segments_error.is_empty():
+		return segments_error
 	if not _number_in_range(economy.saintBonus, 0.0, 10.0):
 		return "INVALID_SAINT_BONUS"
 	if not _number_in_range(economy.prestigeDivisor, 1.0, 1.0e100):
@@ -570,10 +684,18 @@ func _validate_economy(value: Variant) -> String:
 		return "INVALID_PROPHET_QUANTITY"
 	if not _number_in_range(economy.prophetCostMultiplier, 0.001, 1.0e6):
 		return "INVALID_PROPHET_COST"
+	if not _number_in_range(economy.prophetSpeedMultiplier, 0.05, 2.0):
+		return "INVALID_PROPHET_SPEED"
 	if not _number_in_range(economy.offlineCapSeconds, 60.0, 31_536_000.0):
 		return "INVALID_OFFLINE_CAP"
+	if not _number_in_range(economy.dadivaLadderBaseCost, 1.0, 1.0e9):
+		return "INVALID_DADIVA_LADDER_BASE"
+	if not _number_in_range(economy.dadivaLadderCostGrowth, 1.01, 100.0):
+		return "INVALID_DADIVA_LADDER_GROWTH"
+	if not _number_in_range(economy.dadivaLadderMultiplier, 1.0, 100.0):
+		return "INVALID_DADIVA_LADDER_MULTIPLIER"
 	if economy.milestones is not Array or (economy.milestones as Array).is_empty() \
-			or (economy.milestones as Array).size() > 32:
+			or (economy.milestones as Array).size() > 64:
 		return "INVALID_MILESTONES"
 	var previous_quantity := 0
 	for milestone_value: Variant in economy.milestones as Array:
@@ -586,6 +708,53 @@ func _validate_economy(value: Variant) -> String:
 		if not _number_in_range(milestone.multiplier, 0.01, 1000.0):
 			return "INVALID_MILESTONE_MULTIPLIER"
 		previous_quantity = int(milestone.quantity)
+	if economy.generalMilestones is not Array or (economy.generalMilestones as Array).is_empty() \
+			or (economy.generalMilestones as Array).size() > 32:
+		return "INVALID_GENERAL_MILESTONES"
+	var previous_general := 0
+	for marco_value: Variant in economy.generalMilestones as Array:
+		if marco_value is not Dictionary \
+				or not _has_exact_keys(marco_value as Dictionary, ["quantity", "type", "multiplier", "gems", "relics"]):
+			return "INVALID_GENERAL_MILESTONE"
+		var marco: Dictionary = marco_value as Dictionary
+		if not _is_integer_number(marco.quantity) or int(marco.quantity) <= previous_general:
+			return "INVALID_GENERAL_MILESTONE_QUANTITY"
+		if str(marco.type) not in ["speed", "prod"]:
+			return "INVALID_GENERAL_MILESTONE_TYPE"
+		if not _number_in_range(marco.multiplier, 1.0, 1000.0):
+			return "INVALID_GENERAL_MILESTONE_MULTIPLIER"
+		for reward_key: String in ["gems", "relics"]:
+			if not _is_integer_number(marco[reward_key]) or int(marco[reward_key]) < 0 \
+					or int(marco[reward_key]) > 1_000_000:
+				return "INVALID_GENERAL_MILESTONE_REWARD"
+		previous_general = int(marco.quantity)
+	return ""
+
+
+func _validate_growth_segments(value: Variant) -> String:
+	if value is not Array or (value as Array).is_empty() or (value as Array).size() > 8:
+		return "INVALID_GROWTH_SEGMENTS"
+	var segments: Array = value as Array
+	var previous_limit := 0
+	for index in range(segments.size()):
+		var segment_value: Variant = segments[index]
+		if segment_value is not Dictionary \
+				or not _has_exact_keys(segment_value as Dictionary, ["maxQuantity", "rate"]):
+			return "INVALID_GROWTH_SEGMENT"
+		var segment: Dictionary = segment_value as Dictionary
+		if not _number_in_range(segment.rate, 1.000001, 2.0):
+			return "INVALID_GROWTH_SEGMENT_RATE"
+		if not _is_integer_number(segment.maxQuantity):
+			return "INVALID_GROWTH_SEGMENT_LIMIT"
+		var limit := int(segment.maxQuantity)
+		var is_last := index == segments.size() - 1
+		# O ultimo segmento deve ser aberto (0); os demais crescem estritamente.
+		if is_last:
+			if limit != 0:
+				return "INVALID_GROWTH_SEGMENT_TAIL"
+		elif limit <= previous_limit:
+			return "INVALID_GROWTH_SEGMENT_ORDER"
+		previous_limit = limit
 	return ""
 
 

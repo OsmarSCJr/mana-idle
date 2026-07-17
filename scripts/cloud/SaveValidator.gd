@@ -93,12 +93,24 @@ static func validate_save_data(data: Dictionary, require_current_version: bool =
 	if not shape_error.is_empty():
 		return _invalid("INVALID_SHAPE", shape_error)
 
-	for field: String in ["fe", "feTotalVida", "feTotalHistorica"]:
+	for field: String in ["fe", "feTotalVida", "feTotalHistorica", "graca", "gloria", "gracaTotal", "gloriaTotal", "novaStarLastGemClaim"]:
 		if not _is_non_negative_number(data.get(field, 0.0)):
 			return _invalid("INVALID_VALUE", "O campo %s possui valor invalido." % field)
-	for field: String in ["santos", "santosGastos", "reliquias", "gemas", "gemasTotal"]:
+	for field: String in ["santos", "santosGastos", "reliquias", "gemas", "gemasTotal", "dadivaFrutosNivel"]:
 		if int(data.get(field, 0)) < 0:
 			return _invalid("INVALID_VALUE", "O campo %s nao pode ser negativo." % field)
+	for ledger_name: String in ["marcosLedger", "moedaMarcosLedger"]:
+		var ledger: Variant = data.get(ledger_name, {})
+		if ledger is not Dictionary or (ledger as Dictionary).size() > 8:
+			return _invalid("INVALID_LEDGER", "O registro %s e invalido." % ledger_name)
+		for ledger_key: Variant in (ledger as Dictionary):
+			if not GameState.ADVENTURES.has(str(ledger_key)) \
+					or (ledger as Dictionary)[ledger_key] is not Array \
+					or ((ledger as Dictionary)[ledger_key] as Array).size() > 64:
+				return _invalid("INVALID_LEDGER", "O registro %s contem entrada invalida." % ledger_name)
+	var active_cosmetics: Variant = data.get("cosmeticosAtivos", {})
+	if active_cosmetics is not Dictionary or (active_cosmetics as Dictionary).size() > 16:
+		return _invalid("INVALID_COSMETICS", "Os cosmeticos ativos sao invalidos.")
 
 	var generators: Variant = data.get("geradores", {})
 	if generators is not Dictionary or (generators as Dictionary).size() > 36:
@@ -122,6 +134,7 @@ static func validate_save_data(data: Dictionary, require_current_version: bool =
 		"dadivasCompradas": 32,
 		"aventurasDesbloqueadas": 8,
 		"aventurasConcluidas": 8,
+		"cosmeticosComprados": 128,
 	}
 	for array_name: String in known_arrays:
 		var array_value: Variant = data.get(array_name, [])
@@ -136,6 +149,9 @@ static func validate_save_data(data: Dictionary, require_current_version: bool =
 	for gift_id: Variant in data.get("dadivasCompradas", []):
 		if Dadivas.get_data(str(gift_id)).is_empty():
 			return _invalid("UNKNOWN_ID", "O save contem uma dadiva desconhecida.")
+	for cosmetic_id: Variant in data.get("cosmeticosComprados", []):
+		if Cosmeticos.get_data(str(cosmetic_id)).is_empty():
+			return _invalid("UNKNOWN_ID", "O save contem um cosmetico desconhecido.")
 	for adventure_id: Variant in data.get("aventurasDesbloqueadas", []):
 		if not GameState.ADVENTURES.has(str(adventure_id)):
 			return _invalid("UNKNOWN_ID", "O save contem uma aventura desconhecida.")

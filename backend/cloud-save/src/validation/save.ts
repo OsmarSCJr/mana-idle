@@ -12,6 +12,16 @@ const ROOT_KEYS = new Set([
   "gemasTotal",
   "feTotalVida",
   "feTotalHistorica",
+  "graca",
+  "gloria",
+  "gracaTotal",
+  "gloriaTotal",
+  "dadivaFrutosNivel",
+  "marcosLedger",
+  "moedaMarcosLedger",
+  "cosmeticosComprados",
+  "cosmeticosAtivos",
+  "novaStarLastGemClaim",
   "geradores",
   "maiorQtdGerador",
   "upgradesComprados",
@@ -39,6 +49,16 @@ const REQUIRED_ROOT_KEYS = [
   "gemasTotal",
   "feTotalVida",
   "feTotalHistorica",
+  "graca",
+  "gloria",
+  "gracaTotal",
+  "gloriaTotal",
+  "dadivaFrutosNivel",
+  "marcosLedger",
+  "moedaMarcosLedger",
+  "cosmeticosComprados",
+  "cosmeticosAtivos",
+  "novaStarLastGemClaim",
   "geradores",
   "maiorQtdGerador",
   "upgradesComprados",
@@ -58,8 +78,26 @@ const DADIVA_IDS = new Set([
   "d_jo",
   "d_jo2",
   "d_salomao",
+  "d_primicias",
+  "d_vigilia",
+  "d_primicias2",
+  "d_sopro",
+  "d_primicias3",
+  "d_coroa",
 ]);
 const ADVENTURE_IDS = new Set(["jornada", "vida_cristo", "igreja_apocalipse"]);
+const COSMETIC_CATEGORIES = new Map([
+  ["fundo_aurora", "tema_fundo"], ["fundo_belem", "tema_fundo"],
+  ["fundo_mar", "tema_fundo"], ["fundo_vitral", "tema_fundo"],
+  ["fundo_jerusalem", "tema_fundo"], ["estrela_cometa", "estrela"],
+  ["estrela_serafim", "estrela"], ["estrela_alva", "estrela"],
+  ["titulo_peregrino", "titulo"], ["titulo_semeador", "titulo"],
+  ["titulo_guardiao", "titulo"], ["titulo_escriba", "titulo"],
+  ["titulo_profeta", "titulo"], ["titulo_vencedor", "titulo"],
+  ["retratos_iluminados_era1", "retrato"], ["moldura_arca", "moldura"],
+  ["moldura_templo", "moldura"], ["efeito_pombas", "efeito"],
+  ["tema_leitor_pergaminho", "tema_leitor"],
+]);
 const BOOST_IDS = new Set(["fervor", "pentecoste", "colheita", "passo_ligeiro", "maos_santas"]);
 const KNOWLEDGE_IDS = new Set([
   "knowledge_good_seed",
@@ -212,6 +250,27 @@ function validateNumericGeneratorMap(value: unknown, path: string): void {
   }
 }
 
+function validateLedger(value: unknown, path: string, itemType: "number" | "string"): void {
+  const ledger = objectAt(value, path);
+  if (Object.keys(ledger).length > ADVENTURE_IDS.size) fail(path, "aventuras demais");
+  for (const [adventureId, entries] of Object.entries(ledger)) {
+    if (!ADVENTURE_IDS.has(adventureId) || !Array.isArray(entries) || entries.length > 64) {
+      fail(`${path}.${adventureId}`, "registro de aventura invalido");
+    }
+    const seen = new Set<string>();
+    for (const [index, entry] of entries.entries()) {
+      if (itemType === "number") {
+        integerNonNegative(entry, `${path}.${adventureId}.${index}`, 10_000_000);
+      } else if (typeof entry !== "string" || entry.length < 1 || entry.length > 32) {
+        fail(`${path}.${adventureId}.${index}`, "identificador de marco invalido");
+      }
+      const identity = String(entry);
+      if (seen.has(identity)) fail(`${path}.${adventureId}`, "marcos duplicados nao sao permitidos");
+      seen.add(identity);
+    }
+  }
+}
+
 function validateStudy(value: unknown): void {
   const study = objectAt(value, "$.estudo");
   const allowed = new Set(["sabedoria", "sabedoriaTotal", "progresso", "conhecimentosComprados", "conhecimentosAtivos"]);
@@ -293,16 +352,31 @@ export function validateSavePayload(
     throw new ApiError(422, "SAVE_SCHEMA_UNSUPPORTED", "A versão do save não é suportada por esta API.");
   }
   const lastSeen = finiteNonNegative(root.lastSeen, "$.lastSeen");
-  for (const key of ["fe", "feTotalVida", "feTotalHistorica"] as const) finiteNonNegative(root[key], `$.${key}`);
-  for (const key of ["santos", "santosGastos", "reliquias", "gemas", "gemasTotal"] as const) {
+  for (const key of [
+    "fe", "feTotalVida", "feTotalHistorica", "graca", "gloria", "gracaTotal", "gloriaTotal",
+    "novaStarLastGemClaim",
+  ] as const) finiteNonNegative(root[key], `$.${key}`);
+  for (const key of ["santos", "santosGastos", "reliquias", "gemas", "gemasTotal", "dadivaFrutosNivel"] as const) {
     integerNonNegative(root[key], `$.${key}`);
   }
+  validateLedger(root.marcosLedger, "$.marcosLedger", "number");
+  validateLedger(root.moedaMarcosLedger, "$.moedaMarcosLedger", "string");
   validateGeneratorMap(root.geradores);
   validateNumericGeneratorMap(root.maiorQtdGerador, "$.maiorQtdGerador");
   const upgrades = uniqueStrings(root.upgradesComprados, "$.upgradesComprados", 500);
   if (upgrades.some((id) => !validUpgradeId(id))) fail("$.upgradesComprados", "upgrade desconhecido");
-  const gifts = uniqueStrings(root.dadivasCompradas, "$.dadivasCompradas", 6);
+  const gifts = uniqueStrings(root.dadivasCompradas, "$.dadivasCompradas", 32);
   if (gifts.some((id) => !DADIVA_IDS.has(id))) fail("$.dadivasCompradas", "dádiva desconhecida");
+  const cosmetics = uniqueStrings(root.cosmeticosComprados, "$.cosmeticosComprados", 128);
+  if (cosmetics.some((id) => !COSMETIC_CATEGORIES.has(id))) fail("$.cosmeticosComprados", "cosmetico desconhecido");
+  const activeCosmetics = objectAt(root.cosmeticosAtivos, "$.cosmeticosAtivos");
+  if (Object.keys(activeCosmetics).length > 16) fail("$.cosmeticosAtivos", "categorias demais");
+  for (const [category, cosmeticId] of Object.entries(activeCosmetics)) {
+    if (typeof cosmeticId !== "string" || !cosmetics.includes(cosmeticId)
+      || COSMETIC_CATEGORIES.get(cosmeticId) !== category) {
+      fail(`$.cosmeticosAtivos.${category}`, "cosmetico ativo invalido");
+    }
+  }
   validateStudy(root.estudo);
   for (const field of ["aventurasDesbloqueadas", "aventurasConcluidas"] as const) {
     if (uniqueStrings(root[field], `$.${field}`, 3).some((id) => !ADVENTURE_IDS.has(id))) fail(`$.${field}`, "aventura desconhecida");

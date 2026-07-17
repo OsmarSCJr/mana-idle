@@ -60,20 +60,30 @@ Entrega somente balanceamento e campanhas publicados. Não exige sessão e pode 
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "revision": 1,
   "versionId": "balance-baseline-v1",
   "publishedAt": 1784210400,
   "serverNow": 1784212800,
   "config": {
     "economy": {
-      "growthRate": 1.11,
-      "saintBonus": 0.06,
-      "prestigeDivisor": 2000000000000,
+      "growthSegments": [
+        { "maxQuantity": 300, "rate": 1.11 },
+        { "maxQuantity": 1500, "rate": 1.05 },
+        { "maxQuantity": 4000, "rate": 1.012 },
+        { "maxQuantity": 0, "rate": 1.008 }
+      ],
+      "saintBonus": 0.2,
+      "prestigeDivisor": 200000000000,
       "prophetUnlockQuantity": 25,
-      "prophetCostMultiplier": 20,
+      "prophetCostMultiplier": 10,
+      "prophetSpeedMultiplier": 0.8,
       "offlineCapSeconds": 28800,
-      "milestones": [{ "quantity": 25, "multiplier": 1 }]
+      "dadivaLadderBaseCost": 10,
+      "dadivaLadderCostGrowth": 1.8,
+      "dadivaLadderMultiplier": 1.3,
+      "milestones": [{ "quantity": 25, "multiplier": 1.5 }],
+      "generalMilestones": [{ "quantity": 25, "type": "speed", "multiplier": 1.5, "gems": 0, "relics": 0 }]
     },
     "boosts": {
       "fervorProductionMultiplier": 2,
@@ -82,7 +92,14 @@ Entrega somente balanceamento e campanhas publicados. Não exige sessão e pode 
       "swiftStepTimeMultiplier": 0.5,
       "harvestSeconds": 7200
     },
-    "rewards": { "videoGems": 5, "offlineTripleGemCost": 3 }
+    "rewards": {
+      "videoGems": 5,
+      "offlineTripleGemCost": 3,
+      "novaStarMinSeconds": 300,
+      "novaStarMaxSeconds": 900,
+      "novaStarProductionSeconds": 120,
+      "novaStarDailyGems": 2
+    }
   },
   "campaigns": []
 }
@@ -158,7 +175,7 @@ Resposta `200`:
   "hasPayload": true,
   "revision": 4,
   "etag": "\"save-4\"",
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "payloadJson": "{...json exato do jogo...}",
   "sha256": "64 caracteres hexadecimais",
   "serverUpdatedAt": 1784088000,
@@ -173,7 +190,7 @@ Requer `If-Match: "save-<revisão conhecida>"`.
 ```json
 {
   "mutationId": "3956fae1-e4e7-4854-9036-1cc83c11ea7d",
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "clientSavedAt": 1784087999,
   "resolution": "normal",
   "payloadSha256": "sha256 do UTF-8 de payloadJson",
@@ -205,7 +222,7 @@ Em conflito retorna `412` com:
     "hasPayload": true,
     "revision": 6,
     "etag": "\"save-6\"",
-    "schemaVersion": 8,
+    "schemaVersion": 9,
     "payloadJson": "{...estado atual da nuvem...}",
     "sha256": "...",
     "serverUpdatedAt": 1784088010,

@@ -1,24 +1,36 @@
 class_name SacredBackground
 extends Control
 
+# Fundo procedural do santuario. A paleta padrao vem do ManaTheme; os Temas do
+# Santuario (cosmeticos comprados com Reliquias) trocam as quatro cores.
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
+	EventBus.cosmetic_changed.connect(queue_redraw)
 	queue_redraw()
 
 func _draw() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
 
+	var palette: Dictionary = Cosmeticos.active_background_palette()
+	var top_color: Color = palette.get("top", ManaTheme.BACKGROUND_TOP)
+	var bottom_color: Color = palette.get("bottom", ManaTheme.BACKGROUND_BOTTOM)
+	var glow_color: Color = palette.get("glow", Color(0.94, 0.65, 0.0, 0.045))
+	var star_color: Color = palette.get("star", Color(1.0, 0.93, 0.72))
+
 	# Gradiente noturno com um horizonte dourado muito discreto.
 	var strips := 72
 	for i in range(strips):
 		var t := float(i) / float(strips - 1)
-		var color := ManaTheme.BACKGROUND_TOP.lerp(ManaTheme.BACKGROUND_BOTTOM, t)
+		var color := top_color.lerp(bottom_color, t)
 		draw_rect(Rect2(0.0, size.y * t, size.x, size.y / strips + 2.0), color)
 
-	draw_circle(Vector2(size.x * 0.5, size.y * 1.08), size.x * 0.82, Color(0.94, 0.65, 0.0, 0.045))
-	draw_circle(Vector2(size.x * 0.5, size.y * 1.08), size.x * 0.55, Color(1.0, 0.77, 0.35, 0.035))
+	draw_circle(Vector2(size.x * 0.5, size.y * 1.08), size.x * 0.82, glow_color)
+	var glow_inner := glow_color
+	glow_inner.a *= 0.8
+	draw_circle(Vector2(size.x * 0.5, size.y * 1.08), size.x * 0.55, glow_inner)
 
 	# Campo de estrelas deterministico para evitar cintilacao entre frames.
 	for i in range(44):
@@ -26,4 +38,4 @@ func _draw() -> void:
 		var y_ratio := fmod(float(i * 71 + 29), 113.0) / 113.0
 		var radius := 1.4 + float(i % 3) * 0.8
 		var alpha := 0.18 + float(i % 5) * 0.055
-		draw_circle(Vector2(size.x * x_ratio, size.y * y_ratio), radius, Color(1.0, 0.93, 0.72, alpha))
+		draw_circle(Vector2(size.x * x_ratio, size.y * y_ratio), radius, Color(star_color.r, star_color.g, star_color.b, alpha))

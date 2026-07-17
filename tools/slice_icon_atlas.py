@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rows", type=int, default=2)
     parser.add_argument("--cols", type=int, default=2)
     parser.add_argument("--margin", type=float, default=0.035)
+    parser.add_argument("--cell-inset", type=float, default=0.0)
     return parser.parse_args()
 
 
@@ -37,6 +38,11 @@ def main() -> None:
         top = round(row * height / args.rows)
         right = round((col + 1) * width / args.cols)
         bottom = round((row + 1) * height / args.rows)
+        inset = round(min(right - left, bottom - top) * args.cell_inset)
+        left += inset
+        top += inset
+        right -= inset
+        bottom -= inset
         cell = image.crop((left, top, right, bottom))
 
         bbox = cell.getchannel("A").getbbox()

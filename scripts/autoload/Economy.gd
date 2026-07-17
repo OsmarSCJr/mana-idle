@@ -20,6 +20,7 @@ var _study_faith_mult: float = 1.0
 var _adventure_fe_discount: float = 1.0
 var _adventure_gem_discount: float = 1.0
 var _x100_unlocked: bool = false
+var _dadiva_ladder_mult: float = 1.0   # Frutos do Espirito (escada infinita)
 
 
 func _ready() -> void:
@@ -41,6 +42,7 @@ func recompute_multiplicadores() -> void:
 	_adventure_fe_discount = 1.0
 	_adventure_gem_discount = 1.0
 	_x100_unlocked = false
+	_dadiva_ladder_mult = pow(LiveOps.dadiva_ladder_multiplier(), GameState.dadiva_frutos_nivel)
 
 	for uid in GameState.upgrades_comprados:
 		var u: Dictionary = Upgrades.get_data(uid)
@@ -72,9 +74,16 @@ func recompute_multiplicadores() -> void:
 				_offline_mult *= d.mult
 			"offline_cap":
 				_offline_cap_mult *= d.mult
+			"offline_cap_bonus":
+				_offline_cap_bonus += d.mult
+			"global_speed":
+				for i in range(1, Geradores.count() + 1):
+					_tempo_gen[i] = _tempo_gen.get(i, 1.0) * d.mult
 			"discount":
 				for i in range(1, Geradores.count() + 1):
 					_custo_gen[i] = _custo_gen.get(i, 1.0) * d.mult
+			"start_units":
+				pass  # aplicada no prestige (GameState), nao afeta multiplicadores
 
 	# Conhecimentos comprados podem ser ativados ou guardados para outra build.
 	for knowledge_id in GameState.conhecimentos_ativos:
@@ -179,30 +188,100 @@ func get_tempo_ciclo_persistent(gen_id: int) -> float:
 func _get_tempo_ciclo(gen_id: int, include_temporary_boost: bool) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
 	var tempo: float = data.tempo * _tempo_gen.get(gen_id, 1.0)
+	tempo *= marco_speed_mult(Geradores.get_adventure_for_id(gen_id))
+	var state: Dictionary = GameState.geradores.get(gen_id, {})
+	if bool(state.get("tem_profeta", false)):
+		tempo *= LiveOps.prophet_speed_multiplier()
 	if include_temporary_boost and GameState.is_boost_active("passo_ligeiro"):
 		tempo *= LiveOps.swift_step_time_multiplier()
 	# tempo_min e o teto de aceleracao do gerador: com todas as bencaos de
 	# velocidade ativas, o ciclo chega exatamente ai e nao passa disso.
 	return max(tempo, float(data.get("tempo_min", 0.1)))
 
+# ---------------------------------------------------------------- Softcap
+# O growth muda por faixa de quantidade (LiveOps.growth_segments). O fator da
+# unidade N e o produto rate^unidades acumulado ao longo dos segmentos; a curva
+# e continua nos limiares (sem salto de preco).
+
+func growth_factor(quantidade: int) -> float:
+	if quantidade <= 0:
+		return 1.0
+	var factor := 1.0
+	var prev := 0
+	for segment_value: Variant in LiveOps.growth_segments():
+		var segment: Dictionary = segment_value as Dictionary
+		var limit := int(segment.maxQuantity)
+		var rate := float(segment.rate)
+		var upper := quantidade if limit <= 0 else mini(quantidade, limit)
+		if upper > prev:
+			factor *= pow(rate, upper - prev)
+			prev = upper
+		if limit <= 0 or quantidade <= limit:
+			break
+	return factor
+
 func custo_unitario(gen_id: int, ja_possui: int) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
-	return data.custo_base * get_desconto(gen_id) * pow(LiveOps.growth_rate(), ja_possui)
+	return data.custo_base * get_desconto(gen_id) * growth_factor(ja_possui)
 
-func custo_lote(gen_id: int, qtd: int, ja_possui: int) -> float:
+# Soma fechada por trecho: PG com a razao do segmento, cruzando limiares.
+func _lote_bruto(base: float, ja_possui: int, qtd: int) -> float:
 	if qtd <= 0:
 		return 0.0
-	var base: float = custo_unitario(gen_id, ja_possui)
-	var growth_rate := LiveOps.growth_rate()
-	return base * (pow(growth_rate, qtd) - 1.0) / (growth_rate - 1.0)
+	var total := 0.0
+	var owned := ja_possui
+	var restantes := qtd
+	var unit_factor := growth_factor(owned)
+	for segment_value: Variant in LiveOps.growth_segments():
+		var segment: Dictionary = segment_value as Dictionary
+		var limit := int(segment.maxQuantity)
+		var rate := float(segment.rate)
+		if limit > 0 and owned >= limit:
+			continue
+		var take := restantes if limit <= 0 else mini(restantes, limit - owned)
+		total += base * unit_factor * (pow(rate, take) - 1.0) / (rate - 1.0)
+		unit_factor *= pow(rate, take)
+		owned += take
+		restantes -= take
+		if restantes <= 0:
+			break
+	return total
+
+func custo_lote(gen_id: int, qtd: int, ja_possui: int) -> float:
+	var data: Dictionary = Geradores.get_data(gen_id)
+	return _lote_bruto(data.custo_base * get_desconto(gen_id), ja_possui, qtd)
 
 func max_compravel(gen_id: int, fe_disponivel: float, ja_possui: int) -> int:
-	var base: float = custo_unitario(gen_id, ja_possui)
-	var growth_rate := LiveOps.growth_rate()
-	var ratio: float = fe_disponivel * (growth_rate - 1.0) / base + 1.0
-	if ratio <= 1.0:
-		return 0
-	return int(log(ratio) / log(growth_rate))
+	var data: Dictionary = Geradores.get_data(gen_id)
+	var base: float = data.custo_base * get_desconto(gen_id)
+	var owned := ja_possui
+	var budget := fe_disponivel
+	var comprado := 0
+	var unit_factor := growth_factor(owned)
+	for segment_value: Variant in LiveOps.growth_segments():
+		var segment: Dictionary = segment_value as Dictionary
+		var limit := int(segment.maxQuantity)
+		var rate := float(segment.rate)
+		if limit > 0 and owned >= limit:
+			continue
+		var first := base * unit_factor
+		var ratio: float = budget * (rate - 1.0) / first + 1.0
+		# Saldo exatamente igual ao preco da primeira unidade ainda compra 1.
+		if ratio < rate:
+			break
+		var cabiveis := int(log(ratio) / log(rate))
+		var teto_trecho := cabiveis if limit <= 0 else mini(cabiveis, limit - owned)
+		if teto_trecho <= 0:
+			break
+		budget -= first * (pow(rate, teto_trecho) - 1.0) / (rate - 1.0)
+		comprado += teto_trecho
+		owned += teto_trecho
+		unit_factor *= pow(rate, teto_trecho)
+		# Orcamento esgotado dentro do trecho: fim. Se apenas bateu no teto do
+		# segmento, segue avaliando o proximo (rate menor, unidades mais caras).
+		if teto_trecho >= cabiveis or limit <= 0:
+			break
+	return comprado
 
 func receita_ciclo(gen_id: int, unidades: int) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
@@ -216,15 +295,59 @@ func receita_por_segundo(gen_id: int, unidades: int, tem_profeta: bool) -> float
 	var data: Dictionary = Geradores.get_data(gen_id)
 	return data.receita_base * float(unidades) / get_tempo_ciclo(gen_id)
 
-func receita_total_por_segundo() -> float:
+# Receita por segundo somada apenas dos geradores da aventura (cada aventura
+# tem moeda propria; nunca somar moedas diferentes).
+func receita_total_por_segundo(adventure_id: String = "jornada") -> float:
 	var total: float = 0.0
 	for gen_id in GameState.geradores:
+		if Geradores.get_adventure_for_id(gen_id) != adventure_id:
+			continue
 		var state: Dictionary = GameState.geradores[gen_id]
 		total += receita_por_segundo(gen_id, state.qtd, state.tem_profeta) \
 			* milestone_bonus(state.qtd) \
 			* _prod_gen.get(gen_id, 1.0) \
 			* LiveOps.generator_production_multiplier(gen_id)
-	return total * get_multiplicador_global()
+	return total * get_multiplicador_global() * marco_prod_mult(adventure_id)
+
+# ------------------------------------------------------- Marcos gerais
+# "Todos os geradores da aventura em N": bonus recorrentes por run, calculados
+# ao vivo a partir da menor quantidade. Recompensas unicas ficam no ledger
+# (GameState.marcos_ledger).
+
+func marco_min_qtd(adventure_id: String) -> int:
+	var minimo := -1
+	for data in Geradores.get_by_adventure(adventure_id):
+		var state: Dictionary = GameState.geradores.get(int(data.id), {})
+		var qtd := int(state.get("qtd", 0))
+		if minimo < 0 or qtd < minimo:
+			minimo = qtd
+	return maxi(minimo, 0)
+
+func marco_prod_mult(adventure_id: String) -> float:
+	var minimo := marco_min_qtd(adventure_id)
+	var mult := 1.0
+	for marco_value: Variant in LiveOps.general_milestones():
+		var marco: Dictionary = marco_value as Dictionary
+		if minimo >= int(marco.quantity) and str(marco.type) == "prod":
+			mult *= float(marco.multiplier)
+	return mult
+
+func marco_speed_mult(adventure_id: String) -> float:
+	var minimo := marco_min_qtd(adventure_id)
+	var mult := 1.0
+	for marco_value: Variant in LiveOps.general_milestones():
+		var marco: Dictionary = marco_value as Dictionary
+		if minimo >= int(marco.quantity) and str(marco.type) == "speed":
+			mult /= float(marco.multiplier)
+	return mult
+
+func next_marco_geral(adventure_id: String) -> Dictionary:
+	var minimo := marco_min_qtd(adventure_id)
+	for marco_value: Variant in LiveOps.general_milestones():
+		var marco: Dictionary = marco_value as Dictionary
+		if minimo < int(marco.quantity):
+			return marco
+	return {}
 
 func santos_ganhos(fe_total: float) -> int:
 	var prestige_divisor := LiveOps.prestige_divisor()
@@ -238,7 +361,9 @@ func get_multiplicador_santos() -> float:
 	var value_per_saint := LiveOps.saint_bonus() + _santo_bonus_extra
 	if "vida_cristo" in GameState.aventuras_concluidas:
 		value_per_saint *= 1.5
-	return 1.0 + float(GameState.santos) * value_per_saint
+	# Conta os Santos TOTAIS ganhos (saldo + gastos): investir em Dadivas nunca
+	# reduz a producao — gastar nao pode doer.
+	return 1.0 + float(GameState.santos + GameState.santos_gastos) * value_per_saint
 
 func get_multiplicador_global() -> float:
 	return get_multiplicador_global_base() * LiveOps.global_production_multiplier()
@@ -249,7 +374,7 @@ func get_multiplicador_global_base() -> float:
 
 
 func get_multiplicador_global_persistent_base() -> float:
-	return get_multiplicador_santos() * _global_prod
+	return get_multiplicador_santos() * _global_prod * _dadiva_ladder_mult
 
 func get_offline_mult() -> float:
 	return get_offline_mult_base() * LiveOps.offline_production_multiplier()
@@ -286,15 +411,14 @@ func get_profeta_custo(gen_id: int) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
 	if data.is_empty():
 		return 0.0
-	var growth_rate := LiveOps.growth_rate()
-	var unlock_quantity := LiveOps.prophet_unlock_quantity()
-	var custo_liberacao: float = data.custo_base * (pow(growth_rate, unlock_quantity) - 1.0) / (growth_rate - 1.0)
+	var custo_liberacao := _lote_bruto(float(data.custo_base), 0, LiveOps.prophet_unlock_quantity())
 	return custo_liberacao * LiveOps.prophet_cost_multiplier() * _prophet_cost_mult
 
 func profeta_pode_comprar(gen_id: int) -> bool:
 	if not profeta_disponivel(gen_id):
 		return false
-	return GameState.fe >= get_profeta_custo(gen_id)
+	var currency := GameState.get_currency_for_gen(gen_id)
+	return GameState.get_currency_amount(currency) >= get_profeta_custo(gen_id)
 
 func next_milestone(qtd: int) -> int:
 	var configured := LiveOps.milestones()
@@ -324,7 +448,9 @@ func get_gerador_multiplicador_base(gen_id: int) -> float:
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
 	if state.is_empty():
 		return 1.0
-	return milestone_bonus(state.qtd) * _prod_gen.get(gen_id, 1.0) * get_multiplicador_global_base()
+	return milestone_bonus(state.qtd) * _prod_gen.get(gen_id, 1.0) \
+		* get_multiplicador_global_base() \
+		* marco_prod_mult(Geradores.get_adventure_for_id(gen_id))
 
 
 func get_gerador_multiplicador_offline_base(gen_id: int) -> float:
@@ -333,7 +459,8 @@ func get_gerador_multiplicador_offline_base(gen_id: int) -> float:
 		return 1.0
 	return milestone_bonus(state.qtd) \
 		* _prod_gen.get(gen_id, 1.0) \
-		* get_multiplicador_global_persistent_base()
+		* get_multiplicador_global_persistent_base() \
+		* marco_prod_mult(Geradores.get_adventure_for_id(gen_id))
 
 
 func get_prestige_divisor() -> float:

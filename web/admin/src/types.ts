@@ -143,15 +143,31 @@ export interface LiveOpsMilestone {
   multiplier: number;
 }
 
+export interface LiveOpsGrowthSegment {
+  maxQuantity: number;
+  rate: number;
+}
+
+export interface LiveOpsGeneralMilestone extends LiveOpsMilestone {
+  type: "speed" | "prod";
+  gems: number;
+  relics: number;
+}
+
 export interface LiveOpsBalanceConfig {
   economy: {
-    growthRate: number;
+    growthSegments: LiveOpsGrowthSegment[];
     saintBonus: number;
     prestigeDivisor: number;
     prophetUnlockQuantity: number;
     prophetCostMultiplier: number;
+    prophetSpeedMultiplier: number;
     offlineCapSeconds: number;
+    dadivaLadderBaseCost: number;
+    dadivaLadderCostGrowth: number;
+    dadivaLadderMultiplier: number;
     milestones: LiveOpsMilestone[];
+    generalMilestones: LiveOpsGeneralMilestone[];
   };
   boosts: {
     fervorProductionMultiplier: number;
@@ -163,6 +179,10 @@ export interface LiveOpsBalanceConfig {
   rewards: {
     videoGems: number;
     offlineTripleGemCost: number;
+    novaStarMinSeconds: number;
+    novaStarMaxSeconds: number;
+    novaStarProductionSeconds: number;
+    novaStarDailyGems: number;
   };
 }
 

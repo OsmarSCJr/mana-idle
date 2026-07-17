@@ -1,6 +1,6 @@
-export function makeSaveV8(fe = 10): Record<string, unknown> {
+export function makeSaveV9(fe = 10): Record<string, unknown> {
   return {
-    version: 8,
+    version: 9,
     lastSeen: Math.floor(Date.now() / 1000),
     fe,
     santos: 0,
@@ -10,6 +10,16 @@ export function makeSaveV8(fe = 10): Record<string, unknown> {
     gemasTotal: 0,
     feTotalVida: fe,
     feTotalHistorica: fe,
+    graca: 0,
+    gloria: 0,
+    gracaTotal: 0,
+    gloriaTotal: 0,
+    dadivaFrutosNivel: 0,
+    marcosLedger: {},
+    moedaMarcosLedger: {},
+    cosmeticosComprados: [],
+    cosmeticosAtivos: {},
+    novaStarLastGemClaim: 0,
     geradores: {
       "1": { qtd: 0, tem_profeta: false, tempo_restante: -1 },
     },

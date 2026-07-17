@@ -18,13 +18,14 @@ visíveis e bloqueia novas gravações até o operador recarregar.
 - POST /liveops/balance/:versionId/publish: corpo { reason }
 - POST /liveops/balance/:versionId/rollback: corpo { reason }
 
-config possui:
+O snapshot e o envelope público usam `schemaVersion: 2`. `config` possui:
 
-- economy: growthRate, saintBonus, prestigeDivisor, prophetUnlockQuantity,
-  prophetCostMultiplier, offlineCapSeconds e milestones [{ quantity, multiplier }]
+- economy: growthSegments, saintBonus, prestigeDivisor, prophetUnlockQuantity,
+  prophetCostMultiplier, prophetSpeedMultiplier, offlineCapSeconds, parâmetros da escada de
+  Dádivas, milestones [{ quantity, multiplier }] e generalMilestones
 - boosts: fervorProductionMultiplier, pentecostProductionMultiplier,
   holyHandsManualMultiplier, swiftStepTimeMultiplier e harvestSeconds
-- rewards: videoGems e offlineTripleGemCost
+- rewards: videoGems, offlineTripleGemCost e frequência/recompensas da Estrela Nova
 
 ## Campanhas
 

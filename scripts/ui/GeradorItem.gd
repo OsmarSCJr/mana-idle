@@ -533,7 +533,7 @@ func _calc_amount() -> int:
 		"x10": return 10
 		"x100": return 100
 		"Next": return max(0, Economy.next_milestone(qtd) - qtd)
-		"Max": return max(0, Economy.max_compravel(gen_id, GameState.fe, qtd))
+		"Max": return max(0, Economy.max_compravel(gen_id, GameState.get_currency_amount(GameState.get_currency_for_gen(gen_id)), qtd))
 		_: return 1
 
 func _set_qty_text(t: String) -> void:
@@ -701,7 +701,8 @@ func update() -> void:
 	var custo: float = 0.0
 	if amount > 0:
 		custo = Economy.custo_lote(gen_id, amount, qtd)
-	var pode_comprar: bool = amount > 0 and GameState.fe >= custo
+	var saldo_moeda: float = GameState.get_currency_amount(GameState.get_currency_for_gen(gen_id))
+	var pode_comprar: bool = amount > 0 and saldo_moeda >= custo
 
 	if amount > 0:
 		if qtd <= 0:
@@ -724,8 +725,9 @@ func update() -> void:
 		if qtd >= unlock_quantity:
 			_apply_prophet_button_style(true)
 			var custo_profeta: float = Economy.get_profeta_custo(gen_id)
-			_set_prophet_text("CONTRATAR " + p_nome.to_upper() + "  ·  " + NumberFormat.format(custo_profeta) + " Fé")
-			_prophet_btn.disabled = GameState.fe < custo_profeta
+			var nome_moeda: String = GameState.get_currency_name(GameState.get_currency_for_gen(gen_id))
+			_set_prophet_text("CONTRATAR " + p_nome.to_upper() + "  ·  " + NumberFormat.format(custo_profeta) + " " + nome_moeda)
+			_prophet_btn.disabled = saldo_moeda < custo_profeta
 		else:
 			_apply_prophet_button_style(false)
 			_set_prophet_text("AUTOMAÇÃO  ·  " + p_nome + "  —  " + str(qtd) + "/" + str(unlock_quantity) + " unidades")

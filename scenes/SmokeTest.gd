@@ -56,9 +56,9 @@ func _ready() -> void:
 	var comprou_dad := GameState.buy_dadiva("d_evangelismo")
 	var global_depois := Economy.get_multiplicador_global()
 	print("[T6] d_evangelismo=", comprou_dad, " santos=", GameState.santos, " global ", global_antes, " -> ", global_depois)
-	# Gastar Santos reduz o bônus deles (30->5); cada Santo vale 6% no balanceamento atual.
-	# Esperado: (1 + 5*0.06) * 1.25 = 1.625.
-	ok = ok and comprou_dad and GameState.santos == 5 and is_equal_approx(global_depois, 1.625)
+	# O bônus conta santos TOTAIS ganhos (saldo + gastos): investir não reduz.
+	# Esperado: (1 + 30*0.20) * 1.25 = 8.75.
+	ok = ok and comprou_dad and GameState.santos == 5 and is_equal_approx(global_depois, 8.75)
 
 	# 7) Dadiva offline: Jo I (+50%) e Jo II (teto 16h)
 	GameState.santos = 100
@@ -68,7 +68,7 @@ func _ready() -> void:
 	ok = ok and is_equal_approx(Economy.get_offline_mult(), 1.5) and is_equal_approx(Economy.get_offline_cap(), 16.0 * 3600.0)
 
 	# 8) Prestige: upgrades resetam, dadivas ficam
-	GameState.fe_total_vida = 1.6e13 # cbrt(1.6e13 / 2e12) = 2 Santos
+	GameState.fe_total_vida = 1.6e12 # cbrt(1.6e12 / 2e11) = 2 Santos
 	var santos_antes := GameState.santos
 	var ganhos := GameState.prestige()
 	print("[T8] prestige ganhos=", ganhos, " upgrades=", GameState.upgrades_comprados.size(), " dadivas=", GameState.dadivas_compradas.size(), " x100=", Economy.is_x100_unlocked())

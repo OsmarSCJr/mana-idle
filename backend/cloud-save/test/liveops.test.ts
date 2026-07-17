@@ -10,15 +10,26 @@ const ADMIN_TOKEN = "test-admin-token-with-more-than-thirty-two-random-like-char
 
 const balanceConfig: BalanceConfig = {
   economy: {
-    growthRate: 1.12,
+    growthSegments: [
+      { maxQuantity: 300, rate: 1.12 },
+      { maxQuantity: 0, rate: 1.01 },
+    ],
     saintBonus: 0.07,
     prestigeDivisor: 2_500_000_000_000,
     prophetUnlockQuantity: 30,
     prophetCostMultiplier: 18,
+    prophetSpeedMultiplier: 0.75,
     offlineCapSeconds: 36_000,
+    dadivaLadderBaseCost: 12,
+    dadivaLadderCostGrowth: 1.9,
+    dadivaLadderMultiplier: 1.35,
     milestones: [
       { quantity: 50, multiplier: 2 },
       { quantity: 100, multiplier: 2.5 },
+    ],
+    generalMilestones: [
+      { quantity: 50, type: "speed", multiplier: 1.5, gems: 0, relics: 0 },
+      { quantity: 100, type: "prod", multiplier: 3, gems: 5, relics: 10 },
     ],
   },
   boosts: {
@@ -31,6 +42,10 @@ const balanceConfig: BalanceConfig = {
   rewards: {
     videoGems: 7,
     offlineTripleGemCost: 4,
+    novaStarMinSeconds: 240,
+    novaStarMaxSeconds: 720,
+    novaStarProductionSeconds: 180,
+    novaStarDailyGems: 3,
   },
 };
 
@@ -59,7 +74,7 @@ const campaignEffectsResponseSchema = z.object({
 }).strict();
 
 const adminSnapshotSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   revision: z.number().int(),
   etag: z.string(),
   activeBalance: balanceVersionSchema,
@@ -73,14 +88,14 @@ const adminSnapshotSchema = z.object({
 });
 
 const publicConfigSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   revision: z.number().int(),
   versionId: z.string(),
   publishedAt: z.number().int(),
   serverNow: z.number().int(),
   config: z.object({
     economy: z.object({
-      growthRate: z.number(),
+      growthSegments: z.array(z.object({ maxQuantity: z.number().int(), rate: z.number() })),
       milestones: z.array(z.object({ quantity: z.number().int(), multiplier: z.number() })),
     }).loose(),
     boosts: z.object({ fervorProductionMultiplier: z.number() }).loose(),
@@ -166,8 +181,8 @@ describe("LiveOps API", () => {
     expect(etag).toMatch(/^W\/"liveops-1-[a-f0-9]{12}"$/u);
     const body = publicConfigSchema.parse(await response.json());
     expect(body.versionId).toBe("balance-baseline-v1");
-    expect(body.config.economy.growthRate).toBe(1.11);
-    expect(body.config.economy.milestones[0]).toEqual({ quantity: 25, multiplier: 1 });
+    expect(body.config.economy.growthSegments[0]).toEqual({ maxQuantity: 300, rate: 1.11 });
+    expect(body.config.economy.milestones[0]).toEqual({ quantity: 25, multiplier: 1.5 });
     expect(body.config.rewards.videoGems).toBe(5);
 
     const notModified = await worker.fetch("https://api.test/v1/config", {
@@ -196,7 +211,7 @@ describe("LiveOps API", () => {
 
   it("rejeita configurações fora dos ranges, aliases e campos extras sem alterar revision", async () => {
     const invalidBalance = structuredClone(balanceConfig);
-    invalidBalance.economy.growthRate = 1;
+    invalidBalance.economy.growthSegments[0] = { maxQuantity: 300, rate: 1 };
     const rejectedBalance = await adminMutation("/balance/drafts", 1, {
       config: invalidBalance,
       reason: "range inseguro",
@@ -204,7 +219,7 @@ describe("LiveOps API", () => {
     expect(rejectedBalance.status).toBe(422);
 
     const excessiveGrowth = structuredClone(balanceConfig);
-    excessiveGrowth.economy.growthRate = 2.001;
+    excessiveGrowth.economy.growthSegments[0] = { maxQuantity: 300, rate: 2.001 };
     expect((await adminMutation("/balance/drafts", 1, {
       config: excessiveGrowth,
       reason: "growth acima do cliente",

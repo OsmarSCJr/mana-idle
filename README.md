@@ -5,7 +5,7 @@ Maná Idle com save offline-first, sincronização via Cloudflare Worker + D1, c
 ## O que está implementado
 
 - Jogo Godot com criação e recuperação de Conta de Peregrino, sessão por aparelho, save atômico local, sincronização por ETag/CAS, retries, resolução explícita de conflitos, revogação de aparelhos e exclusão de conta.
-- Worker com autenticação opaca, validação do save v8, idempotência, histórico curto, ações de segurança, exclusão com tombstone separado, carteira exclusivamente gratuita, rate limits, cron e auditoria administrativa.
+- Worker com autenticação opaca, validação do save v9, idempotência, histórico curto, ações de segurança, exclusão com tombstone separado, carteira exclusivamente gratuita, rate limits, cron e auditoria administrativa.
 - Três bancos D1 por ambiente: principal, tombstones de exclusão e LiveOps isolado.
 - Landing responsiva com páginas de privacidade, termos e exclusão externa de conta.
 - Painel administrativo sem acesso ao conteúdo dos saves, com editor versionado de balanceamento, campanhas, rollback e auditoria; protegido em produção por Cloudflare Access.

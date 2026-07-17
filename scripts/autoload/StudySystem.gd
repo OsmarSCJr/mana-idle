@@ -1,6 +1,5 @@
 extends Node
 
-const FINAL_JOURNEY_TARGET: float = 3.55e39
 const ERA_MASTERY_WISDOM: int = 2
 const JOURNEY_MASTERY_WISDOM: int = 3
 
@@ -87,9 +86,14 @@ func _reward_target(study: Dictionary) -> float:
 	if explicit > 0.0:
 		return explicit
 	var gen_id := int(study.get("generator_id", 0))
-	if gen_id < Geradores.count():
+	# O alvo economico e o proximo gerador DA MESMA aventura: as economias sao
+	# isoladas e o custo do 1o gerador da aventura seguinte e minusculo.
+	if gen_id < Geradores.count() \
+			and Geradores.get_adventure_for_id(gen_id + 1) == Geradores.get_adventure_for_id(gen_id):
 		return float(Geradores.get_data(gen_id + 1).get("custo_base", 0.0))
-	return FINAL_JOURNEY_TARGET
+	# Ultimo estudo da aventura: uma ordem acima do proprio gerador (na escala
+	# atual — o alvo fixo antigo, 3.55e39, viraria um jackpot absurdo).
+	return float(Geradores.get_data(gen_id).get("custo_base", 0.0)) * 12.0
 
 func _reward_amount(study: Dictionary, kind: String) -> float:
 	var ratios: Dictionary = study.get("reward_ratios", {})
@@ -98,15 +102,15 @@ func _reward_amount(study: Dictionary, kind: String) -> float:
 	var minimum := float(minimums.get(kind, 0.0))
 	return max(minimum, floor(_reward_target(study) * ratio)) * Economy.get_study_faith_multiplier()
 
-func _claim_reward(reward_id: String, faith: float = 0.0, wisdom: int = 0) -> bool:
+func _study_currency(study: Dictionary) -> String:
+	return GameState.get_currency_for_gen(int(study.get("generator_id", 1)))
+
+func _claim_reward(reward_id: String, amount: float = 0.0, wisdom: int = 0, currency: String = "fe") -> bool:
 	if reward_id in _list("recompensasResgatadas"):
 		return false
 	_append_once("recompensasResgatadas", reward_id)
-	if faith > 0.0:
-		GameState.fe += faith
-		GameState.fe_total_vida += faith
-		GameState.fe_total_historica += faith
-		EventBus.faith_changed.emit(GameState.fe)
+	if amount > 0.0:
+		GameState.add_currency(currency, amount)
 	if wisdom > 0:
 		GameState.sabedoria += wisdom
 		GameState.sabedoria_total += wisdom
@@ -124,11 +128,12 @@ func complete_reading(study_id: String) -> Dictionary:
 
 	_append_once("leiturasConcluidas", study_id)
 	var reward := _reward_amount(study, "reading")
-	var rewarded := _claim_reward("reading:" + study_id, reward, 0)
+	var currency := _study_currency(study)
+	var rewarded := _claim_reward("reading:" + study_id, reward, 0, currency)
 	EventBus.study_progress_changed.emit(study_id)
-	EventBus.toast_requested.emit("Leitura concluída: +" + NumberFormat.format(reward) + " de Fé")
+	EventBus.toast_requested.emit("Leitura concluída: +" + NumberFormat.format(reward) + " de " + GameState.get_currency_name(currency))
 	_request_save()
-	return {"ok": true, "rewarded": rewarded, "faith": reward}
+	return {"ok": true, "rewarded": rewarded, "faith": reward, "currency": currency}
 
 func submit_answer(question_id: String, option_id: String) -> Dictionary:
 	var study := _find_study_by_question(question_id)
@@ -150,17 +155,19 @@ func submit_answer(question_id: String, option_id: String) -> Dictionary:
 	var already_mastered := question_id in _list("questoesCorretas")
 	_append_once("questoesCorretas", question_id)
 	var reward := _reward_amount(study, "quiz")
-	var rewarded := _claim_reward("quiz:" + question_id, reward, 1)
+	var currency := _study_currency(study)
+	var rewarded := _claim_reward("quiz:" + question_id, reward, 1, currency)
 	_claim_mastery_rewards()
 	EventBus.study_progress_changed.emit(study_id)
 	if not already_mastered:
-		EventBus.toast_requested.emit("Estudo dominado: +1 Sabedoria e +" + NumberFormat.format(reward) + " de Fé")
+		EventBus.toast_requested.emit("Estudo dominado: +1 Sabedoria e +" + NumberFormat.format(reward) + " de " + GameState.get_currency_name(currency))
 	_request_save()
 	return {
 		"ok": true,
 		"correct": true,
 		"rewarded": rewarded,
 		"faith": reward if rewarded else 0.0,
+		"currency": currency,
 		"wisdom": 1 if rewarded else 0,
 		"explanation": str(question.get("explanation", "Resposta correta.")),
 	}

@@ -2,6 +2,7 @@ extends Control
 
 const PurchaseButtonScript = preload("res://scripts/ui/PurchaseButton.gd")
 const EraProgressSquareScript = preload("res://scripts/ui/EraProgressSquare.gd")
+const NovaStarScript = preload("res://scripts/ui/NovaStar.gd")
 const TICK_RATE: float = 10.0
 const BG_COLOR: Color = ManaTheme.BACKGROUND_TOP
 const TOPBAR_COLOR: Color = ManaTheme.SURFACE_LOW
@@ -19,6 +20,12 @@ const RESOURCE_PILL_WIDTH: float = 190.0
 
 var _tick_timer: Timer
 var _faith_label: Label
+var _faith_caption: Label
+var _faith_icon: TextureRect
+var _brand_sub: Label
+var _marco_label: Label
+var _marco_icon: TextureRect
+var _nova_star: Control
 var _santos_label: Label
 var _rev_label: Label
 var _era_label: Label
@@ -67,6 +74,10 @@ var _santos_mult_label: Label
 var _relics_label: Label
 var _dadivas_list: VBoxContainer
 var _dadivas_cards: Dictionary = {}
+var _frutos_btn: Button
+var _frutos_info: Label
+var _cosmeticos_list: VBoxContainer
+var _cosmeticos_built: bool = false
 
 # Painel Gemas
 const VIDEO_COOLDOWN_S: int = 300
@@ -172,6 +183,10 @@ func _build_ui() -> void:
 
 	main_vbox.add_child(_build_tabbar())
 	_build_notification()
+	# Estrela Nova: overlay acima de tudo, clique passa direto fora da estrela.
+	_nova_star = NovaStarScript.new()
+	_nova_star.set("current_adventure_provider", func() -> String: return _current_adventure)
+	add_child(_nova_star)
 	_refresh_liveops_banner()
 	_show_tab("geradores")
 
@@ -239,14 +254,15 @@ func _build_topbar() -> PanelContainer:
 	brand_name.clip_text = true
 	brand_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	brand.add_child(brand_name)
-	var brand_sub := Label.new()
-	brand_sub.text = "BÍBLIA CLICKER"
-	brand_sub.add_theme_font_override("font", ManaTheme.body_semibold())
-	brand_sub.add_theme_font_size_override("font_size", 22)
-	brand_sub.add_theme_color_override("font_color", TEXT_DIM)
-	brand_sub.clip_text = true
-	brand_sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	brand.add_child(brand_sub)
+	_brand_sub = Label.new()
+	_brand_sub.text = "BÍBLIA CLICKER"
+	_brand_sub.add_theme_font_override("font", ManaTheme.body_semibold())
+	_brand_sub.add_theme_font_size_override("font_size", 22)
+	_brand_sub.add_theme_color_override("font_color", TEXT_DIM)
+	_brand_sub.clip_text = true
+	_brand_sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	brand.add_child(_brand_sub)
+	_refresh_titulo_cosmetico()
 
 	var bible_button := _build_framed_button(Color("#1b2841"), Color("#a88b46"), Color("#f2d58a"), Color("#2f4260"))
 	bible_button.tooltip_text = "Leia a Bíblia"
@@ -283,6 +299,8 @@ func _build_topbar() -> PanelContainer:
 	hbox.add_child(resources)
 	var fe_pill := _build_resource_pill("FÉ", GOLD)
 	_faith_label = fe_pill.value
+	_faith_caption = fe_pill.caption
+	_faith_icon = fe_pill.icon
 	resources.add_child(fe_pill.panel)
 	var santos_pill := _build_resource_pill("SANTOS", SANTO_COLOR)
 	_santos_label = santos_pill.value
@@ -329,8 +347,9 @@ func _build_resource_pill(caption: String, accent: Color) -> Dictionary:
 	row.offset_bottom = -8
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(row)
+	var icon_texture: TextureRect = null
 	if caption == "SANTOS" or caption == "FÉ":
-		var icon_texture := TextureRect.new()
+		icon_texture = TextureRect.new()
 		icon_texture.texture = GameArt.SANTOS_ICON if caption == "SANTOS" else GameArt.FAITH_ICON
 		icon_texture.custom_minimum_size = Vector2(30, 30)
 		icon_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -364,7 +383,7 @@ func _build_resource_pill(caption: String, accent: Color) -> Dictionary:
 	value.clip_text = true
 	value.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	text.add_child(value)
-	return {"panel": panel, "value": value}
+	return {"panel": panel, "value": value, "caption": label, "icon": icon_texture}
 
 func _build_framed_button(base: Color, outer: Color, inner: Color, hover: Color) -> Button:
 	var button: Button = PurchaseButtonScript.new()
@@ -438,6 +457,26 @@ func _build_panel_geradores() -> VBoxContainer:
 	_era_operator_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	era_content.add_child(_era_operator_grid)
 	_refresh_era_operator_grid()
+	# Marco geral: o objetivo permanente da tela ("todos os geradores em N").
+	var marco_row := HBoxContainer.new()
+	marco_row.add_theme_constant_override("separation", 8)
+	_marco_icon = TextureRect.new()
+	_marco_icon.texture = GameArt.MILESTONE_10000_ICON
+	_marco_icon.custom_minimum_size = Vector2(34, 34)
+	_marco_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_marco_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_marco_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_marco_icon.visible = false
+	marco_row.add_child(_marco_icon)
+	_marco_label = Label.new()
+	_marco_label.add_theme_font_override("font", ManaTheme.body_semibold())
+	_marco_label.add_theme_font_size_override("font_size", 20)
+	_marco_label.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	_marco_label.clip_text = true
+	_marco_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_marco_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	marco_row.add_child(_marco_label)
+	era_content.add_child(marco_row)
 	vbox.add_child(journey_header)
 
 	# As aventuras funcionam como marcadores de capítulo presos ao volume que
@@ -1251,9 +1290,10 @@ func _refresh_milagres() -> void:
 
 	for card_id in _milagres_cards:
 		var card: Dictionary = _milagres_cards[card_id]
-		card.btn.disabled = GameState.fe < card.custo
+		card.btn.disabled = GameState.get_currency_amount(str(card.get("moeda", "fe"))) < card.custo
 
-# Card generico de compra: usado por Milagres (custo em Fe) e Dadivas (custo em Santos).
+# Card generico de compra: usado por Milagres (custo na moeda da aventura alvo)
+# e Dadivas (custo em Santos).
 func _build_upgrade_card(u: Dictionary, custo_em_santos: bool) -> Dictionary:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(0, 176)
@@ -1326,15 +1366,17 @@ func _build_upgrade_card(u: Dictionary, custo_em_santos: bool) -> Dictionary:
 	btn.custom_minimum_size = Vector2(214, 88)
 	btn.add_theme_font_size_override("font_size", 29)
 	ManaTheme.apply_primary_button(btn)
+	var moeda := "fe"
 	if custo_em_santos:
 		btn.text = str(int(u.custo)) + " Santos"
 		btn.pressed.connect(func(): GameState.buy_dadiva(u.id))
 	else:
-		btn.text = NumberFormat.format(u.custo) + " Fé"
+		moeda = Upgrades.currency_for(u)
+		btn.text = NumberFormat.format(u.custo) + " " + GameState.get_currency_name(moeda)
 		btn.pressed.connect(func(): GameState.buy_upgrade(u.id))
 	hbox.add_child(btn)
 
-	return {"panel": panel, "btn": btn, "custo": float(u.custo)}
+	return {"panel": panel, "btn": btn, "custo": float(u.custo), "moeda": moeda}
 
 # ============================================================ Aba Santos
 
@@ -1415,11 +1457,39 @@ func _build_panel_santos() -> VBoxContainer:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	vbox.add_child(scroll)
 
+	var santos_scroll_content := VBoxContainer.new()
+	santos_scroll_content.add_theme_constant_override("separation", 16)
+	santos_scroll_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(santos_scroll_content)
+
+	# Escada infinita: sempre existe um proximo degrau de Frutos do Espirito.
+	santos_scroll_content.add_child(_build_frutos_card())
+
 	_dadivas_list = VBoxContainer.new()
 	_dadivas_list.add_theme_constant_override("separation", 16)
 	_dadivas_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_dadivas_list)
-	ManaTheme.enable_touch_scroll(scroll, _dadivas_list)
+	santos_scroll_content.add_child(_dadivas_list)
+
+	var loja_header: Label = Label.new()
+	loja_header.text = "LOJA DE RELÍQUIAS · COSMÉTICOS"
+	loja_header.add_theme_font_override("font", ManaTheme.body_semibold())
+	loja_header.add_theme_font_size_override("font_size", 25)
+	loja_header.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	santos_scroll_content.add_child(loja_header)
+
+	var loja_sub: Label = Label.new()
+	loja_sub.text = "Relíquias vêm dos marcos das aventuras. Cosméticos não dão poder — são a sua marca na jornada."
+	loja_sub.add_theme_font_size_override("font_size", 20)
+	loja_sub.add_theme_color_override("font_color", TEXT_DIM)
+	loja_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	santos_scroll_content.add_child(loja_sub)
+
+	_cosmeticos_list = VBoxContainer.new()
+	_cosmeticos_list.add_theme_constant_override("separation", 12)
+	_cosmeticos_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	santos_scroll_content.add_child(_cosmeticos_list)
+
+	ManaTheme.enable_touch_scroll(scroll, santos_scroll_content)
 
 	var legal_btn: Button = Button.new()
 	legal_btn.text = "Aviso legal e transparência"
@@ -1429,6 +1499,140 @@ func _build_panel_santos() -> VBoxContainer:
 	vbox.add_child(legal_btn)
 
 	return vbox
+
+# Card da escada "Frutos do Espirito": nivel infinito, custo geometrico.
+func _build_frutos_card() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(0, 176)
+	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#1d2440"), 22, ManaTheme.GOLD, 2, 22, true))
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 20)
+	panel.add_child(hbox)
+	var frutos_icon := TextureRect.new()
+	frutos_icon.texture = GameArt.gift_icon("d_frutos")
+	frutos_icon.custom_minimum_size = Vector2(112, 112)
+	frutos_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frutos_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	frutos_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(frutos_icon)
+	var info := VBoxContainer.new()
+	info.add_theme_constant_override("separation", 4)
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(info)
+	var nome := Label.new()
+	nome.text = "Frutos do Espírito"
+	nome.add_theme_font_override("font", ManaTheme.serif_bold())
+	nome.add_theme_font_size_override("font_size", 36)
+	nome.add_theme_color_override("font_color", TEXT_COLOR)
+	info.add_child(nome)
+	_frutos_info = Label.new()
+	_frutos_info.add_theme_font_override("font", ManaTheme.body_semibold())
+	_frutos_info.add_theme_font_size_override("font_size", 24)
+	_frutos_info.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	_frutos_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_child(_frutos_info)
+	var flavor := Label.new()
+	flavor.text = "Amor, alegria, paz... e sempre um degrau a mais."
+	flavor.add_theme_font_override("font", ManaTheme.SERIF_ITALIC_FONT)
+	flavor.add_theme_font_size_override("font_size", 23)
+	flavor.add_theme_color_override("font_color", TEXT_DIM)
+	info.add_child(flavor)
+	_frutos_btn = Button.new()
+	_frutos_btn.custom_minimum_size = Vector2(214, 88)
+	_frutos_btn.add_theme_font_size_override("font_size", 29)
+	ManaTheme.apply_primary_button(_frutos_btn)
+	_frutos_btn.pressed.connect(func():
+		if GameState.buy_dadiva_frutos():
+			_refresh_santos()
+	)
+	hbox.add_child(_frutos_btn)
+	return panel
+
+func _refresh_frutos_card() -> void:
+	if _frutos_btn == null:
+		return
+	var proximo: Dictionary = Dadivas.ladder_next()
+	_frutos_info.text = "Nível " + str(GameState.dadiva_frutos_nivel) + "  ·  próximo: " \
+		+ str(proximo.efeito) + "  (total ×" + String.num(float(proximo.mult_total), 2) + ")"
+	_frutos_btn.text = NumberFormat.format(float(proximo.custo)) + " Santos"
+	_frutos_btn.disabled = GameState.santos < int(proximo.custo)
+
+# ---------------------------------------------------- Loja de Reliquias
+var _cosmetic_refreshers: Array[Callable] = []
+
+func _refresh_cosmeticos() -> void:
+	if _cosmeticos_list == null:
+		return
+	if not _cosmeticos_built:
+		_cosmeticos_built = true
+		for c in Cosmeticos.compraveis():
+			_cosmeticos_list.add_child(_build_cosmetic_card(c, false))
+		for c in Cosmeticos.aguardando_implementacao():
+			_cosmeticos_list.add_child(_build_cosmetic_card(c, true))
+	for refresher in _cosmetic_refreshers:
+		refresher.call()
+
+func _build_cosmetic_card(c: Dictionary, em_breve: bool) -> PanelContainer:
+	var raridade: Dictionary = Cosmeticos.raridade_info(str(c.raridade))
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(0, 132)
+	panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE_HIGH, 18, (raridade.cor as Color) * Color(1, 1, 1, 0.45), 2, 18, true))
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 18)
+	panel.add_child(hbox)
+	var preview := TextureRect.new()
+	preview.texture = GameArt.cosmetic_preview(str(c.id))
+	preview.custom_minimum_size = Vector2(96, 96)
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(preview)
+	var info := VBoxContainer.new()
+	info.add_theme_constant_override("separation", 2)
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(info)
+	var titulo := Label.new()
+	titulo.text = str(c.nome) + "   ·   " + str(raridade.nome).to_upper()
+	titulo.add_theme_font_override("font", ManaTheme.serif_bold())
+	titulo.add_theme_font_size_override("font_size", 29)
+	titulo.add_theme_color_override("font_color", raridade.cor)
+	info.add_child(titulo)
+	var descricao := Label.new()
+	descricao.text = str(c.descricao)
+	descricao.add_theme_font_size_override("font_size", 21)
+	descricao.add_theme_color_override("font_color", TEXT_DIM)
+	descricao.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_child(descricao)
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(200, 80)
+	btn.add_theme_font_size_override("font_size", 24)
+	ManaTheme.apply_primary_button(btn)
+	hbox.add_child(btn)
+	var cosmetic_id := str(c.id)
+	btn.pressed.connect(func():
+		if cosmetic_id in GameState.cosmeticos_comprados:
+			GameState.equip_cosmetic(cosmetic_id)
+		else:
+			GameState.buy_cosmetic(cosmetic_id)
+		_refresh_cosmeticos()
+	)
+	# O refresher mantem o estado do botao sem reconstruir a lista.
+	var categoria := str(c.categoria)
+	var custo := int(c.custo)
+	_cosmetic_refreshers.append(func():
+		if em_breve:
+			btn.text = "EM BREVE"
+			btn.disabled = true
+			return
+		if cosmetic_id in GameState.cosmeticos_comprados:
+			var ativo := str(GameState.cosmeticos_ativos.get(categoria, "")) == cosmetic_id
+			btn.text = "ATIVO ✓" if ativo else "EQUIPAR"
+			btn.disabled = false
+		else:
+			btn.text = str(custo) + " Relíquias"
+			btn.disabled = GameState.reliquias < custo
+	)
+	return panel
 
 # ============================================================ Aba Gemas
 
@@ -2050,8 +2254,13 @@ func _show_daily_boost_reveal(boost_id: String) -> void:
 
 func _refresh_santos() -> void:
 	var bonus_pct: float = (Economy.get_multiplicador_santos() - 1.0) * 100.0
-	_santos_info_label.text = str(GameState.santos) + " Santos  ·  +" + String.num(bonus_pct, 1) + "% de produção global"
+	# O bonus conta santos TOTAIS ganhos (saldo + investidos em Dadivas).
+	_santos_info_label.text = str(GameState.santos) + " Santos (" \
+		+ str(GameState.santos + GameState.santos_gastos) + " ganhos)  ·  +" \
+		+ String.num(bonus_pct, 1) + "% de produção global"
 	_relics_label.text = NumberFormat.format(GameState.reliquias) + " Relíquias"
+	_refresh_frutos_card()
+	_refresh_cosmeticos()
 
 	# Objetivo visivel: quanto falta de fe acumulada para o proximo Santo.
 	# Espelha a formula cubica de Economy.santos_ganhos.
@@ -2186,7 +2395,8 @@ func _set_tab_attention(tab: String, visible: bool) -> void:
 func _has_affordable_blessing() -> bool:
 	for blessing_variant in Upgrades.disponiveis():
 		var blessing: Dictionary = blessing_variant
-		if GameState.fe >= float(blessing.get("custo", 0.0)):
+		var moeda := Upgrades.currency_for(blessing)
+		if GameState.get_currency_amount(moeda) >= float(blessing.get("custo", 0.0)):
 			return true
 	return false
 
@@ -2205,6 +2415,8 @@ func _has_saints_attention() -> bool:
 		var gift: Dictionary = gift_variant
 		if GameState.santos >= int(gift.get("custo", 0)):
 			return true
+	if GameState.santos >= Dadivas.ladder_cost(GameState.dadiva_frutos_nivel):
+		return true
 	var incoming_saints := GameState.get_santos_proximo_prestige()
 	if incoming_saints <= 0:
 		return false
@@ -2301,11 +2513,29 @@ func _setup_signals() -> void:
 			_refresh_gemas()
 		_update_all()
 	)
+	EventBus.adventure_currency_changed.connect(func(_currency: String, _amount: float): _update_topbar())
+	EventBus.marco_geral_reached.connect(func(_adventure_id: String, _quantity: int):
+		_refresh_marco_label()
+		_update_all()
+	)
+	EventBus.cosmetic_changed.connect(func():
+		_refresh_titulo_cosmetico()
+		if _tab_atual == "santos":
+			_refresh_santos()
+	)
 	EventBus.cloud_conflict_detected.connect(_show_cloud_conflict_dialog)
 	EventBus.sync_state_changed.connect(func(_state: String, message: String):
 		if CloudIdentity.is_authenticated() and _notification_label != null:
 			_notification_label.tooltip_text = message
 	)
+
+
+func _refresh_titulo_cosmetico() -> void:
+	if _brand_sub == null:
+		return
+	var titulo: String = Cosmeticos.active_title_text()
+	_brand_sub.text = titulo if not titulo.is_empty() else "BÍBLIA CLICKER"
+	_brand_sub.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT if not titulo.is_empty() else TEXT_DIM)
 
 
 func _on_liveops_config_changed(_summary: Dictionary) -> void:
@@ -2378,9 +2608,14 @@ func _on_tick() -> void:
 			pass
 
 func _update_topbar() -> void:
-	_faith_label.text = NumberFormat.format(GameState.fe)
+	# A pill mostra a moeda da aventura em foco (economias isoladas).
+	var currency := str(GameState.ADVENTURES.get(_current_adventure, {}).get("generator_currency", "fe"))
+	_faith_caption.text = GameState.get_currency_name(currency).to_upper()
+	_faith_label.text = NumberFormat.format(GameState.get_currency_amount(currency))
+	if _faith_icon != null:
+		_faith_icon.texture = GameArt.currency_icon(currency)
 	_santos_label.text = NumberFormat.format(GameState.santos)
-	var rev: float = GameState.get_receita_por_segundo()
+	var rev: float = GameState.get_receita_por_segundo(_current_adventure)
 	if rev > 0:
 		_rev_label.text = "+" + NumberFormat.format(rev) + "/s"
 	else:
@@ -2388,6 +2623,35 @@ func _update_topbar() -> void:
 	var current_era: int = _get_current_era()
 	_era_label.text = "Era " + str(current_era) + "  ·  " + Geradores.get_era_name(current_era)
 	_refresh_era_operator_grid()
+	_refresh_marco_label()
+
+func _refresh_marco_label() -> void:
+	if _marco_label == null:
+		return
+	var proximo: Dictionary = Economy.next_marco_geral(_current_adventure)
+	if proximo.is_empty():
+		_marco_label.text = "Todos os marcos gerais desta aventura concluídos!"
+		if _marco_icon != null:
+			_marco_icon.visible = true
+		return
+	var alvo := int(proximo.quantity)
+	if _marco_icon != null:
+		_marco_icon.visible = alvo == 10000
+	var gargalo := _marco_gargalo(alvo)
+	var recompensa := ("velocidade ×" if str(proximo.type) == "speed" else "produção ×") + String.num(float(proximo.multiplier), 1)
+	_marco_label.text = "Marco geral: todos em " + str(alvo) + " → " + recompensa + "   ·   falta " + gargalo
+
+# Gerador com a menor quantidade: e o gargalo do proximo marco geral.
+func _marco_gargalo(alvo: int) -> String:
+	var pior_nome := ""
+	var pior_qtd := -1
+	for data in Geradores.get_by_adventure(_current_adventure):
+		var state: Dictionary = GameState.geradores.get(int(data.id), {})
+		var qtd := int(state.get("qtd", 0))
+		if pior_qtd < 0 or qtd < pior_qtd:
+			pior_qtd = qtd
+			pior_nome = str(data.nome)
+	return pior_nome + " (" + str(pior_qtd) + "/" + str(alvo) + ")"
 
 func _refresh_era_operator_grid() -> void:
 	if _era_operator_grid == null:
@@ -2475,7 +2739,8 @@ func _on_prestige() -> void:
 		return
 	var dialog: ConfirmationDialog = ConfirmationDialog.new()
 	dialog.title = "Ressurreição"
-	dialog.dialog_text = "Renascer agora reinicia Fé, geradores, profetas e bênçãos.\n\nVocê receberá +" + str(ganhos) + " Santos, com bônus permanente de +" + str(ganhos * 2) + "% de produção.\nAs dádivas permanecem.\n\nConfirmar?"
+	var bonus_novo: int = int(round(float(ganhos) * LiveOps.saint_bonus() * 100.0))
+	dialog.dialog_text = "Renascer reinicia a Fé, os geradores e as bênçãos da JORNADA.\n\nVocê receberá +" + str(ganhos) + " Santos (+" + str(bonus_novo) + "% de produção permanente).\nDádivas, aventuras (Graça/Glória), estudos e cosméticos permanecem.\n\nConfirmar?"
 	dialog.get_ok_button().text = "Ressuscitar"
 	dialog.get_cancel_button().text = "Ainda não"
 	dialog.confirmed.connect(func():

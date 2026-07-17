@@ -100,12 +100,14 @@ const FLAVORS_TIER: Array = [
 # tier e a raiz 5a de (tempo_min / tempo), entao comprar os 5 leva o ciclo
 # exatamente ao tempo_min da tabela de Geradores (o clamp em Economy garante
 # que outros bonus de velocidade nao passem desse teto).
+# Reqs alinhados a corrida aos 10000: o tier V e alcancavel de verdade com o
+# softcap de growth (900 unidades a 1.11 fixo era matematicamente inatingivel).
 const TIERS_VELOCIDADE: Array = [
-	{"req": 100, "custo_fator": 1.0e4, "sufixo": "I"},
-	{"req": 200, "custo_fator": 1.0e7, "sufixo": "II"},
-	{"req": 350, "custo_fator": 1.0e11, "sufixo": "III"},
-	{"req": 550, "custo_fator": 1.0e15, "sufixo": "IV"},
-	{"req": 900, "custo_fator": 1.0e20, "sufixo": "V"},
+	{"req": 50, "custo_fator": 1.0e4, "sufixo": "I"},
+	{"req": 100, "custo_fator": 1.0e7, "sufixo": "II"},
+	{"req": 250, "custo_fator": 1.0e11, "sufixo": "III"},
+	{"req": 500, "custo_fator": 1.0e15, "sufixo": "IV"},
+	{"req": 1000, "custo_fator": 1.0e20, "sufixo": "V"},
 ]
 
 const FLAVORS_VELOCIDADE: Array = [
@@ -158,6 +160,23 @@ func _ready() -> void:
 
 func get_data(id: String) -> Dictionary:
 	return _by_id.get(id, {})
+
+# Moeda cobrada pelo upgrade: a da aventura do gerador/era alvo. Upgrades
+# globais e profetas especiais pertencem a Jornada Principal (Fe).
+func currency_for(u: Dictionary) -> String:
+	match str(u.get("alvo", "global")):
+		"g":
+			return GameState.get_currency_for_gen(int(u.alvo_id))
+		"era":
+			var era_gens: Array = Geradores.get_by_era(int(u.alvo_id))
+			if not era_gens.is_empty():
+				return GameState.get_currency_for_gen(int(era_gens[0].id))
+	return "fe"
+
+# Upgrades de aventura persistem no prestige (a Ressurreicao e um evento da
+# Jornada Principal; as aventuras sao a camada permanente entre resets).
+func is_adventure_upgrade(u: Dictionary) -> bool:
+	return currency_for(u) != "fe"
 
 func requisito_atingido(u: Dictionary) -> bool:
 	if u.has("req_gen"):

@@ -48,15 +48,20 @@ func _ready() -> void:
 
 	# LiveOps preserva o balanceamento embutido, rejeita payloads fora do
 	# contrato e nunca usa o cache real durante os smoke tests.
-	var liveops_defaults_ok: bool = is_equal_approx(LiveOps.growth_rate(), 1.11) \
+	var first_segment: Dictionary = LiveOps.growth_segments()[0] as Dictionary
+	var liveops_defaults_ok: bool = is_equal_approx(float(first_segment.rate), 1.11) \
+		and int(first_segment.maxQuantity) == 300 \
 		and LiveOps.prophet_unlock_quantity() == 25 \
+		and is_equal_approx(LiveOps.prophet_speed_multiplier(), 0.8) \
 		and is_equal_approx(LiveOps.offline_cap_seconds(), 8.0 * 3600.0) \
 		and LiveOps.video_gems() == 5 \
-		and LiveOps.offline_triple_gem_cost() == 3
+		and LiveOps.offline_triple_gem_cost() == 3 \
+		and LiveOps.nova_star_daily_gems() == 2 \
+		and not LiveOps.general_milestones().is_empty()
 	var liveops_envelope := _make_liveops_envelope()
 	var liveops_validation_ok: bool = bool(LiveOps.smoke_validate(liveops_envelope).get("ok", false))
 	var invalid_liveops := liveops_envelope.duplicate(true)
-	invalid_liveops.config.economy.growthRate = 1.0
+	invalid_liveops.config.economy.growthSegments = [{"maxQuantity": 0, "rate": 1.0}]
 	var liveops_rejects_invalid: bool = not bool(LiveOps.smoke_validate(invalid_liveops).get("ok", false))
 	var zero_free_reward := liveops_envelope.duplicate(true)
 	zero_free_reward.campaigns[0].effects.freeGemRewardMultiplier = 0.0
@@ -140,7 +145,7 @@ func _ready() -> void:
 
 func _make_liveops_envelope() -> Dictionary:
 	return {
-		"schemaVersion": 1,
+		"schemaVersion": LiveOps.SCHEMA_VERSION,
 		"revision": 7,
 		"versionId": "liveops-smoke-v1",
 		"publishedAt": 90,

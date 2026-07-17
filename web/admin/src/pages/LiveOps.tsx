@@ -65,21 +65,42 @@ interface CampaignEditorEffects {
   generatorProductionMultipliers: Record<string, number>;
 }
 
+const DEFAULT_MILESTONES = [
+  [25, 1.5], [50, 3], [75, 3], [100, 7], [200, 1.5], [300, 3], [400, 1.5], [500, 7],
+  [600, 1.5], [700, 3], [800, 1.5], [900, 3], [1000, 7], [1250, 1.5], [1500, 3],
+  [1750, 1.5], [2000, 7], [2250, 1.5], [2500, 3], [2750, 1.5], [3000, 7], [3250, 1.5],
+  [3500, 3], [3750, 1.5], [4000, 7], [4250, 1.5], [4500, 3], [4750, 1.5], [5000, 7],
+  [5250, 1.5], [5500, 3], [5750, 1.5], [6000, 7], [6250, 1.5], [6500, 3], [6750, 1.5],
+  [7000, 7], [7250, 1.5], [7500, 3], [7750, 1.5], [8000, 7], [8250, 1.5], [8500, 3],
+  [8750, 1.5], [9000, 7], [9250, 1.5], [9500, 3],
+] as const;
+
 const DEFAULT_BALANCE: LiveOpsBalanceConfig = {
   economy: {
-    growthRate: 1.11,
-    saintBonus: 0.06,
-    prestigeDivisor: 2_000_000_000_000,
+    growthSegments: [
+      { maxQuantity: 300, rate: 1.11 }, { maxQuantity: 1500, rate: 1.05 },
+      { maxQuantity: 4000, rate: 1.012 }, { maxQuantity: 0, rate: 1.008 },
+    ],
+    saintBonus: 0.2,
+    prestigeDivisor: 200_000_000_000,
     prophetUnlockQuantity: 25,
-    prophetCostMultiplier: 20,
+    prophetCostMultiplier: 10,
+    prophetSpeedMultiplier: 0.8,
     offlineCapSeconds: 28_800,
-    milestones: [
-      { quantity: 25, multiplier: 1 },
-      { quantity: 50, multiplier: 2 },
-      { quantity: 100, multiplier: 2 },
-      { quantity: 200, multiplier: 2 },
-      { quantity: 300, multiplier: 2 },
-      { quantity: 400, multiplier: 2 },
+    dadivaLadderBaseCost: 10,
+    dadivaLadderCostGrowth: 1.8,
+    dadivaLadderMultiplier: 1.3,
+    milestones: DEFAULT_MILESTONES.map(([quantity, multiplier]) => ({ quantity, multiplier })),
+    generalMilestones: [
+      { quantity: 25, type: "speed", multiplier: 1.5, gems: 0, relics: 0 },
+      { quantity: 50, type: "speed", multiplier: 1.5, gems: 0, relics: 0 },
+      { quantity: 100, type: "speed", multiplier: 2, gems: 10, relics: 0 },
+      { quantity: 250, type: "prod", multiplier: 3, gems: 0, relics: 0 },
+      { quantity: 500, type: "prod", multiplier: 5, gems: 20, relics: 0 },
+      { quantity: 1000, type: "prod", multiplier: 7, gems: 0, relics: 25 },
+      { quantity: 2500, type: "prod", multiplier: 10, gems: 30, relics: 0 },
+      { quantity: 5000, type: "prod", multiplier: 15, gems: 0, relics: 50 },
+      { quantity: 10_000, type: "prod", multiplier: 20, gems: 100, relics: 100 },
     ],
   },
   boosts: {
@@ -92,6 +113,10 @@ const DEFAULT_BALANCE: LiveOpsBalanceConfig = {
   rewards: {
     videoGems: 5,
     offlineTripleGemCost: 3,
+    novaStarMinSeconds: 300,
+    novaStarMaxSeconds: 900,
+    novaStarProductionSeconds: 120,
+    novaStarDailyGems: 2,
   },
 };
 
@@ -257,25 +282,40 @@ function balanceErrors(config: LiveOpsBalanceConfig): string[] {
   const errors: string[] = [];
   const inRange = (value: number, minimum: number, maximum: number) =>
     Number.isFinite(value) && value >= minimum && value <= maximum;
-  if (!inRange(config.economy.growthRate, 1.001, 2)) {
-    errors.push("A progressão de custo deve ficar entre 1,001 e 2.");
+  const segments = config.economy.growthSegments;
+  if (segments.length === 0 || segments.length > 8) errors.push("Use entre 1 e 8 faixas de custo.");
+  if (segments.some((segment) => !inRange(segment.rate, 1.000001, 2))) {
+    errors.push("O growth de cada faixa deve ficar entre 1,000001 e 2.");
   }
-  if (!inRange(config.economy.saintBonus, 0, 1)) {
-    errors.push("O bônus por Santo deve ficar entre 0 e 1.");
+  if (segments.some((segment, index) => {
+    const last = index === segments.length - 1;
+    return !Number.isInteger(segment.maxQuantity)
+      || (last ? segment.maxQuantity !== 0 : segment.maxQuantity <= (segments[index - 1]?.maxQuantity ?? 0));
+  })) errors.push("As faixas devem ter limites crescentes e terminar em 0 (sem teto).");
+  if (!inRange(config.economy.saintBonus, 0, 10)) {
+    errors.push("O bônus por Santo deve ficar entre 0 e 10.");
   }
-  if (!inRange(config.economy.prestigeDivisor, 1_000_000, 1e30)) {
-    errors.push("O divisor de prestígio deve ficar entre 1 milhão e 1e30.");
+  if (!inRange(config.economy.prestigeDivisor, 1, 1e100)) {
+    errors.push("O divisor de prestígio deve ficar entre 1 e 1e100.");
   }
   if (!Number.isInteger(config.economy.prophetUnlockQuantity)
     || !inRange(config.economy.prophetUnlockQuantity, 1, 10_000)) {
     errors.push("O desbloqueio de Profeta deve ser um inteiro entre 1 e 10.000.");
   }
-  if (!inRange(config.economy.prophetCostMultiplier, 0.1, 10_000)) {
-    errors.push("O custo do Profeta deve ficar entre 0,1 e 10.000.");
+  if (!inRange(config.economy.prophetCostMultiplier, 0.001, 1_000_000)) {
+    errors.push("O custo do Profeta deve ficar entre 0,001 e 1.000.000.");
+  }
+  if (!inRange(config.economy.prophetSpeedMultiplier, 0.05, 2)) {
+    errors.push("A velocidade do Profeta deve ficar entre 0,05 e 2.");
+  }
+  if (!inRange(config.economy.dadivaLadderBaseCost, 1, 1_000_000_000)
+    || !inRange(config.economy.dadivaLadderCostGrowth, 1.01, 100)
+    || !inRange(config.economy.dadivaLadderMultiplier, 1, 100)) {
+    errors.push("Revise os parâmetros da escada de Dádivas.");
   }
   if (!Number.isInteger(config.economy.offlineCapSeconds)
-    || !inRange(config.economy.offlineCapSeconds, 300, 604_800)) {
-    errors.push("O limite offline deve ser um inteiro entre 5 minutos e 7 dias.");
+    || !inRange(config.economy.offlineCapSeconds, 60, 31_536_000)) {
+    errors.push("O limite offline deve ser um inteiro entre 1 minuto e 1 ano.");
   }
   if (![config.boosts.fervorProductionMultiplier, config.boosts.pentecostProductionMultiplier,
     config.boosts.holyHandsManualMultiplier].every((value) => inRange(value, 1, 100))) {
@@ -294,9 +334,15 @@ function balanceErrors(config: LiveOpsBalanceConfig): string[] {
     || !inRange(config.rewards.offlineTripleGemCost, 0, 10_000)) {
     errors.push("Recompensas em gemas devem ser inteiros entre 0 e 10.000.");
   }
+  if (![config.rewards.novaStarMinSeconds, config.rewards.novaStarMaxSeconds,
+    config.rewards.novaStarProductionSeconds, config.rewards.novaStarDailyGems]
+    .every((value) => Number.isInteger(value) && inRange(value, 0, 1_000_000))
+    || config.rewards.novaStarMaxSeconds < config.rewards.novaStarMinSeconds) {
+    errors.push("Revise frequência, produção e gemas da Estrela Nova.");
+  }
   const quantities = config.economy.milestones.map((milestone) => milestone.quantity);
   if (quantities.length === 0) errors.push("Adicione ao menos um marco de estágio.");
-  if (quantities.length > 32) errors.push("Use no máximo 32 marcos.");
+  if (quantities.length > 64) errors.push("Use no máximo 64 marcos.");
   if (quantities.some((quantity) => !Number.isInteger(quantity) || !inRange(quantity, 1, 1_000_000))) {
     errors.push("Quantidades dos marcos devem ser inteiros entre 1 e 1.000.000.");
   }
@@ -305,6 +351,16 @@ function balanceErrors(config: LiveOpsBalanceConfig): string[] {
   }
   if (config.economy.milestones.some((milestone) => !inRange(milestone.multiplier, 1, 1_000))) {
     errors.push("Multiplicadores dos marcos devem ficar entre 1 e 1.000.");
+  }
+  const general = config.economy.generalMilestones;
+  if (general.length === 0 || general.length > 32) errors.push("Use entre 1 e 32 marcos gerais.");
+  if (general.some((milestone, index) => !Number.isInteger(milestone.quantity)
+    || milestone.quantity <= (general[index - 1]?.quantity ?? 0)
+    || !["speed", "prod"].includes(milestone.type)
+    || !inRange(milestone.multiplier, 1, 1_000)
+    || !Number.isInteger(milestone.gems) || !inRange(milestone.gems, 0, 1_000_000)
+    || !Number.isInteger(milestone.relics) || !inRange(milestone.relics, 0, 1_000_000))) {
+    errors.push("Revise a ordem, o tipo e as recompensas dos marcos gerais.");
   }
   return errors;
 }
@@ -951,12 +1007,43 @@ export function LiveOpsPage({
                   description="Curva de custo, prestígio, Profetas e limite da produção offline."
                 >
                   <div className="liveops-field-grid">
-                    <NumberField id="balance-growth" label="Progressão de custo" hint="Fator por unidade comprada" value={balanceDraft.economy.growthRate} min={1.001} max={2} step={0.01} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, growthRate: value } })} />
-                    <NumberField id="balance-saint" label="Bônus por Santo" hint="Acréscimo por prestígio" value={balanceDraft.economy.saintBonus} min={0} max={1} step={0.01} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, saintBonus: value } })} />
-                    <NumberField id="balance-prestige" label="Divisor de prestígio" hint="Fé necessária na fórmula" value={balanceDraft.economy.prestigeDivisor} min={1_000_000} max={1e30} step={1} suffix="Fé" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, prestigeDivisor: value } })} />
+                    <NumberField id="balance-saint" label="Bônus por Santo" hint="Acréscimo por prestígio" value={balanceDraft.economy.saintBonus} min={0} max={10} step={0.01} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, saintBonus: value } })} />
+                    <NumberField id="balance-prestige" label="Divisor de prestígio" hint="Fé necessária na fórmula" value={balanceDraft.economy.prestigeDivisor} min={1} max={1e100} step={1} suffix="Fé" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, prestigeDivisor: value } })} />
                     <NumberField id="balance-prophet-unlock" label="Desbloqueio de Profeta" hint="Unidades do gerador" value={balanceDraft.economy.prophetUnlockQuantity} min={1} max={10_000} step={1} suffix="un." onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, prophetUnlockQuantity: value } })} />
-                    <NumberField id="balance-prophet-cost" label="Custo do Profeta" hint="Sobre o custo de liberação" value={balanceDraft.economy.prophetCostMultiplier} min={0.1} max={10_000} step={0.5} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, prophetCostMultiplier: value } })} />
-                    <NumberField id="balance-offline-cap" label="Limite offline" hint="Tempo máximo acumulado" value={balanceDraft.economy.offlineCapSeconds} min={300} max={604_800} step={60} suffix="s" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, offlineCapSeconds: value } })} />
+                    <NumberField id="balance-prophet-cost" label="Custo do Profeta" hint="Sobre o custo de liberação" value={balanceDraft.economy.prophetCostMultiplier} min={0.001} max={1_000_000} step={0.1} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, prophetCostMultiplier: value } })} />
+                    <NumberField id="balance-prophet-speed" label="Velocidade do Profeta" hint="Fator do tempo de ciclo" value={balanceDraft.economy.prophetSpeedMultiplier} min={0.05} max={2} step={0.05} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, prophetSpeedMultiplier: value } })} />
+                    <NumberField id="balance-offline-cap" label="Limite offline" hint="Tempo máximo acumulado" value={balanceDraft.economy.offlineCapSeconds} min={60} max={31_536_000} step={60} suffix="s" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, offlineCapSeconds: value } })} />
+                    <NumberField id="balance-ladder-base" label="Dádiva: custo base" hint="Primeiro nível de Frutos" value={balanceDraft.economy.dadivaLadderBaseCost} min={1} max={1_000_000_000} step={1} suffix="Santos" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, dadivaLadderBaseCost: value } })} />
+                    <NumberField id="balance-ladder-growth" label="Dádiva: crescimento" hint="Custo entre níveis" value={balanceDraft.economy.dadivaLadderCostGrowth} min={1.01} max={100} step={0.01} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, dadivaLadderCostGrowth: value } })} />
+                    <NumberField id="balance-ladder-mult" label="Dádiva: produção" hint="Multiplicador por nível" value={balanceDraft.economy.dadivaLadderMultiplier} min={1} max={100} step={0.01} suffix="×" onChange={(value) => setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, dadivaLadderMultiplier: value } })} />
+                  </div>
+                  <div className="milestone-editor">
+                    <div className="milestone-editor__head" aria-hidden="true"><span>Limite da faixa</span><span>Growth</span><span>Ação</span></div>
+                    {balanceDraft.economy.growthSegments.map((segment, index) => (
+                      <div className="milestone-editor__row" key={index}>
+                        <input type="number" min={0} step={1} value={segment.maxQuantity} aria-label={`Limite da faixa ${index + 1}`} onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          const growthSegments = balanceDraft.economy.growthSegments.map((item, itemIndex) => itemIndex === index ? { ...item, maxQuantity: value } : item);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, growthSegments } });
+                        }} />
+                        <span className="milestone-editor__multiplier"><input type="number" min={1.000001} max={2} step={0.001} value={segment.rate} aria-label={`Growth da faixa ${index + 1}`} onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          const growthSegments = balanceDraft.economy.growthSegments.map((item, itemIndex) => itemIndex === index ? { ...item, rate: value } : item);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, growthSegments } });
+                        }} /><em>×</em></span>
+                        <button className="icon-button icon-button--danger" type="button" aria-label={`Remover faixa ${index + 1}`} onClick={() => {
+                          const growthSegments = balanceDraft.economy.growthSegments.filter((_, itemIndex) => itemIndex !== index);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, growthSegments } });
+                        }}><Trash2 size={15} /></button>
+                      </div>
+                    ))}
+                    <button className="liveops-add-row" type="button" onClick={() => {
+                      const growthSegments = balanceDraft.economy.growthSegments.map((item, index, values) => index === values.length - 1 && item.maxQuantity === 0 ? { ...item, maxQuantity: (values[index - 1]?.maxQuantity ?? 0) + 1000 } : item);
+                      growthSegments.push({ maxQuantity: 0, rate: growthSegments.at(-1)?.rate ?? 1.01 });
+                      setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, growthSegments } });
+                    }}><Plus size={15} /> Adicionar faixa</button>
                   </div>
                 </EditorSection>
 
@@ -982,6 +1069,10 @@ export function LiveOpsPage({
                   <div className="liveops-field-grid">
                     <NumberField id="reward-video" label="Gemas por vídeo" hint="Recompensa gratuita" value={balanceDraft.rewards.videoGems} min={0} max={10_000} step={1} suffix="gemas" onChange={(value) => setBalanceDraft({ ...balanceDraft, rewards: { ...balanceDraft.rewards, videoGems: value } })} />
                     <NumberField id="reward-offline" label="Offline triplo" hint="Custo da coleta ×3" value={balanceDraft.rewards.offlineTripleGemCost} min={0} max={10_000} step={1} suffix="gemas" onChange={(value) => setBalanceDraft({ ...balanceDraft, rewards: { ...balanceDraft.rewards, offlineTripleGemCost: value } })} />
+                    <NumberField id="reward-star-min" label="Estrela: intervalo mínimo" hint="Tempo até reaparecer" value={balanceDraft.rewards.novaStarMinSeconds} min={0} max={1_000_000} step={1} suffix="s" onChange={(value) => setBalanceDraft({ ...balanceDraft, rewards: { ...balanceDraft.rewards, novaStarMinSeconds: value } })} />
+                    <NumberField id="reward-star-max" label="Estrela: intervalo máximo" hint="Tempo até reaparecer" value={balanceDraft.rewards.novaStarMaxSeconds} min={0} max={1_000_000} step={1} suffix="s" onChange={(value) => setBalanceDraft({ ...balanceDraft, rewards: { ...balanceDraft.rewards, novaStarMaxSeconds: value } })} />
+                    <NumberField id="reward-star-production" label="Estrela: produção" hint="Equivalência da recompensa" value={balanceDraft.rewards.novaStarProductionSeconds} min={0} max={1_000_000} step={1} suffix="s" onChange={(value) => setBalanceDraft({ ...balanceDraft, rewards: { ...balanceDraft.rewards, novaStarProductionSeconds: value } })} />
+                    <NumberField id="reward-star-gems" label="Estrela: gemas diárias" hint="Primeiro clique do dia" value={balanceDraft.rewards.novaStarDailyGems} min={0} max={1_000_000} step={1} suffix="gemas" onChange={(value) => setBalanceDraft({ ...balanceDraft, rewards: { ...balanceDraft.rewards, novaStarDailyGems: value } })} />
                   </div>
                 </EditorSection>
 
@@ -1026,6 +1117,66 @@ export function LiveOpsPage({
                       const milestones = [...balanceDraft.economy.milestones, { quantity: (last?.quantity ?? 0) + 100, multiplier: 2 }];
                       setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, milestones } });
                     }}><Plus size={15} /> Adicionar marco</button>
+                  </div>
+                </EditorSection>
+
+                <EditorSection
+                  icon={<Sparkles size={18} />}
+                  title="Marcos gerais"
+                  description="Recompensas recorrentes e únicas quando todos os geradores alcançam a quantidade."
+                >
+                  <div className="milestone-editor">
+                    <div className="milestone-editor__head" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr auto" }} aria-hidden="true">
+                      <span>Quantidade</span><span>Tipo</span><span>Multiplicador</span><span>Gemas</span><span>Relíquias</span><span>Ação</span>
+                    </div>
+                    {balanceDraft.economy.generalMilestones.map((milestone, index) => (
+                      <div className="milestone-editor__row" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr auto" }} key={index}>
+                        <input type="number" min={1} step={1} value={milestone.quantity} aria-label={`Quantidade do marco geral ${index + 1}`} onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          const generalMilestones = balanceDraft.economy.generalMilestones.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: value } : item);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, generalMilestones } });
+                        }} />
+                        <select value={milestone.type} aria-label={`Tipo do marco geral ${index + 1}`} onChange={(event) => {
+                          const type = event.currentTarget.value as "speed" | "prod";
+                          const generalMilestones = balanceDraft.economy.generalMilestones.map((item, itemIndex) => itemIndex === index ? { ...item, type } : item);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, generalMilestones } });
+                        }}><option value="speed">Velocidade</option><option value="prod">Produção</option></select>
+                        <input type="number" min={1} max={1000} step={0.1} value={milestone.multiplier} aria-label={`Multiplicador do marco geral ${index + 1}`} onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          const generalMilestones = balanceDraft.economy.generalMilestones.map((item, itemIndex) => itemIndex === index ? { ...item, multiplier: value } : item);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, generalMilestones } });
+                        }} />
+                        <input type="number" min={0} step={1} value={milestone.gems} aria-label={`Gemas do marco geral ${index + 1}`} onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          const generalMilestones = balanceDraft.economy.generalMilestones.map((item, itemIndex) => itemIndex === index ? { ...item, gems: value } : item);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, generalMilestones } });
+                        }} />
+                        <input type="number" min={0} step={1} value={milestone.relics} aria-label={`Relíquias do marco geral ${index + 1}`} onChange={(event) => {
+                          const value = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(value)) return;
+                          const generalMilestones = balanceDraft.economy.generalMilestones.map((item, itemIndex) => itemIndex === index ? { ...item, relics: value } : item);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, generalMilestones } });
+                        }} />
+                        <button className="icon-button icon-button--danger" type="button" aria-label={`Remover marco geral ${milestone.quantity}`} onClick={() => {
+                          const generalMilestones = balanceDraft.economy.generalMilestones.filter((_, itemIndex) => itemIndex !== index);
+                          setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, generalMilestones } });
+                        }}><Trash2 size={15} /></button>
+                      </div>
+                    ))}
+                    <button className="liveops-add-row" type="button" onClick={() => {
+                      const last = balanceDraft.economy.generalMilestones.at(-1);
+                      const generalMilestones = [...balanceDraft.economy.generalMilestones, {
+                        quantity: (last?.quantity ?? 0) + 100,
+                        type: "prod" as const,
+                        multiplier: 2,
+                        gems: 0,
+                        relics: 0,
+                      }];
+                      setBalanceDraft({ ...balanceDraft, economy: { ...balanceDraft.economy, generalMilestones } });
+                    }}><Plus size={15} /> Adicionar marco geral</button>
                   </div>
                 </EditorSection>
               </div>

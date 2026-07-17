@@ -3,15 +3,31 @@ export interface MilestoneConfig {
   multiplier: number;
 }
 
+export interface GrowthSegmentConfig {
+  maxQuantity: number;
+  rate: number;
+}
+
+export interface GeneralMilestoneConfig extends MilestoneConfig {
+  type: "speed" | "prod";
+  gems: number;
+  relics: number;
+}
+
 export interface BalanceConfig {
   economy: {
-    growthRate: number;
+    growthSegments: GrowthSegmentConfig[];
     saintBonus: number;
     prestigeDivisor: number;
     prophetUnlockQuantity: number;
     prophetCostMultiplier: number;
+    prophetSpeedMultiplier: number;
     offlineCapSeconds: number;
+    dadivaLadderBaseCost: number;
+    dadivaLadderCostGrowth: number;
+    dadivaLadderMultiplier: number;
     milestones: MilestoneConfig[];
+    generalMilestones: GeneralMilestoneConfig[];
   };
   boosts: {
     fervorProductionMultiplier: number;
@@ -23,6 +39,10 @@ export interface BalanceConfig {
   rewards: {
     videoGems: number;
     offlineTripleGemCost: number;
+    novaStarMinSeconds: number;
+    novaStarMaxSeconds: number;
+    novaStarProductionSeconds: number;
+    novaStarDailyGems: number;
   };
 }
 
@@ -78,7 +98,7 @@ export interface AdminCampaign {
 }
 
 export interface LiveOpsAdminSnapshot {
-  schemaVersion: 1;
+  schemaVersion: 2;
   revision: number;
   etag: string;
   activeBalance: BalanceVersion;
@@ -100,7 +120,7 @@ export interface PublicCampaign {
 }
 
 export interface PublicLiveOpsConfig {
-  schemaVersion: 1;
+  schemaVersion: 2;
   revision: number;
   versionId: string;
   publishedAt: number;
