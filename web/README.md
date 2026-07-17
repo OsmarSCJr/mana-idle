@@ -36,7 +36,7 @@ A área LiveOps edita balanceamento, marcos, impulsos e recompensas gratuitas; a
 
 Para desenvolvimento, `VITE_ADMIN_API_URL` aponta para o Worker local e `ADMIN_DEV_TOKEN` fica somente no processo do Vite (não use prefixo `VITE_` no segredo). O proxy injeta o header localmente.
 
-Em staging, o backend, o D1 LiveOps, o painel atualizado e o service binding já estão publicados. Falta criar a aplicação Cloudflare Access, autorizar os administradores e configurar `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD`. Até lá, a interface estática abre, mas a API administrativa responde `403 ADMIN_ACCESS_REQUIRED`; um JWT de teste recebe `503 ADMIN_ACCESS_NOT_CONFIGURED`.
+Em staging, backend, três bancos D1, landing, painel, service binding e Cloudflare Access estão publicados. O acesso ao painel exige autenticação pela aplicação Access configurada; as rotas administrativas também validam o JWT no backend.
 
 ## Homologação publicada
 

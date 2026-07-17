@@ -66,12 +66,12 @@ godot --headless --path . scenes/CloudSmokeTest.tscn -- --smoke-test
 - D1 de tombstones: `mana-delete-staging`
 - D1 de LiveOps: `mana-liveops-staging`
 
-O jogo já aponta para a API de homologação e busca o balanceamento/campanhas publicados, com cache local, ETag, fallback seguro e atualização periódica. A landing está conectada à API, sem URL de download e marcada `noindex`. O painel LiveOps está publicado com service binding interno, mas as rotas administrativas permanecem bloqueadas até a configuração do Cloudflare Access.
+O jogo já aponta para a API de homologação e busca o balanceamento/campanhas publicados, com cache local, ETag, fallback seguro e atualização periódica. A landing está conectada à API e à release pública do APK, ainda marcada `noindex` por se tratar de alpha. O painel LiveOps está publicado com service binding interno e protegido pelo Cloudflare Access de staging.
 
 Para avançar à produção ainda são necessários:
 
 1. domínio final e origens exatas de API, landing e admin;
-2. Cloudflare Access, com team domain, `AUD` e administradores autorizados;
+2. Cloudflare Access de produção, com team domain, `AUD` e administradores autorizados;
 3. e-mail público real e monitorado de suporte/privacidade;
 4. três D1 e Workers de produção, criados separadamente;
 5. templates de exportação Godot 4.7.1 e Android SDK/Build Tools compatíveis.
