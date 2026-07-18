@@ -183,6 +183,8 @@ describe("LiveOps API", () => {
     expect(body.versionId).toBe("balance-baseline-v1");
     expect(body.config.economy.growthSegments[0]).toEqual({ maxQuantity: 300, rate: 1.11 });
     expect(body.config.economy.milestones[0]).toEqual({ quantity: 25, multiplier: 1.5 });
+    expect(body.config.economy.milestones).toHaveLength(9);
+    expect(body.config.economy.saintBonus).toBe(0.02);
     expect(body.config.rewards.videoGems).toBe(5);
 
     const notModified = await worker.fetch("https://api.test/v1/config", {

@@ -59,8 +59,8 @@ func _ready() -> void:
 	var global_depois := Economy.get_multiplicador_global()
 	print("[T6] d_evangelismo=", comprou_dad, " santos=", GameState.santos, " global ", global_antes, " -> ", global_depois)
 	# O bônus conta santos TOTAIS ganhos (saldo + gastos): investir não reduz.
-	# Esperado: (1 + 30*0.20) * 1.25 = 8.75.
-	ok = ok and comprou_dad and GameState.santos == 5 and is_equal_approx(global_depois, 8.75)
+	# Esperado: (1 + 30*0.02) * 1.25 = 2.0.
+	ok = ok and comprou_dad and GameState.santos == 5 and is_equal_approx(global_depois, 2.0)
 
 	# 7) Dadiva offline: Jo I (+50%) e Jo II (teto 16h)
 	GameState.santos = 100
@@ -125,6 +125,107 @@ func _ready() -> void:
 		and Cosmeticos.is_active("tema_leitor_pergaminho")
 	print("[T12] cosmeticos especiais roundtrip=", cosmetics_roundtrip)
 	ok = ok and cosmetics_roundtrip
+
+	# 13) Aventuras isoladas recebem uma largada unica em sua propria moeda.
+	GameState.aventuras_desbloqueadas = ["jornada"]
+	GameState.aventuras_concluidas.clear()
+	GameState.graca = 0.0
+	GameState.graca_total = 0.0
+	GameState.gloria = 0.0
+	GameState.gloria_total = 0.0
+	GameState.fe = 2.0e14
+	GameState.fe_total_historica = 2.0e14
+	GameState.gemas = 120
+	GameState._init_geradores()
+	var abriu_cristo := GameState.unlock_adventure("vida_cristo")
+	var iniciou_cristo := GameState.buy_generator(13, 1)
+	var abriu_igreja := GameState.unlock_adventure("igreja_apocalipse")
+	var iniciou_igreja := GameState.buy_generator(25, 1)
+	var aventuras_iniciam := abriu_cristo and iniciou_cristo and abriu_igreja and iniciou_igreja \
+		and is_equal_approx(GameState.graca, 6.0) and is_equal_approx(GameState.gloria, 6.0)
+	print("[T13] largada aventuras Cristo/Igreja=", aventuras_iniciam)
+	ok = ok and aventuras_iniciam
+
+	# 14) Saves antigos ja desbloqueados e ainda zerados recebem a mesma largada.
+	var legacy_adventure_save := GameState.get_save_data()
+	legacy_adventure_save.graca = 0.0
+	legacy_adventure_save.gracaTotal = 0.0
+	legacy_adventure_save.gloria = 0.0
+	legacy_adventure_save.gloriaTotal = 0.0
+	legacy_adventure_save.geradores["13"].qtd = 0
+	legacy_adventure_save.geradores["25"].qtd = 0
+	GameState.load_save_data(legacy_adventure_save)
+	var legacy_seeded := is_equal_approx(GameState.graca, 10.0) and is_equal_approx(GameState.gloria, 10.0)
+	print("[T14] save antigo recebe moedas iniciais=", legacy_seeded)
+	ok = ok and legacy_seeded
+
+	# 15) Marcos individuais e gerais compartilham nove alvos. Cada marco reduz
+	# o esforco relativo ate o seguinte ao elevar o multiplicador acumulado.
+	var milestones := LiveOps.milestones()
+	var general_milestones := LiveOps.general_milestones()
+	var milestones_ok := milestones.size() == 9 and general_milestones.size() == 9
+	for index in range(milestones.size()):
+		var target := int((milestones[index] as Dictionary).quantity)
+		milestones_ok = milestones_ok \
+			and target == int((general_milestones[index] as Dictionary).quantity) \
+			and Economy.next_milestone(target - 1) == target \
+			and Economy.milestone_bonus(target) > Economy.milestone_bonus(target - 1)
+	milestones_ok = milestones_ok \
+		and Economy.next_milestone(int((milestones[-1] as Dictionary).quantity)) \
+			== int((milestones[-1] as Dictionary).quantity)
+	print("[T15] milestones alinhados e progressivos=", milestones_ok, " total=", milestones.size())
+	ok = ok and milestones_ok
+
+	# 16) Dez Santos base equivalem a +20%, inclusive apos concluir Cristo.
+	GameState.santos = 10
+	GameState.santos_gastos = 0
+	GameState.dadivas_compradas.clear()
+	GameState.conhecimentos_comprados.clear()
+	GameState.conhecimentos_ativos.clear()
+	GameState.aventuras_concluidas = ["vida_cristo"]
+	Economy.recompute_multiplicadores()
+	var santo_dois_pct := is_equal_approx(Economy.get_multiplicador_santos(), 1.2)
+	print("[T16] dez Santos em 2% cada=", santo_dois_pct)
+	ok = ok and santo_dois_pct
+
+	# 17) A Mordomia custa mais de 100 Santos e persiste como Dadiva permanente.
+	GameState.santos = 150
+	GameState.santos_gastos = 0
+	GameState.dadivas_compradas.clear()
+	var comprou_mordomia := GameState.buy_dadiva("d_comprador_marcos")
+	var mordomia_save := GameState.get_save_data()
+	GameState.dadivas_compradas.clear()
+	GameState.load_save_data(mordomia_save)
+	var mordomia_persistiu := GameState.has_milestone_buyer()
+	print("[T17] mordomia comprada e persistente=", comprou_mordomia and mordomia_persistiu)
+	ok = ok and comprou_mordomia and GameState.santos == 0 and mordomia_persistiu
+
+	# 18) O comprador escolhe um proximo marco por gerador, mais barato primeiro,
+	# e debita exatamente o total que o saldo alcanca.
+	GameState.aventuras_desbloqueadas = ["jornada"]
+	GameState._init_geradores()
+	GameState.geradores[1].qtd = 24
+	GameState.geradores[2].qtd = 49
+	var custo_g1 := Economy.custo_lote(1, 1, 24)
+	var custo_g2 := Economy.custo_lote(2, 1, 49)
+	GameState.fe = custo_g1 + custo_g2
+	var plano_marcos := GameState.get_milestone_purchase_plan("jornada")
+	var compra_marcos := GameState.buy_all_available_milestones("jornada")
+	var pacote_ok := int(plano_marcos.count) == 2 \
+		and is_equal_approx(float(plano_marcos.total_cost), custo_g1 + custo_g2) \
+		and int(compra_marcos.count) == 2 \
+		and int(GameState.geradores[1].qtd) == 25 \
+		and int(GameState.geradores[2].qtd) == 50 \
+		and is_zero_approx(GameState.fe)
+	print("[T18] comprador alcanca dois marcos=", pacote_ok)
+	ok = ok and pacote_ok
+
+	# 19) Sem a Dadiva, o mesmo saldo nao habilita compras automaticas.
+	GameState.dadivas_compradas.clear()
+	var plano_bloqueado := GameState.get_milestone_purchase_plan("jornada")
+	var comprador_bloqueado := not bool(plano_bloqueado.enabled) and int(plano_bloqueado.count) == 0
+	print("[T19] comprador bloqueado sem Dadiva=", comprador_bloqueado)
+	ok = ok and comprador_bloqueado
 
 	print("=== SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)

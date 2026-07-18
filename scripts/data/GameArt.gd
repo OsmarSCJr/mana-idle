@@ -108,6 +108,7 @@ const GIFT_ICONS := {
 	"d_comunhao": preload("res://assets/icons/dadivas/d_comunhao.png"),
 	"d_evangelismo": preload("res://assets/icons/dadivas/d_evangelismo.png"),
 	"d_evangelismo2": preload("res://assets/icons/dadivas/d_evangelismo2.png"),
+	"d_comprador_marcos": preload("res://assets/icons/special/milestone_10000.png"),
 	"d_jo": preload("res://assets/icons/dadivas/d_jo.png"),
 	"d_jo2": preload("res://assets/icons/dadivas/d_jo2.png"),
 	"d_salomao": preload("res://assets/icons/dadivas/d_salomao.png"),

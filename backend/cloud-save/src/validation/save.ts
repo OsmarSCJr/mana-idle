@@ -75,6 +75,7 @@ const DADIVA_IDS = new Set([
   "d_comunhao",
   "d_evangelismo",
   "d_evangelismo2",
+  "d_comprador_marcos",
   "d_jo",
   "d_jo2",
   "d_salomao",

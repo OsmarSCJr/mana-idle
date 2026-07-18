@@ -359,8 +359,6 @@ func santos_ganhos(fe_total: float) -> int:
 
 func get_multiplicador_santos() -> float:
 	var value_per_saint := LiveOps.saint_bonus() + _santo_bonus_extra
-	if "vida_cristo" in GameState.aventuras_concluidas:
-		value_per_saint *= 1.5
 	# Conta os Santos TOTAIS ganhos (saldo + gastos): investir em Dadivas nunca
 	# reduz a producao — gastar nao pode doer.
 	return 1.0 + float(GameState.santos + GameState.santos_gastos) * value_per_saint
@@ -426,9 +424,9 @@ func next_milestone(qtd: int) -> int:
 		var alvo := int((milestone_value as Dictionary).quantity)
 		if qtd < alvo:
 			return alvo
-	# Alem de 400 nao ha bonus novos; segue de 100 em 100 como meta.
-	var last_target := int((configured[-1] as Dictionary).quantity)
-	return maxi(last_target + 100, (floori(qtd / 100.0) + 1) * 100)
+	# Depois do ultimo alvo, o modo MARCO fica indisponivel em vez de prometer
+	# uma quantidade sem bonus configurado.
+	return int((configured[-1] as Dictionary).quantity)
 
 func milestone_bonus(qtd: int) -> float:
 	var mult: float = 1.0

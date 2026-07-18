@@ -4,13 +4,7 @@ import { reason } from "../validation/schemas";
 import type { BalanceConfig } from "./types";
 
 const defaultMilestones = [
-  [25, 1.5], [50, 3], [75, 3], [100, 7], [200, 1.5], [300, 3], [400, 1.5], [500, 7],
-  [600, 1.5], [700, 3], [800, 1.5], [900, 3], [1000, 7], [1250, 1.5], [1500, 3],
-  [1750, 1.5], [2000, 7], [2250, 1.5], [2500, 3], [2750, 1.5], [3000, 7], [3250, 1.5],
-  [3500, 3], [3750, 1.5], [4000, 7], [4250, 1.5], [4500, 3], [4750, 1.5], [5000, 7],
-  [5250, 1.5], [5500, 3], [5750, 1.5], [6000, 7], [6250, 1.5], [6500, 3], [6750, 1.5],
-  [7000, 7], [7250, 1.5], [7500, 3], [7750, 1.5], [8000, 7], [8250, 1.5], [8500, 3],
-  [8750, 1.5], [9000, 7], [9250, 1.5], [9500, 3],
+  [25, 1.5], [50, 1.5], [100, 2], [250, 2], [500, 2], [1000, 2], [2500, 2], [5000, 2], [10000, 2],
 ] as const;
 
 export const DEFAULT_BALANCE_CONFIG: BalanceConfig = {
@@ -19,7 +13,7 @@ export const DEFAULT_BALANCE_CONFIG: BalanceConfig = {
       { maxQuantity: 300, rate: 1.11 }, { maxQuantity: 1500, rate: 1.05 },
       { maxQuantity: 4000, rate: 1.012 }, { maxQuantity: 0, rate: 1.008 },
     ],
-    saintBonus: 0.2,
+    saintBonus: 0.02,
     prestigeDivisor: 200_000_000_000,
     prophetUnlockQuantity: 25,
     prophetCostMultiplier: 10,
@@ -30,15 +24,15 @@ export const DEFAULT_BALANCE_CONFIG: BalanceConfig = {
     dadivaLadderMultiplier: 1.3,
     milestones: defaultMilestones.map(([quantity, multiplier]) => ({ quantity, multiplier })),
     generalMilestones: [
-      { quantity: 25, type: "speed", multiplier: 1.5, gems: 0, relics: 0 },
-      { quantity: 50, type: "speed", multiplier: 1.5, gems: 0, relics: 0 },
-      { quantity: 100, type: "speed", multiplier: 2, gems: 10, relics: 0 },
-      { quantity: 250, type: "prod", multiplier: 3, gems: 0, relics: 0 },
-      { quantity: 500, type: "prod", multiplier: 5, gems: 20, relics: 0 },
-      { quantity: 1000, type: "prod", multiplier: 7, gems: 0, relics: 25 },
-      { quantity: 2500, type: "prod", multiplier: 10, gems: 30, relics: 0 },
-      { quantity: 5000, type: "prod", multiplier: 15, gems: 0, relics: 50 },
-      { quantity: 10_000, type: "prod", multiplier: 20, gems: 100, relics: 100 },
+      { quantity: 25, type: "speed", multiplier: 1.25, gems: 0, relics: 0 },
+      { quantity: 50, type: "speed", multiplier: 1.25, gems: 0, relics: 0 },
+      { quantity: 100, type: "prod", multiplier: 1.5, gems: 10, relics: 0 },
+      { quantity: 250, type: "prod", multiplier: 1.5, gems: 0, relics: 0 },
+      { quantity: 500, type: "prod", multiplier: 2, gems: 20, relics: 0 },
+      { quantity: 1000, type: "prod", multiplier: 2, gems: 0, relics: 25 },
+      { quantity: 2500, type: "prod", multiplier: 2.5, gems: 30, relics: 0 },
+      { quantity: 5000, type: "prod", multiplier: 3, gems: 0, relics: 50 },
+      { quantity: 10_000, type: "prod", multiplier: 4, gems: 100, relics: 100 },
     ],
   },
   boosts: {

@@ -14,6 +14,7 @@ extends Node
 #   "start_units"       - apos o prestige, comeca com mult unidades dos geradores
 #                         start_first..start_last (a corrida aos 10000 recomeca
 #                         mais perto da linha de largada)
+#   "milestone_buyer"   - libera a compra conjunta dos proximos marcos
 #
 # Alem da tabela, existe a escada infinita "Frutos do Espirito": nivel N custa
 # base*growth^N Santos e da x(multiplier) de producao global permanente
@@ -23,6 +24,7 @@ const DADOS: Array = [
 	{"id": "d_comunhao", "nome": "Comunhao", "custo": 10, "tipo": "santo_bonus", "mult": 0.005, "efeito": "Cada Santo vale +0.5% de producao a mais", "flavor": "Perseveravam na comunhao e no partir do pao."},
 	{"id": "d_evangelismo", "nome": "Evangelismo", "custo": 25, "tipo": "global_prod", "mult": 1.25, "efeito": "+25% producao de TODOS os geradores", "flavor": "Ide por todo o mundo e pregai o evangelho."},
 	{"id": "d_evangelismo2", "nome": "Evangelismo II", "custo": 100, "tipo": "global_prod", "mult": 1.25, "efeito": "+25% producao de TODOS os geradores", "flavor": "E a palavra se espalhava cada vez mais."},
+	{"id": "d_comprador_marcos", "nome": "Mordomia dos Marcos", "custo": 150, "tipo": "milestone_buyer", "mult": 1.0, "efeito": "Libera o Comprador de Marcos em todas as aventuras", "flavor": "Quem planeja a colheita reconhece cada tempo e cada medida."},
 	{"id": "d_jo", "nome": "Paciencia de Jo", "custo": 15, "tipo": "offline_mult", "mult": 1.5, "efeito": "+50% producao offline", "flavor": "O Senhor deu, o Senhor tomou. E depois devolveu em dobro."},
 	{"id": "d_jo2", "nome": "Paciencia de Jo II", "custo": 60, "tipo": "offline_cap", "mult": 2.0, "efeito": "Teto de producao offline: 8h -> 16h", "flavor": "Depois disto viveu Jo cento e quarenta anos."},
 	{"id": "d_salomao", "nome": "Sabedoria de Salomao", "custo": 20, "tipo": "discount", "mult": 0.95, "efeito": "-5% custo de TODOS os geradores", "flavor": "Da-me agora sabedoria e conhecimento."},

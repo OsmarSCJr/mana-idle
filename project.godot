@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/version="0.1.9-alpha"
+config/version="0.1.10-alpha"
 config/name="Maná Idle"
 config/description="Um jogo idle com tematica biblica. Do Genesis ao Apocalipse."
 run/main_scene="res://scenes/Main.tscn"
@@ -36,8 +36,8 @@ CloudSave="*res://scripts/autoload/CloudSave.gd"
 
 [cloud_save]
 
-# API publica do ambiente de homologacao. Trocar pelo dominio de producao antes
-# do build destinado a Google Play.
+; API publica do ambiente de homologacao. Trocar pelo dominio de producao antes
+; do build destinado a Google Play.
 api_base_url="https://mana-save-staging.spankk-bolter.workers.dev/v1"
 
 [display]

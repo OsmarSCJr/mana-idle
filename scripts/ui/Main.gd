@@ -64,6 +64,9 @@ var _panel_estudo: StudyPanel
 var _panel_santos: VBoxContainer
 var _current_adventure: String = "jornada"
 var _adventure_buttons: Dictionary = {}
+var _milestone_buyer_strip: PanelContainer
+var _milestone_buyer_status: Label
+var _milestone_buyer_button: Button
 
 # Painel Milagres
 var _milagres_list: VBoxContainer
@@ -495,6 +498,7 @@ func _build_panel_geradores() -> VBoxContainer:
 	book_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	book_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	book_stack.add_child(_build_adventure_selector())
+	book_stack.add_child(_build_milestone_buyer_strip())
 
 	var book_panel := PanelContainer.new()
 	book_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -531,6 +535,71 @@ func _build_panel_geradores() -> VBoxContainer:
 	vbox.add_child(journey_split)
 	ManaTheme.enable_touch_scroll(_generator_scroll, _gen_list)
 	return vbox
+
+func _build_milestone_buyer_strip() -> PanelContainer:
+	_milestone_buyer_strip = PanelContainer.new()
+	_milestone_buyer_strip.custom_minimum_size = Vector2(0, 82)
+	_milestone_buyer_strip.visible = false
+	_milestone_buyer_strip.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#202944"), 14, ManaTheme.GOLD_DARK, 2, 12))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	_milestone_buyer_strip.add_child(row)
+
+	var icon := TextureRect.new()
+	icon.texture = GameArt.MILESTONE_10000_ICON
+	icon.custom_minimum_size = Vector2(46, 46)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+
+	var copy := VBoxContainer.new()
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.add_theme_constant_override("separation", 2)
+	row.add_child(copy)
+	var title := Label.new()
+	title.text = "COMPRADOR DE MARCOS"
+	title.add_theme_font_override("font", ManaTheme.body_semibold())
+	title.add_theme_font_size_override("font_size", 20)
+	title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
+	copy.add_child(title)
+	_milestone_buyer_status = Label.new()
+	_milestone_buyer_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_milestone_buyer_status.add_theme_font_size_override("font_size", 18)
+	_milestone_buyer_status.add_theme_color_override("font_color", ManaTheme.CREAM_MUTED)
+	_milestone_buyer_status.clip_text = true
+	_milestone_buyer_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	copy.add_child(_milestone_buyer_status)
+
+	_milestone_buyer_button = Button.new()
+	_milestone_buyer_button.custom_minimum_size = Vector2(190, 58)
+	_milestone_buyer_button.add_theme_font_size_override("font_size", 19)
+	ManaTheme.apply_primary_button(_milestone_buyer_button)
+	_milestone_buyer_button.pressed.connect(_on_buy_all_milestones)
+	row.add_child(_milestone_buyer_button)
+	return _milestone_buyer_strip
+
+func _refresh_milestone_buyer() -> void:
+	if _milestone_buyer_strip == null:
+		return
+	_milestone_buyer_strip.visible = GameState.has_milestone_buyer()
+	if not _milestone_buyer_strip.visible:
+		return
+	var plan := GameState.get_milestone_purchase_plan(_current_adventure)
+	var count := int(plan.count)
+	var currency_name := GameState.get_currency_name(str(plan.currency))
+	if count > 0:
+		_milestone_buyer_status.text = str(count) + " alcançáveis · total " + NumberFormat.format(float(plan.total_cost)) + " " + currency_name
+		_milestone_buyer_button.text = "COMPRAR " + str(count)
+		_milestone_buyer_button.disabled = false
+	else:
+		_milestone_buyer_status.text = "Nenhum próximo marco cabe no saldo atual"
+		_milestone_buyer_button.text = "AGUARDANDO SALDO"
+		_milestone_buyer_button.disabled = true
+
+func _on_buy_all_milestones() -> void:
+	GameState.buy_all_available_milestones(_current_adventure)
+	_update_all()
 
 func _build_adventure_selector() -> MarginContainer:
 	var panel := MarginContainer.new()
@@ -2655,6 +2724,7 @@ func _update_topbar() -> void:
 	_era_label.text = "Era " + str(current_era) + "  ·  " + Geradores.get_era_name(current_era)
 	_refresh_era_operator_grid()
 	_refresh_marco_label()
+	_refresh_milestone_buyer()
 
 func _refresh_marco_label() -> void:
 	if _marco_label == null:

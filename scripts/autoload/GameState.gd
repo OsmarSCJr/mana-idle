@@ -68,8 +68,8 @@ const BOOSTS: Dictionary = {
 # poucas gemas, 1x cada (ledger) — nunca cambio livre.
 const ADVENTURES: Dictionary = {
 	"jornada": {"entry_cost": 0.0, "historical_requirement": 0.0, "first_generator": 1, "last_generator": 12, "currency": "fe", "generator_currency": "fe"},
-	"vida_cristo": {"entry_cost": 2.0e14, "historical_requirement": 2.0e14, "first_generator": 13, "last_generator": 24, "currency": "fe", "generator_currency": "graca"},
-	"igreja_apocalipse": {"entry_cost": 120.0, "historical_requirement": 0.0, "first_generator": 25, "last_generator": 36, "currency": "gemas", "generator_currency": "gloria"},
+	"vida_cristo": {"entry_cost": 2.0e14, "historical_requirement": 2.0e14, "first_generator": 13, "last_generator": 24, "currency": "fe", "generator_currency": "graca", "starting_currency": 10.0},
+	"igreja_apocalipse": {"entry_cost": 120.0, "historical_requirement": 0.0, "first_generator": 25, "last_generator": 36, "currency": "gemas", "generator_currency": "gloria", "starting_currency": 10.0},
 }
 const CURRENCY_NAMES: Dictionary = {"fe": "Fé", "graca": "Graça", "gloria": "Glória"}
 # Marcos de moeda acumulada por aventura: Reliquias + pacote pequeno de gemas, 1x.
@@ -449,9 +449,25 @@ func unlock_adventure(adventure_id: String) -> bool:
 		fe = max(0.0, fe - entry_cost)
 		EventBus.faith_changed.emit(fe)
 	aventuras_desbloqueadas.append(adventure_id)
+	_grant_adventure_starting_currency(adventure_id)
 	EventBus.adventure_unlocked.emit(adventure_id)
 	EventBus.toast_requested.emit("Nova aventura desbloqueada: " + _adventure_display_name(adventure_id))
 	return true
+
+func _grant_adventure_starting_currency(adventure_id: String) -> void:
+	var data: Dictionary = ADVENTURES.get(adventure_id, {})
+	var currency := str(data.get("generator_currency", "fe"))
+	var starting_currency := float(data.get("starting_currency", 0.0))
+	if currency == "fe" or starting_currency <= 0.0:
+		return
+	# O total historico funciona como recibo da concessao unica. Assim, saves
+	# antigos travados em zero recebem a largada, sem reabrir um recurso infinito.
+	var historical_total := graca_total if currency == "graca" else gloria_total
+	if historical_total > 0.0:
+		return
+	var missing := starting_currency - get_currency_amount(currency)
+	if missing > 0.0:
+		add_currency(currency, missing)
 
 func spend_gemas(amount: int) -> bool:
 	if amount <= 0 or gemas < amount:
@@ -532,6 +548,86 @@ func buy_generator(gen_id: int, amount: int) -> bool:
 	_check_marcos_gerais(Geradores.get_adventure_for_id(gen_id))
 	EventBus.generator_changed.emit(gen_id)
 	return true
+
+const MILESTONE_BUYER_DADIVA := "d_comprador_marcos"
+
+func has_milestone_buyer() -> bool:
+	return MILESTONE_BUYER_DADIVA in dadivas_compradas
+
+# Monta um pacote com o proximo marco de cada gerador desbloqueado. A ordem
+# mais barata primeiro faz o saldo alcancar a maior quantidade de marcos.
+func get_milestone_purchase_plan(adventure_id: String) -> Dictionary:
+	var currency := str(ADVENTURES.get(adventure_id, {}).get("generator_currency", "fe"))
+	var balance := get_currency_amount(currency)
+	var result := {
+		"enabled": has_milestone_buyer(),
+		"currency": currency,
+		"balance": balance,
+		"total_cost": 0.0,
+		"count": 0,
+		"purchases": [],
+		"remaining": balance,
+	}
+	if not result.enabled:
+		return result
+
+	var candidates: Array[Dictionary] = []
+	for generator_value: Variant in Geradores.get_by_adventure(adventure_id):
+		var generator: Dictionary = generator_value as Dictionary
+		var gen_id := int(generator.id)
+		if not is_unlocked(gen_id):
+			continue
+		var quantity := int((geradores.get(gen_id, {}) as Dictionary).get("qtd", 0))
+		var target := Economy.next_milestone(quantity)
+		var amount := target - quantity
+		if amount <= 0:
+			continue
+		candidates.append({
+			"gen_id": gen_id,
+			"amount": amount,
+			"target": target,
+			"cost": Economy.custo_lote(gen_id, amount, quantity),
+		})
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if is_equal_approx(float(a.cost), float(b.cost)):
+			return int(a.gen_id) < int(b.gen_id)
+		return float(a.cost) < float(b.cost)
+	)
+
+	var remaining := balance
+	var purchases: Array[Dictionary] = []
+	var total_cost := 0.0
+	for candidate: Dictionary in candidates:
+		var cost := float(candidate.cost)
+		if cost > remaining and not is_equal_approx(cost, remaining):
+			continue
+		purchases.append(candidate)
+		total_cost += cost
+		remaining = maxf(remaining - cost, 0.0)
+	result.purchases = purchases
+	result.count = purchases.size()
+	result.total_cost = total_cost
+	result.remaining = remaining
+	return result
+
+func buy_all_available_milestones(adventure_id: String) -> Dictionary:
+	var plan := get_milestone_purchase_plan(adventure_id)
+	var bought := 0
+	var spent := 0.0
+	for purchase_value: Variant in plan.purchases:
+		var purchase: Dictionary = purchase_value as Dictionary
+		var gen_id := int(purchase.gen_id)
+		var before := int((geradores.get(gen_id, {}) as Dictionary).get("qtd", 0))
+		if buy_generator(gen_id, int(purchase.amount)):
+			var after := int((geradores.get(gen_id, {}) as Dictionary).get("qtd", 0))
+			if after >= int(purchase.target):
+				bought += 1
+				spent += float(purchase.cost)
+			elif after > before:
+				break
+	if bought > 0:
+		EventBus.toast_requested.emit("Comprador de Marcos: " + str(bought) + " alcançados")
+	return {"count": bought, "spent": spent, "currency": str(plan.currency)}
 
 # Marcos gerais: bonus recorrentes sao computados ao vivo (Economy); aqui so as
 # recompensas unicas (gemas/reliquias), pagas 1x por marco via ledger.
@@ -976,6 +1072,8 @@ func load_save_data(data: Dictionary) -> void:
 				"tempo_restante": float(saved.get("tempo_restante", -1.0)),
 			}
 			maior_qtd_gerador[gen_id] = max(int(maior_qtd_gerador.get(gen_id, 0)), int(saved.get("qtd", 0)))
+	for adventure_id in aventuras_desbloqueadas:
+		_grant_adventure_starting_currency(str(adventure_id))
 	Economy.recompute_multiplicadores()
 	EventBus.faith_changed.emit(fe)
 	EventBus.wisdom_changed.emit(sabedoria)
