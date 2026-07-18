@@ -551,83 +551,56 @@ func buy_generator(gen_id: int, amount: int) -> bool:
 
 const MILESTONE_BUYER_DADIVA := "d_comprador_marcos"
 
-func has_milestone_buyer() -> bool:
+func has_blessing_buyer() -> bool:
 	return MILESTONE_BUYER_DADIVA in dadivas_compradas
 
-# Monta um pacote com o proximo marco de cada gerador desbloqueado. A ordem
-# mais barata primeiro faz o saldo alcancar a maior quantidade de marcos.
-func get_milestone_purchase_plan(adventure_id: String) -> Dictionary:
-	var currency := str(ADVENTURES.get(adventure_id, {}).get("generator_currency", "fe"))
-	var balance := get_currency_amount(currency)
+# Monta o pacote de bencaos ja liberadas que cada saldo consegue pagar. Como as
+# aventuras usam moedas isoladas, cada caixa e simulada separadamente.
+func get_blessing_purchase_plan() -> Dictionary:
+	var balances := {
+		"fe": fe,
+		"graca": graca,
+		"gloria": gloria,
+	}
 	var result := {
-		"enabled": has_milestone_buyer(),
-		"currency": currency,
-		"balance": balance,
-		"total_cost": 0.0,
+		"enabled": has_blessing_buyer(),
+		"totals": {"fe": 0.0, "graca": 0.0, "gloria": 0.0},
 		"count": 0,
 		"purchases": [],
-		"remaining": balance,
+		"remaining": balances.duplicate(),
 	}
 	if not result.enabled:
 		return result
 
-	var candidates: Array[Dictionary] = []
-	for generator_value: Variant in Geradores.get_by_adventure(adventure_id):
-		var generator: Dictionary = generator_value as Dictionary
-		var gen_id := int(generator.id)
-		if not is_unlocked(gen_id):
-			continue
-		var quantity := int((geradores.get(gen_id, {}) as Dictionary).get("qtd", 0))
-		var target := Economy.next_milestone(quantity)
-		var amount := target - quantity
-		if amount <= 0:
-			continue
-		candidates.append({
-			"gen_id": gen_id,
-			"amount": amount,
-			"target": target,
-			"cost": Economy.custo_lote(gen_id, amount, quantity),
-		})
-	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		if is_equal_approx(float(a.cost), float(b.cost)):
-			return int(a.gen_id) < int(b.gen_id)
-		return float(a.cost) < float(b.cost)
-	)
-
-	var remaining := balance
 	var purchases: Array[Dictionary] = []
-	var total_cost := 0.0
-	for candidate: Dictionary in candidates:
-		var cost := float(candidate.cost)
-		if cost > remaining and not is_equal_approx(cost, remaining):
+	var totals: Dictionary = result.totals
+	var remaining: Dictionary = result.remaining
+	for upgrade_value: Variant in Upgrades.disponiveis():
+		var upgrade: Dictionary = upgrade_value as Dictionary
+		var currency := Upgrades.currency_for(upgrade)
+		var cost := float(upgrade.custo)
+		var available := float(remaining.get(currency, 0.0))
+		if cost > available and not is_equal_approx(cost, available):
 			continue
-		purchases.append(candidate)
-		total_cost += cost
-		remaining = maxf(remaining - cost, 0.0)
+		purchases.append({"upgrade_id": str(upgrade.id), "currency": currency, "cost": cost})
+		totals[currency] = float(totals.get(currency, 0.0)) + cost
+		remaining[currency] = maxf(available - cost, 0.0)
 	result.purchases = purchases
 	result.count = purchases.size()
-	result.total_cost = total_cost
+	result.totals = totals
 	result.remaining = remaining
 	return result
 
-func buy_all_available_milestones(adventure_id: String) -> Dictionary:
-	var plan := get_milestone_purchase_plan(adventure_id)
+func buy_all_available_blessings() -> Dictionary:
+	var plan := get_blessing_purchase_plan()
 	var bought := 0
-	var spent := 0.0
 	for purchase_value: Variant in plan.purchases:
 		var purchase: Dictionary = purchase_value as Dictionary
-		var gen_id := int(purchase.gen_id)
-		var before := int((geradores.get(gen_id, {}) as Dictionary).get("qtd", 0))
-		if buy_generator(gen_id, int(purchase.amount)):
-			var after := int((geradores.get(gen_id, {}) as Dictionary).get("qtd", 0))
-			if after >= int(purchase.target):
-				bought += 1
-				spent += float(purchase.cost)
-			elif after > before:
-				break
+		if buy_upgrade(str(purchase.upgrade_id)):
+			bought += 1
 	if bought > 0:
-		EventBus.toast_requested.emit("Comprador de Marcos: " + str(bought) + " alcançados")
-	return {"count": bought, "spent": spent, "currency": str(plan.currency)}
+		EventBus.toast_requested.emit("Comprador de Bencaos: " + str(bought) + " adquiridas")
+	return {"count": bought, "totals": plan.totals}
 
 # Marcos gerais: bonus recorrentes sao computados ao vivo (Economy); aqui so as
 # recompensas unicas (gemas/reliquias), pagas 1x por marco via ledger.

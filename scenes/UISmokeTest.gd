@@ -21,7 +21,7 @@ func _ready() -> void:
 	var special_cosmetics_ok := false
 	var santos_mobile_ok := false
 	var all_tabs_mobile_ok := false
-	var milestone_buyer_ok := false
+	var blessing_buyer_ok := false
 	if main != null:
 		var items: Dictionary = main.get("_items")
 		var tabs: Dictionary = main.get("_tab_buttons")
@@ -114,18 +114,23 @@ func _ready() -> void:
 		main.call("_show_tab", "geradores")
 		await get_tree().process_frame
 
-		# A Dadiva exibe uma faixa fixa acima da lista, sem criar largura lateral.
+		# A Dadiva exibe uma faixa fixa acima da lista de bencaos, sem criar
+		# largura lateral ou comprar unidades de geradores.
 		GameState.dadivas_compradas.append("d_comprador_marcos")
-		GameState.geradores[1].qtd = 24
-		GameState.fe = Economy.custo_lote(1, 1, 24)
+		GameState.upgrades_comprados.clear()
+		GameState.geradores[1].qtd = 25
+		GameState.fe = 5000.0
+		main.call("_show_tab", "milagres")
 		main.call("_update_all")
 		await get_tree().process_frame
-		var buyer_strip: PanelContainer = main.get("_milestone_buyer_strip")
-		var buyer_button: Button = main.get("_milestone_buyer_button")
-		milestone_buyer_ok = buyer_strip != null and buyer_strip.visible \
+		var buyer_strip: PanelContainer = main.get("_blessing_buyer_strip")
+		var buyer_button: Button = main.get("_blessing_buyer_button")
+		blessing_buyer_ok = buyer_strip != null and buyer_strip.visible \
 			and buyer_button != null and not buyer_button.disabled \
 			and buyer_strip.get_combined_minimum_size().x <= buyer_strip.size.x + 1.0
-		ok = ok and milestone_buyer_ok
+		ok = ok and blessing_buyer_ok
+		main.call("_show_tab", "geradores")
+		await get_tree().process_frame
 
 		# Valida o modo estável na nova faixa abaixo de 1100 ms e sua reversão.
 		var first_item: GeradorItem = items.get(2)
@@ -192,7 +197,7 @@ func _ready() -> void:
 	print("[UI] lateral=", boost_space_ok, " cloud=", cloud_ui_ok, " cloud_scroll=", cloud_scroll_ok, " ciclo_rapido=", fast_cycle_ok)
 	print("[UI] santos_mobile=", santos_mobile_ok)
 	print("[UI] todas_as_abas_mobile=", all_tabs_mobile_ok)
-	print("[UI] comprador_de_marcos=", milestone_buyer_ok)
+	print("[UI] comprador_de_bencaos=", blessing_buyer_ok)
 	print("[UI] cosmeticos_especiais=", special_cosmetics_ok)
 	print("=== UI SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)

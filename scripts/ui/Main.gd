@@ -64,9 +64,9 @@ var _panel_estudo: StudyPanel
 var _panel_santos: VBoxContainer
 var _current_adventure: String = "jornada"
 var _adventure_buttons: Dictionary = {}
-var _milestone_buyer_strip: PanelContainer
-var _milestone_buyer_status: Label
-var _milestone_buyer_button: Button
+var _blessing_buyer_strip: PanelContainer
+var _blessing_buyer_status: Label
+var _blessing_buyer_button: Button
 
 # Painel Milagres
 var _milagres_list: VBoxContainer
@@ -498,7 +498,6 @@ func _build_panel_geradores() -> VBoxContainer:
 	book_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	book_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	book_stack.add_child(_build_adventure_selector())
-	book_stack.add_child(_build_milestone_buyer_strip())
 
 	var book_panel := PanelContainer.new()
 	book_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -536,14 +535,14 @@ func _build_panel_geradores() -> VBoxContainer:
 	ManaTheme.enable_touch_scroll(_generator_scroll, _gen_list)
 	return vbox
 
-func _build_milestone_buyer_strip() -> PanelContainer:
-	_milestone_buyer_strip = PanelContainer.new()
-	_milestone_buyer_strip.custom_minimum_size = Vector2(0, 82)
-	_milestone_buyer_strip.visible = false
-	_milestone_buyer_strip.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#202944"), 14, ManaTheme.GOLD_DARK, 2, 12))
+func _build_blessing_buyer_strip() -> PanelContainer:
+	_blessing_buyer_strip = PanelContainer.new()
+	_blessing_buyer_strip.custom_minimum_size = Vector2(0, 82)
+	_blessing_buyer_strip.visible = false
+	_blessing_buyer_strip.add_theme_stylebox_override("panel", ManaTheme.panel_style(Color("#202944"), 14, ManaTheme.GOLD_DARK, 2, 12))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
-	_milestone_buyer_strip.add_child(row)
+	_blessing_buyer_strip.add_child(row)
 
 	var icon := TextureRect.new()
 	icon.texture = GameArt.MILESTONE_10000_ICON
@@ -558,47 +557,51 @@ func _build_milestone_buyer_strip() -> PanelContainer:
 	copy.add_theme_constant_override("separation", 2)
 	row.add_child(copy)
 	var title := Label.new()
-	title.text = "COMPRADOR DE MARCOS"
+	title.text = "COMPRADOR DE BÊNÇÃOS"
 	title.add_theme_font_override("font", ManaTheme.body_semibold())
 	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", ManaTheme.GOLD_LIGHT)
 	copy.add_child(title)
-	_milestone_buyer_status = Label.new()
-	_milestone_buyer_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_milestone_buyer_status.add_theme_font_size_override("font_size", 18)
-	_milestone_buyer_status.add_theme_color_override("font_color", ManaTheme.CREAM_MUTED)
-	_milestone_buyer_status.clip_text = true
-	_milestone_buyer_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	copy.add_child(_milestone_buyer_status)
+	_blessing_buyer_status = Label.new()
+	_blessing_buyer_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_blessing_buyer_status.add_theme_font_size_override("font_size", 18)
+	_blessing_buyer_status.add_theme_color_override("font_color", ManaTheme.CREAM_MUTED)
+	_blessing_buyer_status.clip_text = true
+	_blessing_buyer_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	copy.add_child(_blessing_buyer_status)
 
-	_milestone_buyer_button = Button.new()
-	_milestone_buyer_button.custom_minimum_size = Vector2(190, 58)
-	_milestone_buyer_button.add_theme_font_size_override("font_size", 19)
-	ManaTheme.apply_primary_button(_milestone_buyer_button)
-	_milestone_buyer_button.pressed.connect(_on_buy_all_milestones)
-	row.add_child(_milestone_buyer_button)
-	return _milestone_buyer_strip
+	_blessing_buyer_button = Button.new()
+	_blessing_buyer_button.custom_minimum_size = Vector2(190, 58)
+	_blessing_buyer_button.add_theme_font_size_override("font_size", 19)
+	ManaTheme.apply_primary_button(_blessing_buyer_button)
+	_blessing_buyer_button.pressed.connect(_on_buy_all_blessings)
+	row.add_child(_blessing_buyer_button)
+	return _blessing_buyer_strip
 
-func _refresh_milestone_buyer() -> void:
-	if _milestone_buyer_strip == null:
+func _refresh_blessing_buyer() -> void:
+	if _blessing_buyer_strip == null:
 		return
-	_milestone_buyer_strip.visible = GameState.has_milestone_buyer()
-	if not _milestone_buyer_strip.visible:
+	_blessing_buyer_strip.visible = GameState.has_blessing_buyer()
+	if not _blessing_buyer_strip.visible:
 		return
-	var plan := GameState.get_milestone_purchase_plan(_current_adventure)
+	var plan := GameState.get_blessing_purchase_plan()
 	var count := int(plan.count)
-	var currency_name := GameState.get_currency_name(str(plan.currency))
 	if count > 0:
-		_milestone_buyer_status.text = str(count) + " alcançáveis · total " + NumberFormat.format(float(plan.total_cost)) + " " + currency_name
-		_milestone_buyer_button.text = "COMPRAR " + str(count)
-		_milestone_buyer_button.disabled = false
+		var parts: Array[String] = []
+		for currency in ["fe", "graca", "gloria"]:
+			var total := float((plan.totals as Dictionary).get(currency, 0.0))
+			if total > 0.0:
+				parts.append(NumberFormat.format(total) + " " + GameState.get_currency_name(currency))
+		_blessing_buyer_status.text = str(count) + " disponíveis · total " + " · ".join(parts)
+		_blessing_buyer_button.text = "COMPRAR TODAS (" + str(count) + ")"
+		_blessing_buyer_button.disabled = false
 	else:
-		_milestone_buyer_status.text = "Nenhum próximo marco cabe no saldo atual"
-		_milestone_buyer_button.text = "AGUARDANDO SALDO"
-		_milestone_buyer_button.disabled = true
+		_blessing_buyer_status.text = "Nenhuma bênção liberada cabe no saldo atual"
+		_blessing_buyer_button.text = "AGUARDANDO SALDO"
+		_blessing_buyer_button.disabled = true
 
-func _on_buy_all_milestones() -> void:
-	GameState.buy_all_available_milestones(_current_adventure)
+func _on_buy_all_blessings() -> void:
+	GameState.buy_all_available_blessings()
 	_update_all()
 
 func _build_adventure_selector() -> MarginContainer:
@@ -1317,6 +1320,7 @@ func _build_panel_milagres() -> VBoxContainer:
 	sub.add_theme_font_size_override("font_size", 28)
 	sub.add_theme_color_override("font_color", TEXT_DIM)
 	vbox.add_child(sub)
+	vbox.add_child(_build_blessing_buyer_strip())
 
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1343,6 +1347,7 @@ func _build_panel_milagres() -> VBoxContainer:
 	return vbox
 
 func _refresh_milagres() -> void:
+	_refresh_blessing_buyer()
 	var disponiveis: Array = Upgrades.disponiveis()
 	var ids: Array = disponiveis.map(func(u): return u.id)
 	var built_ids: Array = _milagres_cards.keys()
@@ -2724,7 +2729,6 @@ func _update_topbar() -> void:
 	_era_label.text = "Era " + str(current_era) + "  ·  " + Geradores.get_era_name(current_era)
 	_refresh_era_operator_grid()
 	_refresh_marco_label()
-	_refresh_milestone_buyer()
 
 func _refresh_marco_label() -> void:
 	if _marco_label == null:

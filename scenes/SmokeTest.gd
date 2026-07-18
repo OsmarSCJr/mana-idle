@@ -196,33 +196,35 @@ func _ready() -> void:
 	var mordomia_save := GameState.get_save_data()
 	GameState.dadivas_compradas.clear()
 	GameState.load_save_data(mordomia_save)
-	var mordomia_persistiu := GameState.has_milestone_buyer()
+	var mordomia_persistiu := GameState.has_blessing_buyer()
 	print("[T17] mordomia comprada e persistente=", comprou_mordomia and mordomia_persistiu)
 	ok = ok and comprou_mordomia and GameState.santos == 0 and mordomia_persistiu
 
-	# 18) O comprador escolhe um proximo marco por gerador, mais barato primeiro,
-	# e debita exatamente o total que o saldo alcanca.
+	# 18) O comprador adquire as bencaos liberadas que o saldo alcanca sem
+	# comprar unidades dos geradores.
 	GameState.aventuras_desbloqueadas = ["jornada"]
 	GameState._init_geradores()
-	GameState.geradores[1].qtd = 24
-	GameState.geradores[2].qtd = 49
-	var custo_g1 := Economy.custo_lote(1, 1, 24)
-	var custo_g2 := Economy.custo_lote(2, 1, 49)
-	GameState.fe = custo_g1 + custo_g2
-	var plano_marcos := GameState.get_milestone_purchase_plan("jornada")
-	var compra_marcos := GameState.buy_all_available_milestones("jornada")
-	var pacote_ok := int(plano_marcos.count) == 2 \
-		and is_equal_approx(float(plano_marcos.total_cost), custo_g1 + custo_g2) \
-		and int(compra_marcos.count) == 2 \
+	GameState.upgrades_comprados.clear()
+	GameState.fe_total_vida = 0.0
+	GameState.geradores[1].qtd = 25
+	GameState.geradores[2].qtd = 25
+	GameState.fe = 505000.0
+	var plano_bencaos := GameState.get_blessing_purchase_plan()
+	var compra_bencaos := GameState.buy_all_available_blessings()
+	var pacote_ok := int(plano_bencaos.count) == 2 \
+		and is_equal_approx(float((plano_bencaos.totals as Dictionary).fe), 505000.0) \
+		and int(compra_bencaos.count) == 2 \
+		and "u1_1" in GameState.upgrades_comprados \
+		and "u2_1" in GameState.upgrades_comprados \
 		and int(GameState.geradores[1].qtd) == 25 \
-		and int(GameState.geradores[2].qtd) == 50 \
+		and int(GameState.geradores[2].qtd) == 25 \
 		and is_zero_approx(GameState.fe)
-	print("[T18] comprador alcanca dois marcos=", pacote_ok)
+	print("[T18] comprador adquire duas bencaos=", pacote_ok)
 	ok = ok and pacote_ok
 
 	# 19) Sem a Dadiva, o mesmo saldo nao habilita compras automaticas.
 	GameState.dadivas_compradas.clear()
-	var plano_bloqueado := GameState.get_milestone_purchase_plan("jornada")
+	var plano_bloqueado := GameState.get_blessing_purchase_plan()
 	var comprador_bloqueado := not bool(plano_bloqueado.enabled) and int(plano_bloqueado.count) == 0
 	print("[T19] comprador bloqueado sem Dadiva=", comprador_bloqueado)
 	ok = ok and comprador_bloqueado
