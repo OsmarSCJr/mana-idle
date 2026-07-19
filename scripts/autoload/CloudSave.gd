@@ -57,6 +57,7 @@ func _ready() -> void:
 
 func bootstrap(timeout_seconds: float = 3.0) -> Dictionary:
 	if not SaveSystem.persistence_enabled:
+		_set_state(STATE_DISABLED)
 		return {"ok": true, "loaded": false, "source": "disabled"}
 	# Faz a funcao ser sempre aguardavel, mesmo quando nao ha conta.
 	await get_tree().process_frame
@@ -116,6 +117,8 @@ func _select_bootstrap_candidate(local: Dictionary, remote: Dictionary) -> Dicti
 		var invalid_loaded: bool = _apply_local_candidate(local)
 		_set_state(STATE_ERROR, str(remote_validation.get("message", "Save online invalido")))
 		return {"ok": false, "loaded": invalid_loaded, "source": "local", "code": str(remote_validation.get("code", "INVALID_REMOTE"))}
+	if bool(remote_validation.get("obsolete", false)):
+		return _prepare_alpha_schema_reset(local, remote)
 
 	var has_local: bool = bool(local.get("hasData", false))
 	var has_remote: bool = bool(remote.get("hasPayload", false))
@@ -224,6 +227,14 @@ func reconcile_account() -> Dictionary:
 	var validation: Dictionary = _validate_remote_snapshot(remote)
 	if not bool(validation.get("ok", false)):
 		return validation
+	if bool(validation.get("obsolete", false)):
+		var schema_reset := _prepare_alpha_schema_reset(local, remote)
+		if not bool(schema_reset.get("ok", false)):
+			return schema_reset
+		if not CloudIdentity.mark_reconciled():
+			return _local_error("AUTH_WRITE_FAILED", "Nao foi possivel confirmar a vinculacao neste aparelho.")
+		_next_sync_at = 0.0
+		return await _upload_pending()
 	var has_local: bool = bool(local.get("hasData", false))
 	var has_remote: bool = bool(remote.get("hasPayload", false))
 	var is_recovery: bool = CloudIdentity.get_link_mode() == "recovered" and CloudIdentity.needs_initial_reconcile()
@@ -270,6 +281,9 @@ func check_remote_updates() -> Dictionary:
 	var validation: Dictionary = _validate_remote_snapshot(remote)
 	if not bool(validation.get("ok", false)):
 		return validation
+	if bool(validation.get("obsolete", false)):
+		var current_local: Dictionary = SaveSystem.read_local_candidate()
+		return _prepare_alpha_schema_reset(current_local, remote)
 	# Nenhum dado capturado antes do await pode decidir a matriz. Confirma e rele
 	# o estado atual depois da resposta para não apagar uma jogada feita em voo.
 	if not SaveSystem.save_game(false):
@@ -539,9 +553,36 @@ func _validate_remote_snapshot(remote: Dictionary) -> Dictionary:
 		return _local_error("INVALID_REMOTE_REVISION", "O servidor retornou uma revisao invalida.")
 	if not bool(remote.get("hasPayload", false)):
 		return {"ok": true}
-	if int(remote.get("schemaVersion", 0)) != GameState.SAVE_VERSION:
+	var remote_version: int = int(remote.get("schemaVersion", 0))
+	if remote_version < GameState.SAVE_VERSION:
+		return {"ok": true, "obsolete": true, "schemaVersion": remote_version}
+	if remote_version > GameState.SAVE_VERSION:
 		return _local_error("SAVE_VERSION", "O save online requer outra versao do aplicativo.")
 	return SaveValidator.parse_payload(str(remote.get("payloadJson", "")), str(remote.get("sha256", "")), true)
+
+
+func _prepare_alpha_schema_reset(local: Dictionary, remote: Dictionary) -> Dictionary:
+	# Durante o alpha, uma mudanca estrutural invalida o progresso anterior de forma
+	# intencional. Um save local ja atualizado vence; qualquer formato antigo inicia
+	# as tres campanhas do zero e substitui a revisao obsoleta na proxima sincronizacao.
+	var local_data: Dictionary = local.get("data", {}) as Dictionary
+	var loaded: bool = false
+	if bool(local.get("hasData", false)) and int(local_data.get("version", 0)) == GameState.SAVE_VERSION:
+		loaded = _apply_local_candidate(local)
+	else:
+		GameState._reset_alpha_progress()
+		loaded = true
+	if not SaveSystem.save_game(false):
+		return _local_error("LOCAL_SAVE_FAILED", "Nao foi possivel iniciar o novo progresso alpha.")
+	var fresh: Dictionary = SaveSystem.read_local_candidate()
+	_update_remote_meta(remote, str(remote.get("sha256", "")))
+	_meta["currentLocalSha256"] = str(fresh.get("sha256", ""))
+	_meta["dirty"] = true
+	_meta["localChangeSeq"] = int(_meta.get("localChangeSeq", 0)) + 1
+	_save_meta()
+	_schedule_normal_sync(false)
+	_set_state(STATE_PENDING)
+	return {"ok": true, "loaded": loaded, "source": "alpha_schema_reset", "reset": true}
 
 
 func _store_conflict(local_payload_json: String, remote: Dictionary, reason: String) -> bool:

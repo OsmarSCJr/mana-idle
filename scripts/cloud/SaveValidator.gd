@@ -158,6 +158,43 @@ static func validate_save_data(data: Dictionary, require_current_version: bool =
 	for adventure_id: Variant in data.get("aventurasConcluidas", []):
 		if not GameState.ADVENTURES.has(str(adventure_id)):
 			return _invalid("UNKNOWN_ID", "O save contem uma aventura desconhecida.")
+	var active_adventure := str(data.get("activeAdventure", ""))
+	if not GameState.ADVENTURES.has(active_adventure):
+		return _invalid("UNKNOWN_ID", "A campanha ativa e desconhecida.")
+	if active_adventure not in data.get("aventurasDesbloqueadas", []):
+		return _invalid("INVALID_ADVENTURE_PROGRESS", "A campanha ativa ainda nao foi desbloqueada.")
+	var adventure_progress: Variant = data.get("adventureProgress", {})
+	if adventure_progress is not Dictionary or (adventure_progress as Dictionary).size() != GameState.ADVENTURES.size():
+		return _invalid("INVALID_ADVENTURE_PROGRESS", "Os estados de campanha sao invalidos.")
+	for adventure_id: String in GameState.ADVENTURES:
+		var progress: Variant = (adventure_progress as Dictionary).get(adventure_id)
+		if progress is not Dictionary:
+			return _invalid("INVALID_ADVENTURE_PROGRESS", "Uma campanha nao possui estado proprio.")
+		for number_key: String in ["prestige", "prestige_spent", "fruit_level", "prestiges"]:
+			if int((progress as Dictionary).get(number_key, -1)) < 0:
+				return _invalid("INVALID_ADVENTURE_PROGRESS", "Um recurso de campanha e invalido.")
+		if not _is_non_negative_number((progress as Dictionary).get("run_total", -1.0)):
+			return _invalid("INVALID_ADVENTURE_PROGRESS", "O total da campanha e invalido.")
+		for array_key: String in ["upgrades", "gifts"]:
+			var entries: Variant = (progress as Dictionary).get(array_key, [])
+			if entries is not Array or (entries as Array).size() > (512 if array_key == "upgrades" else 32) \
+					or not _has_unique_strings(entries as Array):
+				return _invalid("INVALID_ADVENTURE_PROGRESS", "Uma lista de campanha e invalida.")
+			for entry_id: Variant in (entries as Array):
+				if array_key == "upgrades" and Upgrades.get_data(str(entry_id)).is_empty():
+					return _invalid("UNKNOWN_ID", "Uma campanha contem uma bencao desconhecida.")
+				if array_key == "gifts" and Dadivas.get_data(str(entry_id)).is_empty():
+					return _invalid("UNKNOWN_ID", "Uma campanha contem uma dadiva desconhecida.")
+		for map_key: String in ["boosts", "boost_inventory"]:
+			var boost_map: Variant = (progress as Dictionary).get(map_key, {})
+			if boost_map is not Dictionary or (boost_map as Dictionary).size() > GameState.BOOSTS.size():
+				return _invalid("INVALID_ADVENTURE_PROGRESS", "Um inventario de campanha e invalido.")
+			for boost_id: Variant in (boost_map as Dictionary):
+				var amount: Variant = (boost_map as Dictionary)[boost_id]
+				if not GameState.BOOSTS.has(str(boost_id)) \
+						or (map_key == "boosts" and not _is_non_negative_number(amount)) \
+						or (map_key == "boost_inventory" and int(amount) < 0):
+					return _invalid("INVALID_ADVENTURE_PROGRESS", "Uma campanha contem um impulso invalido.")
 
 	var study: Variant = data.get("estudo", {})
 	if study is not Dictionary:

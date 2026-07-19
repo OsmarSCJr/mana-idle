@@ -22,6 +22,7 @@ func _ready() -> void:
 	var santos_mobile_ok := false
 	var all_tabs_mobile_ok := false
 	var blessing_buyer_ok := false
+	var adventure_transition_ok := false
 	if main != null:
 		var items: Dictionary = main.get("_items")
 		var tabs: Dictionary = main.get("_tab_buttons")
@@ -193,12 +194,25 @@ func _ready() -> void:
 		special_cosmetics_ok = special_cosmetics_ok \
 			and frame.texture == GameArt.cosmetic_preview("moldura_templo")
 		ok = ok and special_cosmetics_ok
+
+		# A troca usa um bloqueio visual curto e termina com apenas a faixa da
+		# campanha escolhida interativa/visivel.
+		GameState.aventuras_desbloqueadas = ["jornada", "vida_cristo", "igreja_apocalipse"]
+		main.call("_select_adventure", "vida_cristo")
+		await get_tree().create_timer(0.7).timeout
+		var journey_item: GeradorItem = items.get(1)
+		var christ_item: GeradorItem = items.get(13)
+		adventure_transition_ok = GameState.active_adventure == "vida_cristo" \
+			and not journey_item.visible and christ_item.visible \
+			and str((main.get("_prestige_caption") as Label).text) == "TESTEMUNHOS"
+		ok = ok and adventure_transition_ok
 	print("[UI] geradores=", item_count, " abas=", tab_count, " aventuras=", adventure_count)
 	print("[UI] lateral=", boost_space_ok, " cloud=", cloud_ui_ok, " cloud_scroll=", cloud_scroll_ok, " ciclo_rapido=", fast_cycle_ok)
 	print("[UI] santos_mobile=", santos_mobile_ok)
 	print("[UI] todas_as_abas_mobile=", all_tabs_mobile_ok)
 	print("[UI] comprador_de_bencaos=", blessing_buyer_ok)
 	print("[UI] cosmeticos_especiais=", special_cosmetics_ok)
+	print("[UI] transicao_de_campanha=", adventure_transition_ok)
 	print("=== UI SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)
 

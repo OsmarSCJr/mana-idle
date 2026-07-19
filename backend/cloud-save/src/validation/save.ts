@@ -4,6 +4,8 @@ import { MAX_SAVE_BYTES } from "../http";
 const ROOT_KEYS = new Set([
   "version",
   "lastSeen",
+  "activeAdventure",
+  "adventureProgress",
   "fe",
   "santos",
   "santosGastos",
@@ -41,6 +43,8 @@ const ROOT_KEYS = new Set([
 const REQUIRED_ROOT_KEYS = [
   "version",
   "lastSeen",
+  "activeAdventure",
+  "adventureProgress",
   "fe",
   "santos",
   "santosGastos",
@@ -272,6 +276,42 @@ function validateLedger(value: unknown, path: string, itemType: "number" | "stri
   }
 }
 
+function validateAdventureProgress(value: unknown, activeAdventure: unknown, unlockedAdventures: unknown): void {
+	if (typeof activeAdventure !== "string" || !ADVENTURE_IDS.has(activeAdventure)) {
+		fail("$.activeAdventure", "campanha ativa desconhecida");
+	}
+	if (!Array.isArray(unlockedAdventures) || !unlockedAdventures.includes(activeAdventure)) {
+		fail("$.activeAdventure", "campanha ativa ainda nao desbloqueada");
+	}
+  const runs = objectAt(value, "$.adventureProgress");
+  if (Object.keys(runs).length !== ADVENTURE_IDS.size
+    || [...ADVENTURE_IDS].some((id) => !(id in runs))) {
+    fail("$.adventureProgress", "estados de campanha incompletos");
+  }
+  const allowed = new Set([
+    "prestige", "prestige_spent", "run_total", "fruit_level", "upgrades",
+    "gifts", "boosts", "boost_inventory", "prestiges",
+  ]);
+  for (const adventureId of ADVENTURE_IDS) {
+    const path = `$.adventureProgress.${adventureId}`;
+    const run = objectAt(runs[adventureId], path);
+    if (Object.keys(run).some((key) => !allowed.has(key))) fail(path, "campo desconhecido");
+    for (const key of ["prestige", "prestige_spent", "fruit_level", "prestiges"] as const) {
+      integerNonNegative(run[key], `${path}.${key}`);
+    }
+    finiteNonNegative(run.run_total, `${path}.run_total`);
+    const upgrades = uniqueStrings(run.upgrades, `${path}.upgrades`, 500);
+    if (upgrades.some((id) => !validUpgradeId(id))) fail(`${path}.upgrades`, "upgrade desconhecido");
+    const gifts = uniqueStrings(run.gifts, `${path}.gifts`, 32);
+    if (gifts.some((id) => !DADIVA_IDS.has(id))) fail(`${path}.gifts`, "dadiva desconhecida");
+    for (const field of ["boosts", "boost_inventory"] as const) {
+      const map = objectAt(run[field], `${path}.${field}`);
+      if (Object.keys(map).some((id) => !BOOST_IDS.has(id))) fail(`${path}.${field}`, "boost desconhecido");
+      for (const [id, amount] of Object.entries(map)) finiteNonNegative(amount, `${path}.${field}.${id}`);
+    }
+  }
+}
+
 function validateStudy(value: unknown): void {
   const study = objectAt(value, "$.estudo");
   const allowed = new Set(["sabedoria", "sabedoriaTotal", "progresso", "conhecimentosComprados", "conhecimentosAtivos"]);
@@ -362,6 +402,7 @@ export function validateSavePayload(
   }
   validateLedger(root.marcosLedger, "$.marcosLedger", "number");
   validateLedger(root.moedaMarcosLedger, "$.moedaMarcosLedger", "string");
+  validateAdventureProgress(root.adventureProgress, root.activeAdventure, root.aventurasDesbloqueadas);
   validateGeneratorMap(root.geradores);
   validateNumericGeneratorMap(root.maiorQtdGerador, "$.maiorQtdGerador");
   const upgrades = uniqueStrings(root.upgradesComprados, "$.upgradesComprados", 500);

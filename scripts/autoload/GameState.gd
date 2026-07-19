@@ -49,9 +49,13 @@ var reward_videos_watched: int = 0
 var daily_boost_video_last_claimed: float = 0.0
 var daily_boost_video_last_reward: String = ""
 var estatisticas: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
+var active_adventure: String = "jornada"
+# O facade acima (santos/upgrades/dadivas/boosts/fe_total_vida) representa
+# somente a campanha carregada. As outras ficam congeladas neste cofre.
+var adventure_progress: Dictionary = {}
 
 const ESTATISTICAS_DEFAULT: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
-const SAVE_VERSION: int = 9
+const SAVE_VERSION: int = 10
 const REWARD_VIDEO_LIMIT: int = 6
 const REWARD_VIDEO_WINDOW_SECONDS: int = 24 * 3600
 const DAILY_BOOST_VIDEO_COOLDOWN: int = 24 * 3600
@@ -67,11 +71,16 @@ const BOOSTS: Dictionary = {
 # da aventura custam e produzem. Marcos de moeda acumulada pagam Reliquias +
 # poucas gemas, 1x cada (ledger) — nunca cambio livre.
 const ADVENTURES: Dictionary = {
-	"jornada": {"entry_cost": 0.0, "historical_requirement": 0.0, "first_generator": 1, "last_generator": 12, "currency": "fe", "generator_currency": "fe"},
-	"vida_cristo": {"entry_cost": 2.0e14, "historical_requirement": 2.0e14, "first_generator": 13, "last_generator": 24, "currency": "fe", "generator_currency": "graca", "starting_currency": 10.0},
-	"igreja_apocalipse": {"entry_cost": 120.0, "historical_requirement": 0.0, "first_generator": 25, "last_generator": 36, "currency": "gemas", "generator_currency": "gloria", "starting_currency": 10.0},
+	"jornada": {"entry_cost": 0.0, "historical_requirement": 0.0, "first_generator": 1, "last_generator": 12, "currency": "fe", "generator_currency": "fe", "starting_currency": 10.0, "prestige_name": "Santos", "theme_name": "Criação"},
+	"vida_cristo": {"entry_cost": 2.0e14, "historical_requirement": 2.0e14, "first_generator": 13, "last_generator": 24, "currency": "fe", "generator_currency": "graca", "starting_currency": 10.0, "prestige_name": "Testemunhos", "theme_name": "Caminho"},
+	"igreja_apocalipse": {"entry_cost": 120.0, "historical_requirement": 0.0, "first_generator": 25, "last_generator": 36, "currency": "gemas", "generator_currency": "gloria", "starting_currency": 10.0, "prestige_name": "Coroas", "theme_name": "Consumação"},
 }
 const CURRENCY_NAMES: Dictionary = {"fe": "Fé", "graca": "Graça", "gloria": "Glória"}
+const ADVENTURE_PALETTES: Dictionary = {
+	"jornada": {"top": Color("#10102e"), "bottom": Color("#17183d"), "glow": Color(0.94, 0.65, 0.0, 0.055), "star": Color("#f4dfad")},
+	"vida_cristo": {"top": Color("#172b2a"), "bottom": Color("#35432d"), "glow": Color(0.98, 0.72, 0.34, 0.10), "star": Color("#ffe6ae")},
+	"igreja_apocalipse": {"top": Color("#21152f"), "bottom": Color("#3c1730"), "glow": Color(0.62, 0.76, 1.0, 0.10), "star": Color("#d8e6ff")},
+}
 # Marcos de moeda acumulada por aventura: Reliquias + pacote pequeno de gemas, 1x.
 const MOEDA_MARCOS: Array = [
 	{"key": "1e6", "amount": 1.0e6, "relics": 10, "gems": 10},
@@ -79,6 +88,78 @@ const MOEDA_MARCOS: Array = [
 	{"key": "1e12", "amount": 1.0e12, "relics": 35, "gems": 20},
 	{"key": "1e15", "amount": 1.0e15, "relics": 60, "gems": 30},
 ]
+
+func _new_adventure_progress() -> Dictionary:
+	return {
+		"prestige": 0,
+		"prestige_spent": 0,
+		"run_total": 0.0,
+		"fruit_level": 0,
+		"upgrades": [],
+		"gifts": [],
+		"boosts": {},
+		"boost_inventory": {},
+		"prestiges": 0,
+	}
+
+func _init_adventure_progress() -> void:
+	adventure_progress.clear()
+	for adventure_id in ADVENTURES:
+		adventure_progress[adventure_id] = _new_adventure_progress()
+
+func _ensure_adventure_progress(adventure_id: String) -> void:
+	if not adventure_progress.has(adventure_id):
+		adventure_progress[adventure_id] = _new_adventure_progress()
+
+func _sync_active_adventure() -> void:
+	_ensure_adventure_progress(active_adventure)
+	var progress: Dictionary = adventure_progress[active_adventure]
+	progress.prestige = santos
+	progress.prestige_spent = santos_gastos
+	progress.run_total = fe_total_vida
+	progress.fruit_level = dadiva_frutos_nivel
+	progress.upgrades = upgrades_comprados.duplicate()
+	progress.gifts = dadivas_compradas.duplicate()
+	progress.boosts = boosts.duplicate(true)
+	progress.boost_inventory = boost_inventory.duplicate(true)
+	progress.prestiges = int(estatisticas.get("prestiges", 0))
+	adventure_progress[active_adventure] = progress
+
+func _load_adventure_progress(adventure_id: String) -> void:
+	_ensure_adventure_progress(adventure_id)
+	var progress: Dictionary = adventure_progress[adventure_id]
+	santos = int(progress.get("prestige", 0))
+	santos_gastos = int(progress.get("prestige_spent", 0))
+	fe_total_vida = float(progress.get("run_total", 0.0))
+	dadiva_frutos_nivel = int(progress.get("fruit_level", 0))
+	upgrades_comprados = (progress.get("upgrades", []) as Array).duplicate()
+	dadivas_compradas = (progress.get("gifts", []) as Array).duplicate()
+	boosts = (progress.get("boosts", {}) as Dictionary).duplicate(true)
+	boost_inventory = (progress.get("boost_inventory", {}) as Dictionary).duplicate(true)
+	estatisticas.prestiges = int(progress.get("prestiges", 0))
+
+func set_active_adventure(adventure_id: String, emit_signal: bool = true) -> bool:
+	if not ADVENTURES.has(adventure_id) or adventure_id not in aventuras_desbloqueadas:
+		return false
+	if adventure_id == active_adventure:
+		return true
+	_sync_active_adventure()
+	active_adventure = adventure_id
+	_load_adventure_progress(adventure_id)
+	Economy.recompute_multiplicadores()
+	if emit_signal:
+		EventBus.adventure_context_changed.emit(adventure_id)
+		EventBus.ui_needs_update.emit()
+	return true
+
+func get_prestige_name(adventure_id: String = active_adventure) -> String:
+	return str(ADVENTURES.get(adventure_id, {}).get("prestige_name", "Santos"))
+
+func get_active_run_total() -> float:
+	return fe_total_vida
+
+func get_adventure_palette(adventure_id: String = active_adventure) -> Dictionary:
+	return (ADVENTURE_PALETTES.get(adventure_id, ADVENTURE_PALETTES.jornada) as Dictionary).duplicate()
 
 # ------------------------------------------------------------ Moedas isoladas
 
@@ -89,6 +170,12 @@ func get_currency_for_gen(gen_id: int) -> String:
 func get_currency_name(currency: String) -> String:
 	return str(CURRENCY_NAMES.get(currency, "Fé"))
 
+func get_adventure_for_currency(currency: String) -> String:
+	match currency:
+		"graca": return "vida_cristo"
+		"gloria": return "igreja_apocalipse"
+		_: return "jornada"
+
 func get_currency_amount(currency: String) -> float:
 	match currency:
 		"graca": return graca
@@ -98,6 +185,14 @@ func get_currency_amount(currency: String) -> float:
 func add_currency(currency: String, amount: float) -> void:
 	if amount <= 0.0:
 		return
+	var adventure_id := get_adventure_for_currency(currency)
+	if adventure_id == active_adventure:
+		fe_total_vida += amount
+	else:
+		_ensure_adventure_progress(adventure_id)
+		var progress: Dictionary = adventure_progress[adventure_id]
+		progress.run_total = float(progress.get("run_total", 0.0)) + amount
+		adventure_progress[adventure_id] = progress
 	match currency:
 		"graca":
 			graca += amount
@@ -111,7 +206,6 @@ func add_currency(currency: String, amount: float) -> void:
 			_check_moeda_marcos("igreja_apocalipse", gloria_total)
 		_:
 			fe += amount
-			fe_total_vida += amount
 			fe_total_historica += amount
 			EventBus.faith_changed.emit(fe)
 
@@ -129,6 +223,18 @@ func spend_currency(currency: String, amount: float) -> bool:
 			fe = maxf(fe - amount, 0.0)
 			EventBus.faith_changed.emit(fe)
 	return true
+
+func _set_currency_amount(currency: String, amount: float) -> void:
+	match currency:
+		"graca":
+			graca = maxf(amount, 0.0)
+			EventBus.adventure_currency_changed.emit(currency, graca)
+		"gloria":
+			gloria = maxf(amount, 0.0)
+			EventBus.adventure_currency_changed.emit(currency, gloria)
+		_:
+			fe = maxf(amount, 0.0)
+			EventBus.faith_changed.emit(fe)
 
 # Marcos de moeda acumulada (1e6/1e9/...): Reliquias + poucas gemas, 1x cada.
 func _check_moeda_marcos(adventure_id: String, total: float) -> void:
@@ -375,12 +481,10 @@ func use_boost_charge(boost_id: String) -> bool:
 	else:
 		boost_inventory[boost_id] = available - 1
 	if boost_id == "colheita":
-		# Cada aventura recebe as horas de producao na SUA moeda (isolamento).
-		var harvest_fe := get_receita_por_segundo("jornada") * LiveOps.harvest_seconds()
-		add_fe_bonus(harvest_fe)
-		add_currency("graca", get_receita_por_segundo("vida_cristo") * LiveOps.harvest_seconds())
-		add_currency("gloria", get_receita_por_segundo("igreja_apocalipse") * LiveOps.harvest_seconds())
-		EventBus.toast_requested.emit("Colheita recebida: +" + NumberFormat.format(harvest_fe) + " Fé")
+		var currency := str(ADVENTURES[active_adventure].generator_currency)
+		var harvest := get_receita_por_segundo(active_adventure) * LiveOps.harvest_seconds()
+		add_currency(currency, harvest)
+		EventBus.toast_requested.emit("Colheita recebida: +" + NumberFormat.format(harvest) + " " + get_currency_name(currency))
 	else:
 		_extend_boost(boost_id, float(data.duracao))
 		EventBus.toast_requested.emit(str(data.nome) + " ativado")
@@ -397,6 +501,8 @@ func _extend_boost(boost_id: String, duration: float) -> void:
 
 func _ready() -> void:
 	_init_geradores()
+	_init_adventure_progress()
+	_load_adventure_progress("jornada")
 	Economy.recompute_multiplicadores()
 
 func _init_geradores() -> void:
@@ -413,6 +519,8 @@ func is_unlocked(gen_id: int) -> bool:
 	if data.is_empty():
 		return false
 	var adventure_id := str(data.get("adventure", "jornada"))
+	if adventure_id != active_adventure:
+		return false
 	if adventure_id not in aventuras_desbloqueadas:
 		return false
 	var first_generator := int(ADVENTURES.get(adventure_id, {}).get("first_generator", 1))
@@ -467,7 +575,11 @@ func _grant_adventure_starting_currency(adventure_id: String) -> void:
 		return
 	var missing := starting_currency - get_currency_amount(currency)
 	if missing > 0.0:
-		add_currency(currency, missing)
+		_set_currency_amount(currency, get_currency_amount(currency) + missing)
+		if currency == "graca":
+			graca_total = maxf(graca_total, starting_currency)
+		else:
+			gloria_total = maxf(gloria_total, starting_currency)
 
 func spend_gemas(amount: int) -> bool:
 	if amount <= 0 or gemas < amount:
@@ -526,6 +638,8 @@ func _adventure_display_name(adventure_id: String) -> String:
 
 func buy_generator(gen_id: int, amount: int) -> bool:
 	if not geradores.has(gen_id):
+		return false
+	if Geradores.get_adventure_for_id(gen_id) != active_adventure:
 		return false
 	if amount <= 0:
 		return false
@@ -666,6 +780,8 @@ func _check_adventure_completion(gen_id: int) -> void:
 	add_gemas(LiveOps.scale_free_gem_reward(50 if adventure_id == "vida_cristo" else 100), "aventura concluída")
 
 func buy_prophet(gen_id: int) -> bool:
+	if Geradores.get_adventure_for_id(gen_id) != active_adventure:
+		return false
 	if not Economy.profeta_disponivel(gen_id):
 		return false
 	var data: Dictionary = Geradores.get_data(gen_id)
@@ -687,6 +803,8 @@ func buy_upgrade(upgrade_id: String) -> bool:
 		return false
 	var u: Dictionary = Upgrades.get_data(upgrade_id)
 	if u.is_empty():
+		return false
+	if Upgrades.adventure_for(u) != active_adventure:
 		return false
 	if not Upgrades.requisito_atingido(u):
 		return false
@@ -792,6 +910,8 @@ func equip_cosmetic(cosmetic_id: String) -> bool:
 func start_cycle(gen_id: int) -> bool:
 	if not geradores.has(gen_id):
 		return false
+	if Geradores.get_adventure_for_id(gen_id) != active_adventure:
+		return false
 	var state: Dictionary = geradores[gen_id]
 	if state.qtd <= 0:
 		return false
@@ -806,6 +926,8 @@ func process_tick(delta: float) -> void:
 	# Ciclos creditam a moeda da aventura do gerador (economias isoladas).
 	var ganhos: Dictionary = {}
 	for gen_id in geradores:
+		if Geradores.get_adventure_for_id(gen_id) != active_adventure:
+			continue
 		var state: Dictionary = geradores[gen_id]
 		if state.qtd <= 0:
 			continue
@@ -830,9 +952,13 @@ func process_tick(delta: float) -> void:
 		add_currency(currency, ganhos[currency])
 
 func get_receita_por_segundo(adventure_id: String = "jornada") -> float:
+	if adventure_id != active_adventure:
+		return 0.0
 	return Economy.receita_total_por_segundo(adventure_id)
 
 func get_receita_por_segundo_gerador(gen_id: int) -> float:
+	if Geradores.get_adventure_for_id(gen_id) != active_adventure:
+		return 0.0
 	var state: Dictionary = geradores.get(gen_id, {})
 	if state.is_empty():
 		return 0.0
@@ -856,45 +982,41 @@ func prestige() -> int:
 		return 0
 	santos += ganhos
 	estatisticas.prestiges += 1
-	# Gemas por ressurreicao: 1a paga bem (funil p/ conhecer a moeda), depois goteja.
 	add_gemas(LiveOps.scale_free_gem_reward(10 if estatisticas.prestiges == 1 else 2), "Ressurreição")
-	# Sem fe inicial o jogador nao consegue comprar o 1o gerador e trava.
-	fe = FE_INICIAL
+	var adventure: Dictionary = ADVENTURES[active_adventure]
+	var currency := str(adventure.generator_currency)
+	_set_currency_amount(currency, float(adventure.get("starting_currency", FE_INICIAL)))
 	fe_total_vida = 0.0
-	# A Ressurreicao e um evento da JORNADA: geradores e bencaos das aventuras
-	# (Graca/Gloria) persistem — sao a camada permanente entre resets.
-	var jornada: Dictionary = ADVENTURES.jornada
 	for gen_id in geradores:
-		if gen_id < int(jornada.first_generator) or gen_id > int(jornada.last_generator):
+		if gen_id < int(adventure.first_generator) or gen_id > int(adventure.last_generator):
 			continue
 		geradores[gen_id] = {
 			"qtd": 0,
 			"tem_profeta": false,
 			"tempo_restante": -1.0,
 		}
-	var mantidos: Array = []
-	for upgrade_id in upgrades_comprados:
-		var u: Dictionary = Upgrades.get_data(str(upgrade_id))
-		if not u.is_empty() and Upgrades.is_adventure_upgrade(u):
-			mantidos.append(upgrade_id)
-	upgrades_comprados = mantidos
-	# Dadivas persistem (bonus permanente do prestige). Primicias dao largada.
+	upgrades_comprados.clear()
 	_apply_start_units()
+	_sync_active_adventure()
 	Economy.recompute_multiplicadores()
 	EventBus.prestige_done.emit()
-	EventBus.faith_changed.emit(fe)
-	EventBus.toast_requested.emit("Ressurreicao! +" + str(ganhos) + " Santos")
+	EventBus.toast_requested.emit("Ressurreição! +" + str(ganhos) + " " + get_prestige_name())
 	return ganhos
 
 # Dadivas "Primicias": apos o prestige, comeca com N unidades dos geradores da
 # faixa. Usa o maior valor entre as dadivas possuidas para cada gerador.
 func _apply_start_units() -> void:
+	var adventure: Dictionary = ADVENTURES[active_adventure]
+	var base_id := int(adventure.first_generator)
+	var last_id := int(adventure.last_generator)
 	for dadiva_id in dadivas_compradas:
 		var d: Dictionary = Dadivas.get_data(str(dadiva_id))
 		if d.is_empty() or str(d.get("tipo", "")) != "start_units":
 			continue
 		var unidades := int(d.mult)
-		for gen_id in range(int(d.get("start_first", 1)), int(d.get("start_last", 1)) + 1):
+		var first_relative := int(d.get("start_first", 1)) - 1
+		var last_relative := int(d.get("start_last", 1)) - 1
+		for gen_id in range(base_id + first_relative, mini(base_id + last_relative, last_id) + 1):
 			if not geradores.has(gen_id):
 				continue
 			var state: Dictionary = geradores[gen_id]
@@ -907,6 +1029,7 @@ func get_santos_proximo_prestige() -> int:
 	return Economy.santos_ganhos(fe_total_vida)
 
 func get_save_data() -> Dictionary:
+	_sync_active_adventure()
 	var gens_save: Dictionary = {}
 	for gen_id in geradores:
 		var state: Dictionary = geradores[gen_id]
@@ -917,6 +1040,8 @@ func get_save_data() -> Dictionary:
 		}
 	return {
 		"version": SAVE_VERSION,
+		"activeAdventure": active_adventure,
+		"adventureProgress": adventure_progress.duplicate(true),
 		"lastSeen": Time.get_unix_time_from_system(),
 		"fe": fe,
 		"santos": santos,
@@ -958,7 +1083,53 @@ func get_save_data() -> Dictionary:
 		"estatisticas": estatisticas.duplicate(true),
 	}
 
+func _reset_alpha_progress() -> void:
+	fe = FE_INICIAL
+	graca = 0.0
+	gloria = 0.0
+	santos = 0
+	santos_gastos = 0
+	reliquias = 0
+	gemas = 0
+	gemas_total = 0
+	fe_total_vida = 0.0
+	fe_total_historica = 0.0
+	graca_total = 0.0
+	gloria_total = 0.0
+	dadiva_frutos_nivel = 0
+	marcos_ledger.clear()
+	moeda_marcos_ledger.clear()
+	cosmeticos_comprados.clear()
+	cosmeticos_ativos.clear()
+	nova_star_last_gem_claim = 0.0
+	upgrades_comprados.clear()
+	dadivas_compradas.clear()
+	sabedoria = 0
+	sabedoria_total = 0
+	estudo_progresso = _default_study_progress()
+	conhecimentos_comprados.clear()
+	conhecimentos_ativos.clear()
+	aventuras_desbloqueadas = ["jornada"]
+	aventuras_concluidas.clear()
+	boosts.clear()
+	boost_inventory.clear()
+	reward_video_window_started = 0.0
+	reward_videos_watched = 0
+	daily_boost_video_last_claimed = 0.0
+	daily_boost_video_last_reward = ""
+	estatisticas = ESTATISTICAS_DEFAULT.duplicate()
+	active_adventure = "jornada"
+	_init_geradores()
+	maior_qtd_gerador.clear()
+	_init_adventure_progress()
+	_load_adventure_progress(active_adventure)
+	Economy.recompute_multiplicadores()
+
 func load_save_data(data: Dictionary) -> void:
+	if int(data.get("version", 0)) != SAVE_VERSION:
+		_reset_alpha_progress()
+		EventBus.ui_needs_update.emit()
+		return
 	data = _migrate_save(data)
 	_init_geradores()
 	fe = float(data.get("fe", 0.0))
@@ -1061,6 +1232,27 @@ func load_save_data(data: Dictionary) -> void:
 				"tempo_restante": float(saved.get("tempo_restante", -1.0)),
 			}
 			maior_qtd_gerador[gen_id] = max(int(maior_qtd_gerador.get(gen_id, 0)), int(saved.get("qtd", 0)))
+	_init_adventure_progress()
+	var progress_save: Dictionary = data.get("adventureProgress", {})
+	for adventure_id in ADVENTURES:
+		var raw: Dictionary = progress_save.get(adventure_id, {})
+		if raw.is_empty():
+			continue
+		var progress := _new_adventure_progress()
+		progress.prestige = maxi(0, int(raw.get("prestige", 0)))
+		progress.prestige_spent = maxi(0, int(raw.get("prestige_spent", 0)))
+		progress.run_total = maxf(0.0, float(raw.get("run_total", 0.0)))
+		progress.fruit_level = maxi(0, int(raw.get("fruit_level", 0)))
+		progress.upgrades = _unique_string_array(raw.get("upgrades", []))
+		progress.gifts = _unique_string_array(raw.get("gifts", []))
+		progress.boosts = (raw.get("boosts", {}) as Dictionary).duplicate(true)
+		progress.boost_inventory = (raw.get("boost_inventory", {}) as Dictionary).duplicate(true)
+		progress.prestiges = maxi(0, int(raw.get("prestiges", 0)))
+		adventure_progress[adventure_id] = progress
+	active_adventure = str(data.get("activeAdventure", "jornada"))
+	if active_adventure not in aventuras_desbloqueadas or not ADVENTURES.has(active_adventure):
+		active_adventure = "jornada"
+	_load_adventure_progress(active_adventure)
 	for adventure_id in aventuras_desbloqueadas:
 		_grant_adventure_starting_currency(str(adventure_id))
 	Economy.recompute_multiplicadores()
@@ -1124,6 +1316,8 @@ func apply_offline_production(seconds: float) -> float:
 	var interval_start := interval_end - seconds
 	var totais: Dictionary = {}
 	for gen_id in geradores:
+		if Geradores.get_adventure_for_id(gen_id) != active_adventure:
+			continue
 		var state: Dictionary = geradores[gen_id]
 		if not state.tem_profeta or state.qtd <= 0:
 			continue
@@ -1144,6 +1338,5 @@ func apply_offline_production(seconds: float) -> float:
 	for boost_id: Variant in boosts.keys():
 		if float(boosts[boost_id]) <= Time.get_unix_time_from_system():
 			boosts.erase(boost_id)
-	# O modal de coleta (e o dobrar/triplicar) tratam apenas a Fe; as moedas de
-	# aventura sao creditadas silenciosamente acima.
-	return float(totais.get("fe", 0.0)) * offline_mult
+	var active_currency := str(ADVENTURES[active_adventure].generator_currency)
+	return float(totais.get(active_currency, 0.0)) * offline_mult

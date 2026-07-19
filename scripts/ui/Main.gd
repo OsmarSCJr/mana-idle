@@ -29,6 +29,7 @@ var _marco_icon: TextureRect
 var _nova_star: Control
 var _cosmetic_effect_layer: Control
 var _santos_label: Label
+var _prestige_caption: Label
 var _rev_label: Label
 var _era_label: Label
 var _era_operator_grid: HBoxContainer
@@ -76,6 +77,7 @@ var _milagres_empty_label: Label
 # Painel Santos
 var _santos_info_label: Label
 var _santos_mult_label: Label
+var _prestige_header: Label
 var _relics_label: Label
 var _dadivas_list: VBoxContainer
 var _dadivas_cards: Dictionary = {}
@@ -110,6 +112,7 @@ var _inactive_operator_count: Label
 var _inactive_operator_queue: Array[int] = []
 var _inactive_operator_motion: Tween
 var _inactive_operator_bottom_gap: Control
+var _sacred_background: SacredBackground
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -133,6 +136,7 @@ func _ready() -> void:
 	await LiveOps.bootstrap(1.25)
 	var bootstrap: Dictionary = await CloudSave.bootstrap(3.0)
 	_game_loaded = bool(bootstrap.get("loaded", false))
+	_current_adventure = GameState.active_adventure
 	loading_label.queue_free()
 	_build_ui()
 	_apply_font_scale()
@@ -152,9 +156,9 @@ func _ready() -> void:
 # ============================================================ UI raiz
 
 func _build_ui() -> void:
-	var bg := SacredBackground.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	_sacred_background = SacredBackground.new()
+	_sacred_background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_sacred_background)
 
 	var root: MarginContainer = MarginContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -311,6 +315,7 @@ func _build_topbar() -> PanelContainer:
 	resources.add_child(fe_pill.panel)
 	var santos_pill := _build_resource_pill("SANTOS", SANTO_COLOR)
 	_santos_label = santos_pill.value
+	_prestige_caption = santos_pill.caption
 	resources.add_child(santos_pill.panel)
 
 	var settings := _build_framed_button(Color("#242731"), Color("#858994"), Color("#d3d5dc"), Color("#363a47"))
@@ -1198,14 +1203,65 @@ func _adventure_label(adventure_id: String) -> String:
 		_: return "Jornada Principal"
 
 func _select_adventure(adventure_id: String) -> void:
+	if adventure_id == _current_adventure:
+		return
+	var palette := GameState.get_adventure_palette(adventure_id)
+	var veil := ColorRect.new()
+	veil.color = palette.get("top", ManaTheme.BACKGROUND_TOP)
+	veil.modulate.a = 0.0
+	veil.mouse_filter = Control.MOUSE_FILTER_STOP
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(veil)
+	move_child(veil, get_child_count() - 1)
+	var center := VBoxContainer.new()
+	center.set_anchors_preset(Control.PRESET_CENTER)
+	center.position = Vector2(-280, -170)
+	center.size = Vector2(560, 340)
+	center.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_theme_constant_override("separation", 14)
+	veil.add_child(center)
+	var icon := TextureRect.new()
+	icon.texture = GameArt.sidebar_adventure_icon(adventure_id)
+	icon.custom_minimum_size = Vector2(0, 150)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(icon)
+	var title := Label.new()
+	title.text = _adventure_label(adventure_id)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", ManaTheme.serif_bold())
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", palette.get("star", ManaTheme.CREAM))
+	center.add_child(title)
+	var status := Label.new()
+	status.text = "Abrindo " + str(GameState.ADVENTURES[adventure_id].theme_name) + "..."
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.add_theme_font_override("font", ManaTheme.body_semibold())
+	status.add_theme_font_size_override("font_size", 20)
+	status.add_theme_color_override("font_color", ManaTheme.CREAM_MUTED)
+	center.add_child(status)
+	var fade_in := create_tween().set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	fade_in.tween_property(veil, "modulate:a", 1.0, 0.18)
+	await fade_in.finished
+	SaveSystem.save_game()
+	if not GameState.set_active_adventure(adventure_id, false):
+		veil.queue_free()
+		return
 	_current_adventure = adventure_id
+	EventBus.adventure_context_changed.emit(adventure_id)
 	for gen_id in _items:
 		var item: GeradorItem = _items[gen_id]
 		item.visible = Geradores.get_adventure_for_id(gen_id) == adventure_id
 	_refresh_adventure_selector()
 	if _generator_scroll != null:
 		_generator_scroll.set_deferred("scroll_vertical", 0)
-	_update_topbar()
+	_update_all()
+	await get_tree().process_frame
+	var fade_out := create_tween().set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	fade_out.tween_property(veil, "modulate:a", 0.0, 0.22)
+	await fade_out.finished
+	veil.queue_free()
 
 func _refresh_adventure_selector() -> void:
 	_refresh_adventure_icons()
@@ -1455,7 +1511,7 @@ func _build_upgrade_card(u: Dictionary, custo_em_santos: bool) -> Dictionary:
 	ManaTheme.apply_primary_button(btn)
 	var moeda := "fe"
 	if custo_em_santos:
-		btn.text = str(int(u.custo)) + " Santos"
+		btn.text = str(int(u.custo)) + " " + GameState.get_prestige_name()
 		btn.pressed.connect(func(): GameState.buy_dadiva(u.id))
 	else:
 		moeda = Upgrades.currency_for(u)
@@ -1474,12 +1530,12 @@ func _build_panel_santos() -> VBoxContainer:
 	var vbox: VBoxContainer = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 16)
 
-	var header: Label = Label.new()
-	header.text = "Santos & Ressurreição"
-	header.add_theme_font_override("font", ManaTheme.serif_bold())
-	header.add_theme_font_size_override("font_size", 50)
-	header.add_theme_color_override("font_color", SANTO_COLOR)
-	vbox.add_child(header)
+	_prestige_header = Label.new()
+	_prestige_header.text = "Santos & Ressurreição"
+	_prestige_header.add_theme_font_override("font", ManaTheme.serif_bold())
+	_prestige_header.add_theme_font_size_override("font_size", 50)
+	_prestige_header.add_theme_color_override("font_color", SANTO_COLOR)
+	vbox.add_child(_prestige_header)
 
 	var info_panel: PanelContainer = PanelContainer.new()
 	info_panel.add_theme_stylebox_override("panel", ManaTheme.panel_style(ManaTheme.SURFACE_HIGH, 22, Color(0.77, 0.76, 0.93, 0.22), 2, 26, true))
@@ -1651,7 +1707,7 @@ func _refresh_frutos_card() -> void:
 	var proximo: Dictionary = Dadivas.ladder_next()
 	_frutos_info.text = "Nível " + str(GameState.dadiva_frutos_nivel) + "  ·  próximo: " \
 		+ str(proximo.efeito) + "  (total ×" + String.num(float(proximo.mult_total), 2) + ")"
-	_frutos_btn.text = NumberFormat.format(float(proximo.custo)) + " Santos"
+	_frutos_btn.text = NumberFormat.format(float(proximo.custo)) + " " + GameState.get_prestige_name()
 	_frutos_btn.disabled = GameState.santos < int(proximo.custo)
 
 # ---------------------------------------------------- Loja de Reliquias
@@ -2349,10 +2405,14 @@ func _show_daily_boost_reveal(boost_id: String) -> void:
 
 func _refresh_santos() -> void:
 	var bonus_pct: float = (Economy.get_multiplicador_santos() - 1.0) * 100.0
-	# O bonus conta santos TOTAIS ganhos (saldo + investidos em Dadivas).
-	_santos_info_label.text = str(GameState.santos) + " Santos (" \
+	var prestige_name := GameState.get_prestige_name()
+	var currency := str(GameState.ADVENTURES[_current_adventure].generator_currency)
+	var currency_name := GameState.get_currency_name(currency)
+	if _prestige_header != null:
+		_prestige_header.text = prestige_name + " & Ressurreição"
+	_santos_info_label.text = str(GameState.santos) + " " + prestige_name + " (" \
 		+ str(GameState.santos + GameState.santos_gastos) + " ganhos)  ·  +" \
-		+ String.num(bonus_pct, 1) + "% de produção global"
+		+ String.num(bonus_pct, 1) + "% nesta campanha"
 	_relics_label.text = NumberFormat.format(GameState.reliquias) + " Relíquias"
 	_refresh_frutos_card()
 	_refresh_cosmeticos()
@@ -2362,14 +2422,14 @@ func _refresh_santos() -> void:
 	var santos_prox: int = GameState.get_santos_proximo_prestige()
 	var proximo_alvo: float = pow(float(santos_prox + 1), 3.0) * Economy.get_prestige_divisor()
 	var falta: float = maxf(0.0, proximo_alvo - GameState.fe_total_vida)
-	_santos_mult_label.text = "Fé nesta jornada: " + NumberFormat.format(GameState.fe_total_vida) \
-		+ "  ·  faltam " + NumberFormat.format(falta) + " p/ " + ("+1 Santo" if santos_prox > 0 else "o 1º Santo") \
+	_santos_mult_label.text = currency_name + " nesta campanha: " + NumberFormat.format(GameState.fe_total_vida) \
+		+ "  ·  faltam " + NumberFormat.format(falta) + " p/ " + ("+1 " + prestige_name if santos_prox > 0 else "o 1º recurso") \
 		+ "  ·  Ressurreições: " + str(GameState.estatisticas.prestiges)
 	if santos_prox > 0:
-		_prestige_btn.text = "Ressurreição  ·  +" + str(santos_prox) + " Santos"
+		_prestige_btn.text = "Ressurreição  ·  +" + str(santos_prox) + " " + prestige_name
 		_prestige_btn.disabled = false
 	else:
-		_prestige_btn.text = "Ressurreição  ·  faltam " + NumberFormat.format(falta) + " de Fé"
+		_prestige_btn.text = "Ressurreição  ·  faltam " + NumberFormat.format(falta) + " de " + currency_name
 		_prestige_btn.disabled = true
 
 	var disponiveis: Array = Dadivas.disponiveis()
@@ -2388,6 +2448,7 @@ func _refresh_santos() -> void:
 			_dadivas_cards[d.id] = card
 	for card_id in _dadivas_cards:
 		var card: Dictionary = _dadivas_cards[card_id]
+		card.btn.text = str(int(card.custo)) + " " + prestige_name
 		card.btn.disabled = GameState.santos < int(card.custo)
 
 # ============================================================ Abas
@@ -2720,6 +2781,11 @@ func _update_topbar() -> void:
 	if _faith_icon != null:
 		_faith_icon.texture = GameArt.currency_icon(currency)
 	_santos_label.text = NumberFormat.format(GameState.santos)
+	var prestige_name := GameState.get_prestige_name()
+	if _prestige_caption != null:
+		_prestige_caption.text = prestige_name.to_upper()
+	if _tab_buttons.has("santos"):
+		(_tab_buttons.santos as Button).text = prestige_name.to_upper()
 	var rev: float = GameState.get_receita_por_segundo(_current_adventure)
 	if rev > 0:
 		_rev_label.text = "+" + NumberFormat.format(rev) + "/s"
@@ -2845,7 +2911,9 @@ func _on_prestige() -> void:
 	var dialog: ConfirmationDialog = ConfirmationDialog.new()
 	dialog.title = "Ressurreição"
 	var bonus_novo: int = int(round(float(ganhos) * LiveOps.saint_bonus() * 100.0))
-	dialog.dialog_text = "Renascer reinicia a Fé, os geradores e as bênçãos da JORNADA.\n\nVocê receberá +" + str(ganhos) + " Santos (+" + str(bonus_novo) + "% de produção permanente).\nDádivas, aventuras (Graça/Glória), estudos e cosméticos permanecem.\n\nConfirmar?"
+	var prestige_name := GameState.get_prestige_name()
+	var currency_name := GameState.get_currency_name(str(GameState.ADVENTURES[_current_adventure].generator_currency))
+	dialog.dialog_text = "Renascer reinicia " + currency_name + ", operadores e bênçãos somente de " + _adventure_label(_current_adventure) + ".\n\nVocê receberá +" + str(ganhos) + " " + prestige_name + " (+" + str(bonus_novo) + "% nesta campanha).\nAs outras campanhas e o progresso da conta não serão alterados.\n\nConfirmar?"
 	dialog.get_ok_button().text = "Ressuscitar"
 	dialog.get_cancel_button().text = "Ainda não"
 	dialog.confirmed.connect(func():

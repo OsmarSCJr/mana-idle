@@ -156,8 +156,8 @@ func recompute_multiplicadores() -> void:
 		for gen_id in range(first, last + 1):
 			_prod_gen[gen_id] = _prod_gen.get(gen_id, 1.0) * 1.02
 
-	if "igreja_apocalipse" in GameState.aventuras_concluidas:
-		_global_prod *= 2.0
+	# Concluir uma campanha rende recompensas de conta, mas nunca injeta poder
+	# economico em outra campanha.
 
 # Aplica mult a um gerador, a uma era inteira ou a todos, conforme o alvo do upgrade.
 func _apply_gen_mult(cache: Dictionary, u: Dictionary, mult: float) -> void:
@@ -168,7 +168,8 @@ func _apply_gen_mult(cache: Dictionary, u: Dictionary, mult: float) -> void:
 			for d in Geradores.get_by_era(u.alvo_id):
 				cache[d.id] = cache.get(d.id, 1.0) * mult
 		"global":
-			for i in range(1, Geradores.count() + 1):
+			var adventure: Dictionary = GameState.ADVENTURES.get(GameState.active_adventure, {})
+			for i in range(int(adventure.get("first_generator", 1)), int(adventure.get("last_generator", Geradores.count())) + 1):
 				cache[i] = cache.get(i, 1.0) * mult
 
 func is_x100_unlocked() -> bool:
@@ -400,6 +401,8 @@ func get_adventure_gem_discount() -> float:
 	return _adventure_gem_discount
 
 func profeta_disponivel(gen_id: int) -> bool:
+	if Geradores.get_adventure_for_id(gen_id) != GameState.active_adventure:
+		return false
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
 	if state.is_empty():
 		return false
