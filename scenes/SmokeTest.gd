@@ -210,16 +210,25 @@ func _ready() -> void:
 	GameState.geradores[2].qtd = 25
 	GameState.fe = 505000.0
 	var plano_bencaos := GameState.get_blessing_purchase_plan()
+	var eventos_lote := {"individuais": 0, "lotes": 0}
+	var on_individual := func(_id: String): eventos_lote.individuais += 1
+	var on_batch := func(_ids: Array): eventos_lote.lotes += 1
+	EventBus.upgrade_purchased.connect(on_individual)
+	EventBus.upgrades_batch_purchased.connect(on_batch)
 	var compra_bencaos := GameState.buy_all_available_blessings()
+	EventBus.upgrade_purchased.disconnect(on_individual)
+	EventBus.upgrades_batch_purchased.disconnect(on_batch)
 	var pacote_ok := int(plano_bencaos.count) == 2 \
 		and is_equal_approx(float((plano_bencaos.totals as Dictionary).fe), 505000.0) \
 		and int(compra_bencaos.count) == 2 \
+		and int(eventos_lote.individuais) == 0 \
+		and int(eventos_lote.lotes) == 1 \
 		and "u1_1" in GameState.upgrades_comprados \
 		and "u2_1" in GameState.upgrades_comprados \
 		and int(GameState.geradores[1].qtd) == 25 \
 		and int(GameState.geradores[2].qtd) == 25 \
 		and is_zero_approx(GameState.fe)
-	print("[T18] comprador adquire duas bencaos=", pacote_ok)
+	print("[T18] comprador adquire duas bencaos em um lote=", pacote_ok)
 	ok = ok and pacote_ok
 
 	# 19) Sem a Dadiva, o mesmo saldo nao habilita compras automaticas.
@@ -228,6 +237,31 @@ func _ready() -> void:
 	var comprador_bloqueado := not bool(plano_bloqueado.enabled) and int(plano_bloqueado.count) == 0
 	print("[T19] comprador bloqueado sem Dadiva=", comprador_bloqueado)
 	ok = ok and comprador_bloqueado
+
+	# 20) Um acúmulo grande continua sendo uma unica mutacao visual/economica.
+	GameState.dadivas_compradas = ["d_comprador_marcos"]
+	GameState.upgrades_comprados.clear()
+	GameState.aventuras_desbloqueadas = ["jornada", "vida_cristo", "igreja_apocalipse"]
+	GameState._init_geradores()
+	for gen_id in GameState.geradores:
+		GameState.geradores[gen_id].qtd = 1000
+	GameState.fe = 1.0e300
+	GameState.graca = 1.0e300
+	GameState.gloria = 1.0e300
+	GameState.fe_total_vida = 1.0e300
+	var plano_grande := GameState.get_blessing_purchase_plan()
+	var lotes_grandes := [0]
+	var on_large_batch := func(_ids: Array): lotes_grandes[0] += 1
+	EventBus.upgrades_batch_purchased.connect(on_large_batch)
+	var inicio_lote := Time.get_ticks_msec()
+	var compra_grande := GameState.buy_all_available_blessings()
+	var duracao_lote := Time.get_ticks_msec() - inicio_lote
+	EventBus.upgrades_batch_purchased.disconnect(on_large_batch)
+	var lote_grande_ok: bool = int(plano_grande.count) > 100 \
+		and int(compra_grande.count) == int(plano_grande.count) \
+		and lotes_grandes[0] == 1 and duracao_lote < 2000
+	print("[T20] lote grande sem cascata=", lote_grande_ok, " bencaos=", compra_grande.count, " ms=", duracao_lote)
+	ok = ok and lote_grande_ok
 
 	print("=== SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)

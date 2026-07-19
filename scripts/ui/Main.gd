@@ -602,7 +602,6 @@ func _refresh_blessing_buyer() -> void:
 
 func _on_buy_all_blessings() -> void:
 	GameState.buy_all_available_blessings()
-	_update_all()
 
 func _build_adventure_selector() -> MarginContainer:
 	var panel := MarginContainer.new()
@@ -2585,6 +2584,7 @@ func _setup_signals() -> void:
 	EventBus.toast_requested.connect(_show_notification)
 	EventBus.ui_needs_update.connect(_update_all)
 	EventBus.upgrade_purchased.connect(func(_id: String): _on_economy_changed())
+	EventBus.upgrades_batch_purchased.connect(func(_ids: Array): _on_economy_changed())
 	EventBus.dadiva_purchased.connect(func(_id: String): _on_economy_changed())
 	EventBus.study_progress_changed.connect(func(_id: String): _on_study_changed())
 	EventBus.study_unlocked.connect(func(_id: String): _on_study_changed())

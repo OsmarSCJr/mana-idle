@@ -593,14 +593,30 @@ func get_blessing_purchase_plan() -> Dictionary:
 
 func buy_all_available_blessings() -> Dictionary:
 	var plan := get_blessing_purchase_plan()
-	var bought := 0
+	if not bool(plan.enabled) or int(plan.count) <= 0:
+		return {"count": 0, "totals": plan.totals}
+	var totals: Dictionary = plan.totals
+	# Valida o lote inteiro antes do primeiro debito para a operacao ser atomica.
+	for currency in ["fe", "graca", "gloria"]:
+		if get_currency_amount(currency) < float(totals.get(currency, 0.0)):
+			return {"count": 0, "totals": totals}
+	for currency in ["fe", "graca", "gloria"]:
+		var total := float(totals.get(currency, 0.0))
+		if total > 0.0:
+			spend_currency(currency, total)
+
+	var purchased_ids: Array[String] = []
 	for purchase_value: Variant in plan.purchases:
 		var purchase: Dictionary = purchase_value as Dictionary
-		if buy_upgrade(str(purchase.upgrade_id)):
-			bought += 1
-	if bought > 0:
-		EventBus.toast_requested.emit("Comprador de Bencaos: " + str(bought) + " adquiridas")
-	return {"count": bought, "totals": plan.totals}
+		var upgrade_id := str(purchase.upgrade_id)
+		# O plano ja filtrou compradas, requisitos e saldo. Mutar diretamente evita
+		# N recomputacoes, N reconstrucoes da lista e N notificacoes consecutivas.
+		upgrades_comprados.append(upgrade_id)
+		purchased_ids.append(upgrade_id)
+	Economy.recompute_multiplicadores()
+	EventBus.upgrades_batch_purchased.emit(purchased_ids)
+	EventBus.toast_requested.emit("Comprador de Bencaos: " + str(purchased_ids.size()) + " adquiridas")
+	return {"count": purchased_ids.size(), "totals": totals}
 
 # Marcos gerais: bonus recorrentes sao computados ao vivo (Economy); aqui so as
 # recompensas unicas (gemas/reliquias), pagas 1x por marco via ledger.
