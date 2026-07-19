@@ -161,22 +161,25 @@ func _ready() -> void:
 func get_data(id: String) -> Dictionary:
 	return _by_id.get(id, {})
 
-# Moeda cobrada pelo upgrade: a da aventura do gerador/era alvo. Upgrades
-# globais e profetas especiais pertencem a Jornada Principal (Fe).
-func currency_for(u: Dictionary) -> String:
+func adventure_for(u: Dictionary) -> String:
+	if u.has("req_gen"):
+		return Geradores.get_adventure_for_id(int(u.req_gen))
 	match str(u.get("alvo", "global")):
-		"g":
-			return GameState.get_currency_for_gen(int(u.alvo_id))
+		"g": return Geradores.get_adventure_for_id(int(u.alvo_id))
 		"era":
 			var era_gens: Array = Geradores.get_by_era(int(u.alvo_id))
 			if not era_gens.is_empty():
-				return GameState.get_currency_for_gen(int(era_gens[0].id))
-	return "fe"
+				return Geradores.get_adventure_for_id(int(era_gens[0].id))
+	return "jornada"
 
-# Upgrades de aventura persistem no prestige (a Ressurreicao e um evento da
-# Jornada Principal; as aventuras sao a camada permanente entre resets).
+# Ate uma bencao chamada "global" pertence somente a campanha que a liberou.
+func currency_for(u: Dictionary) -> String:
+	var adventure_id := adventure_for(u)
+	return str(GameState.ADVENTURES.get(adventure_id, {}).get("generator_currency", "fe"))
+
+# Identifica se a bencao pertence a uma das campanhas laterais.
 func is_adventure_upgrade(u: Dictionary) -> bool:
-	return currency_for(u) != "fe"
+	return adventure_for(u) != "jornada"
 
 func requisito_atingido(u: Dictionary) -> bool:
 	if u.has("req_gen"):
@@ -198,6 +201,8 @@ func requisito_texto(u: Dictionary) -> String:
 func disponiveis() -> Array:
 	var result: Array = []
 	for u in _dados_all:
+		if adventure_for(u) != GameState.active_adventure:
+			continue
 		if u.id in GameState.upgrades_comprados:
 			continue
 		if requisito_atingido(u):

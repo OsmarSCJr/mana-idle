@@ -138,13 +138,16 @@ func _ready() -> void:
 	GameState.gemas = 120
 	GameState._init_geradores()
 	var abriu_cristo := GameState.unlock_adventure("vida_cristo")
+	GameState.set_active_adventure("vida_cristo", false)
 	var iniciou_cristo := GameState.buy_generator(13, 1)
 	var abriu_igreja := GameState.unlock_adventure("igreja_apocalipse")
+	GameState.set_active_adventure("igreja_apocalipse", false)
 	var iniciou_igreja := GameState.buy_generator(25, 1)
 	var aventuras_iniciam := abriu_cristo and iniciou_cristo and abriu_igreja and iniciou_igreja \
 		and is_equal_approx(GameState.graca, 6.0) and is_equal_approx(GameState.gloria, 6.0)
 	print("[T13] largada aventuras Cristo/Igreja=", aventuras_iniciam)
 	ok = ok and aventuras_iniciam
+	GameState.set_active_adventure("jornada", false)
 
 	# 14) Saves antigos ja desbloqueados e ainda zerados recebem a mesma largada.
 	var legacy_adventure_save := GameState.get_save_data()
@@ -262,6 +265,43 @@ func _ready() -> void:
 		and lotes_grandes[0] == 1 and duracao_lote < 2000
 	print("[T20] lote grande sem cascata=", lote_grande_ok, " bencaos=", compra_grande.count, " ms=", duracao_lote)
 	ok = ok and lote_grande_ok
+
+	# 21) Trocar de campanha congela integralmente o estado anterior. A
+	# Ressurreicao de Cristo nao toca em operadores, bencaos ou Santos da Jornada.
+	GameState._reset_alpha_progress()
+	GameState.aventuras_desbloqueadas = ["jornada", "vida_cristo", "igreja_apocalipse"]
+	GameState.santos = 7
+	GameState.fe = 1234.0
+	GameState.fe_total_vida = 999.0
+	GameState.upgrades_comprados = ["u1_1"]
+	GameState.geradores[1].qtd = 42
+	GameState.set_active_adventure("vida_cristo", false)
+	GameState.graca = 10.0
+	GameState.fe_total_vida = Economy.get_prestige_divisor()
+	GameState.geradores[13].qtd = 5
+	var testemunhos_ganhos := GameState.prestige()
+	var voltou_jornada := GameState.set_active_adventure("jornada", false)
+	var jornada_intacta := voltou_jornada and GameState.santos == 7 \
+		and is_equal_approx(GameState.fe, 1234.0) \
+		and int(GameState.geradores[1].qtd) == 42 \
+		and "u1_1" in GameState.upgrades_comprados
+	GameState.set_active_adventure("vida_cristo", false)
+	var cristo_independente := testemunhos_ganhos == 1 and GameState.santos == 1 \
+		and int(GameState.geradores[13].qtd) == 0 \
+		and GameState.upgrades_comprados.is_empty()
+	print("[T21] campanhas e ressurreicoes isoladas=", jornada_intacta and cristo_independente)
+	ok = ok and jornada_intacta and cristo_independente
+
+	# 22) A quebra de schema do alpha e deliberada: nenhum save v9 e migrado.
+	var obsolete_save := GameState.get_save_data()
+	obsolete_save.version = 9
+	GameState.load_save_data(obsolete_save)
+	var alpha_reset_ok := GameState.active_adventure == "jornada" \
+		and GameState.aventuras_desbloqueadas == ["jornada"] \
+		and is_equal_approx(GameState.fe, GameState.FE_INICIAL) \
+		and GameState.santos == 0 and GameState.adventure_progress.size() == 3
+	print("[T22] save anterior reinicia o alpha=", alpha_reset_ok)
+	ok = ok and alpha_reset_ok
 
 	print("=== SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)

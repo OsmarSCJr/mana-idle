@@ -59,7 +59,10 @@ func _ready() -> void:
 		and LiveOps.nova_star_daily_gems() == 2 \
 		and not LiveOps.general_milestones().is_empty()
 	var liveops_envelope := _make_liveops_envelope()
-	var liveops_validation_ok: bool = bool(LiveOps.smoke_validate(liveops_envelope).get("ok", false))
+	var liveops_validation_result: Dictionary = LiveOps.smoke_validate(liveops_envelope)
+	var liveops_validation_ok: bool = bool(liveops_validation_result.get("ok", false))
+	if not liveops_validation_ok:
+		print("[CLOUD] validacao LiveOps rejeitada: ", liveops_validation_result)
 	var invalid_liveops := liveops_envelope.duplicate(true)
 	invalid_liveops.config.economy.growthSegments = [{"maxQuantity": 0, "rate": 1.0}]
 	var liveops_rejects_invalid: bool = not bool(LiveOps.smoke_validate(invalid_liveops).get("ok", false))

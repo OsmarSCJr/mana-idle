@@ -80,13 +80,14 @@ func _ready() -> void:
 	ok = ok and "knowledge_good_seed" in GameState.conhecimentos_comprados
 	ok = ok and first_study.id in GameState.estudo_progresso.leiturasConcluidas
 	ok = ok and StudySystem.is_chapter_read("GEN", 1)
-	print("[S6] roundtrip save v2 conhecimento=", GameState.conhecimentos_comprados, " capitulos=", StudySystem.get_read_chapter_count())
+	print("[S6] roundtrip save v10 conhecimento=", GameState.conhecimentos_comprados, " capitulos=", StudySystem.get_read_chapter_count())
 
 	GameState.fe_total_historica = 3.0e14
 	GameState.fe = 3.0e14
 	var can_unlock_adventure := GameState.can_unlock_adventure("vida_cristo")
 	var unlocked_adventure := GameState.unlock_adventure("vida_cristo")
-	ok = can_unlock_adventure and unlocked_adventure and GameState.is_unlocked(13) and ok
+	var entered_adventure := GameState.set_active_adventure("vida_cristo", false)
+	ok = can_unlock_adventure and unlocked_adventure and entered_adventure and GameState.is_unlocked(13) and ok
 	print("[S7] aventura Vida de Cristo desbloqueada=", GameState.is_adventure_unlocked("vida_cristo"))
 
 	var old_save := {
@@ -99,8 +100,9 @@ func _ready() -> void:
 	GameState.load_save_data(old_save)
 	ok = ok and GameState.sabedoria == 0
 	ok = ok and GameState.estudo_progresso.leiturasConcluidas.is_empty()
-	ok = ok and "jornada" in GameState.aventuras_desbloqueadas
-	print("[S8] migracao v1->v2 sabedoria=", GameState.sabedoria, " aventuras=", GameState.aventuras_desbloqueadas)
+	ok = ok and GameState.aventuras_desbloqueadas == ["jornada"]
+	ok = ok and is_equal_approx(GameState.fe, GameState.FE_INICIAL)
+	print("[S8] reset alpha pre-v10 sabedoria=", GameState.sabedoria, " aventuras=", GameState.aventuras_desbloqueadas)
 
 	print("=== STUDY SMOKE TEST ", ("PASS" if ok else "FAIL"), " ===")
 	get_tree().quit(0 if ok else 1)

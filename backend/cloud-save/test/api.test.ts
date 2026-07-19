@@ -7,7 +7,7 @@ import { sha256Hex } from "../src/security/crypto";
 import { reconcileTombstones } from "../src/services/deletion";
 import { runScheduledMaintenance } from "../src/scheduled";
 import { validateSavePayload } from "../src/validation/save";
-import { makeSaveV9 } from "./fixtures/save-v9";
+import { makeSaveV10 } from "./fixtures/save-v10";
 
 const worker = workerExports.default;
 
@@ -56,7 +56,7 @@ async function upload(
     },
     body: JSON.stringify({
       mutationId,
-      schemaVersion: 9,
+      schemaVersion: 10,
       clientSavedAt,
       resolution,
       payloadSha256: sha,
@@ -74,26 +74,26 @@ beforeEach(async () => {
 
 describe("cloud save API", () => {
   it("aceita os 1.189 capítulos da Bíblia e mantém um teto defensivo", () => {
-    const completeBible = makeSaveV9();
+    const completeBible = makeSaveV10();
     const chapters = Array.from({ length: 1_189 }, (_, index) => {
       const book = `B${String(Math.floor(index / 19)).padStart(2, "0")}`;
       return `${book}:${index % 19 + 1}`;
     });
     const study = completeBible.estudo as { progresso: { capitulosLidos: string[] } };
     study.progresso.capitulosLidos = chapters;
-    expect(validateSavePayload(JSON.stringify(completeBible), 9, 9).bytes).toBeGreaterThan(1_189);
+    expect(validateSavePayload(JSON.stringify(completeBible), 10, 10).bytes).toBeGreaterThan(1_189);
 
     study.progresso.capitulosLidos = Array.from(
       { length: 1_201 },
       (_, index) => `C${String(Math.floor(index / 19)).padStart(2, "0")}:${index % 19 + 1}`,
     );
-    expect(() => validateSavePayload(JSON.stringify(completeBible), 9, 9)).toThrow();
+    expect(() => validateSavePayload(JSON.stringify(completeBible), 10, 10)).toThrow();
   });
 
-  it("aceita o save v9 realista com sentinela -1 e rejeita relógio futuro", async () => {
-    const payload = JSON.stringify(makeSaveV9());
-    expect(validateSavePayload(payload, 9, 9).bytes).toBeGreaterThan(100);
-    const expanded = makeSaveV9();
+  it("aceita o save v10 realista com sentinela -1 e rejeita relógio futuro", async () => {
+    const payload = JSON.stringify(makeSaveV10());
+    expect(validateSavePayload(payload, 10, 10).bytes).toBeGreaterThan(100);
+    const expanded = makeSaveV10();
     expanded.graca = 100;
     expanded.gracaTotal = 1_000_000;
     expanded.dadivaFrutosNivel = 3;
@@ -102,12 +102,12 @@ describe("cloud save API", () => {
     expanded.moedaMarcosLedger = { vida_cristo: ["1e6"] };
     expanded.cosmeticosComprados = ["fundo_aurora", "titulo_peregrino"];
     expanded.cosmeticosAtivos = { tema_fundo: "fundo_aurora", titulo: "titulo_peregrino" };
-    expect(validateSavePayload(JSON.stringify(expanded), 9, 9).bytes).toBeGreaterThan(100);
+    expect(validateSavePayload(JSON.stringify(expanded), 10, 10).bytes).toBeGreaterThan(100);
 
     const invalidCosmetic = structuredClone(expanded);
     invalidCosmetic.cosmeticosAtivos = { titulo: "fundo_aurora" };
-    expect(() => validateSavePayload(JSON.stringify(invalidCosmetic), 9, 9)).toThrow();
-    const future = makeSaveV9();
+    expect(() => validateSavePayload(JSON.stringify(invalidCosmetic), 10, 10)).toThrow();
+    const future = makeSaveV10();
     future.lastSeen = Math.floor(Date.now() / 1000) + 3_600;
     const account = await createAccount();
     const rejected = await upload(account.sessionToken, 0, JSON.stringify(future));
@@ -152,12 +152,12 @@ describe("cloud save API", () => {
 
   it("cria conta, grava, detecta conflito e mantém retries antigos idempotentes", async () => {
     const account = await createAccount();
-    const firstPayload = JSON.stringify(makeSaveV9(20));
+    const firstPayload = JSON.stringify(makeSaveV10(20));
     const first = await upload(account.sessionToken, 0, firstPayload);
     expect(first.response.status).toBe(200);
     expect(revisionResponseSchema.parse(await first.response.json()).revision).toBe(1);
 
-    const secondPayload = JSON.stringify(makeSaveV9(30));
+    const secondPayload = JSON.stringify(makeSaveV10(30));
     const second = await upload(account.sessionToken, 1, secondPayload);
     expect(second.response.status).toBe(200);
     expect(revisionResponseSchema.parse(await second.response.json()).revision).toBe(2);
@@ -166,7 +166,7 @@ describe("cloud save API", () => {
     expect(retry.response.status).toBe(200);
     expect(revisionResponseSchema.parse(await retry.response.json()).revision).toBe(1);
 
-    const conflict = await upload(account.sessionToken, 1, JSON.stringify(makeSaveV9(40)));
+    const conflict = await upload(account.sessionToken, 1, JSON.stringify(makeSaveV10(40)));
     expect(conflict.response.status).toBe(412);
     const conflictBody = z.object({ conflict: z.object({ revision: z.number(), payloadJson: z.string() }) })
       .parse(await conflict.response.json());
@@ -176,8 +176,8 @@ describe("cloud save API", () => {
 
   it("mantém restore-previous idempotente mesmo depois de outra escrita", async () => {
     const account = await createAccount();
-    await upload(account.sessionToken, 0, JSON.stringify(makeSaveV9(20)));
-    await upload(account.sessionToken, 1, JSON.stringify(makeSaveV9(30)));
+    await upload(account.sessionToken, 0, JSON.stringify(makeSaveV10(20)));
+    await upload(account.sessionToken, 1, JSON.stringify(makeSaveV10(30)));
     const mutationId = crypto.randomUUID();
     const restoreRequest = () => worker.fetch("https://api.test/v1/save/restore-previous", {
       method: "POST",
@@ -192,7 +192,7 @@ describe("cloud save API", () => {
     const restored = await restoreRequest();
     expect(restored.status).toBe(200);
     expect(revisionResponseSchema.parse(await restored.json()).revision).toBe(3);
-    await upload(account.sessionToken, 3, JSON.stringify(makeSaveV9(50)));
+    await upload(account.sessionToken, 3, JSON.stringify(makeSaveV10(50)));
     const retry = await restoreRequest();
     expect(retry.status).toBe(200);
     expect(revisionResponseSchema.parse(await retry.json()).revision).toBe(3);
@@ -213,8 +213,8 @@ describe("cloud save API", () => {
     expect(recoveredResponse.status).toBe(200);
     const recovered = z.object({ sessionToken: z.string(), deviceId: z.uuid() })
       .parse(await recoveredResponse.json());
-    expect((await upload(account.sessionToken, 0, JSON.stringify(makeSaveV9(20)))).response.status).toBe(200);
-    expect((await upload(recovered.sessionToken, 0, JSON.stringify(makeSaveV9(30)))).response.status).toBe(412);
+    expect((await upload(account.sessionToken, 0, JSON.stringify(makeSaveV10(20)))).response.status).toBe(200);
+    expect((await upload(recovered.sessionToken, 0, JSON.stringify(makeSaveV10(30)))).response.status).toBe(412);
   });
 
   it("oferece wallet grátis idempotente, sem saldo pago ou grant duplicado", async () => {
@@ -312,7 +312,7 @@ describe("cloud save API", () => {
 
   it("scheduled limita snapshots a cinco por conta", async () => {
     const account = await createAccount();
-    const payload = JSON.stringify(makeSaveV9(20));
+    const payload = JSON.stringify(makeSaveV10(20));
     const accepted = await upload(account.sessionToken, 0, payload);
     expect(accepted.response.status).toBe(200);
     for (let index = 0; index < 7; index += 1) {

@@ -1,7 +1,13 @@
-export function makeSaveV9(fe = 10): Record<string, unknown> {
+export function makeSaveV10(fe = 10): Record<string, unknown> {
   return {
-    version: 9,
+    version: 10,
     lastSeen: Math.floor(Date.now() / 1000),
+    activeAdventure: "jornada",
+    adventureProgress: {
+      jornada: { prestige: 0, prestige_spent: 0, run_total: fe, fruit_level: 0, upgrades: [], gifts: [], boosts: {}, boost_inventory: {}, prestiges: 0 },
+      vida_cristo: { prestige: 0, prestige_spent: 0, run_total: 0, fruit_level: 0, upgrades: [], gifts: [], boosts: {}, boost_inventory: {}, prestiges: 0 },
+      igreja_apocalipse: { prestige: 0, prestige_spent: 0, run_total: 0, fruit_level: 0, upgrades: [], gifts: [], boosts: {}, boost_inventory: {}, prestiges: 0 },
+    },
     fe,
     santos: 0,
     santosGastos: 0,
