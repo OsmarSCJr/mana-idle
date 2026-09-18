@@ -1,6 +1,9 @@
 extends Node
 
 const ERA_MASTERY_WISDOM: int = 2
+## Espacos de Conhecimento ativo antes dos nos de Alianca. Com 5 espacos e 30 nos
+## na arvore, escolher o que deixar ligado passa a ser uma decisao de verdade.
+const SLOTS_CONHECIMENTO_BASE: int = 5
 const JOURNEY_MASTERY_WISDOM: int = 3
 
 var _mutations_suspended: bool = false
@@ -112,8 +115,10 @@ func _claim_reward(reward_id: String, amount: float = 0.0, wisdom: int = 0, curr
 	if amount > 0.0:
 		GameState.add_currency(currency, amount)
 	if wisdom > 0:
-		GameState.sabedoria += wisdom
-		GameState.sabedoria_total += wisdom
+		# O no "Entendimento Dobrado" da Alianca multiplica toda Sabedoria recebida.
+		var total := maxi(1, int(round(float(wisdom) * AliancaSystem.multiplicador_sabedoria())))
+		GameState.sabedoria += total
+		GameState.sabedoria_total += total
 		EventBus.wisdom_changed.emit(GameState.sabedoria)
 	return true
 
@@ -154,6 +159,7 @@ func submit_answer(question_id: String, option_id: String) -> Dictionary:
 
 	var already_mastered := question_id in _list("questoesCorretas")
 	_append_once("questoesCorretas", question_id)
+	MetasSystem.registrar("quiz", 1.0)
 	var reward := _reward_amount(study, "quiz")
 	var currency := _study_currency(study)
 	var rewarded := _claim_reward("quiz:" + question_id, reward, 1, currency)
@@ -220,7 +226,9 @@ func buy_knowledge(knowledge_id: String) -> Dictionary:
 		return {"ok": false, "reason": "insufficient"}
 	GameState.sabedoria -= cost
 	GameState.conhecimentos_comprados.append(knowledge_id)
-	if _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos):
+	# Ativa na hora só quando há espaço livre: comprar não pode furar o limite de
+	# slots, senão "comprado" e "ativo" voltam a ser a mesma coisa.
+	if slots_conhecimento_livres() > 0 			and _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos):
 		GameState.conhecimentos_ativos.append(knowledge_id)
 	Economy.recompute_multiplicadores()
 	EventBus.wisdom_changed.emit(GameState.sabedoria)
@@ -235,9 +243,23 @@ func can_purchase_knowledge(knowledge_id: String) -> bool:
 	var knowledge := Conhecimentos.get_data(knowledge_id)
 	return not knowledge.is_empty() and knowledge_id not in GameState.conhecimentos_comprados and _knowledge_requirements_met(knowledge, GameState.conhecimentos_comprados) and GameState.sabedoria >= int(knowledge.get("cost", 0))
 
+## Espacos de Conhecimento ativo. Sem limite, "comprado" e "ativo" seriam a mesma
+## coisa e a decisao de build que a UI promete nao existiria. A Alianca amplia.
+func slots_conhecimento() -> int:
+	return SLOTS_CONHECIMENTO_BASE + AliancaSystem.slots_conhecimento_extra()
+
+
+func slots_conhecimento_usados() -> int:
+	return GameState.conhecimentos_ativos.size()
+
+
+func slots_conhecimento_livres() -> int:
+	return maxi(0, slots_conhecimento() - slots_conhecimento_usados())
+
+
 func can_activate_knowledge(knowledge_id: String) -> bool:
 	var knowledge := Conhecimentos.get_data(knowledge_id)
-	return not knowledge.is_empty() and knowledge_id in GameState.conhecimentos_comprados and knowledge_id not in GameState.conhecimentos_ativos and _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos)
+	return not knowledge.is_empty() 		and knowledge_id in GameState.conhecimentos_comprados 		and knowledge_id not in GameState.conhecimentos_ativos 		and slots_conhecimento_livres() > 0 		and _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos)
 
 func set_knowledge_active(knowledge_id: String, should_be_active: bool) -> Dictionary:
 	var knowledge := Conhecimentos.get_data(knowledge_id)
@@ -247,6 +269,8 @@ func set_knowledge_active(knowledge_id: String, should_be_active: bool) -> Dicti
 	if should_be_active:
 		if was_active:
 			return {"ok": true, "changed": false}
+		if slots_conhecimento_livres() <= 0:
+			return {"ok": false, "reason": "no_slots", "slots": slots_conhecimento()}
 		if not _knowledge_requirements_met(knowledge, GameState.conhecimentos_ativos):
 			return {"ok": false, "reason": "inactive_prerequisite"}
 		GameState.conhecimentos_ativos.append(knowledge_id)
@@ -334,6 +358,7 @@ func toggle_bookmark(passage_id: String) -> bool:
 	return true
 
 func mark_chapter_read(book: String, chapter: int) -> Dictionary:
+	MetasSystem.registrar("capitulos", 1.0)
 	if book.is_empty() or chapter < 1 or BibleTextProvider.get_chapter(book, chapter).is_empty():
 		return {"ok": false, "reason": "missing"}
 	var chapter_id := book.to_upper() + ":" + str(chapter)

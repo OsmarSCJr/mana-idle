@@ -21,13 +21,18 @@ const MAX_EFFECTIVE_PRODUCTION_MULTIPLIER: float = 1.0e12
 # o float64 em N~6800 e a corrida aos 10000 seria impossivel.
 const DEFAULT_CONFIG: Dictionary = {
 	"economy": {
+		# V3: tres faixas. Abaixo de 1.000 (a meta da aventura) a curva e identica a
+		# do alpha — 1.11 ate 300 e 1.05 dai em diante —, por isso o calendario
+		# medido no simulador continua valendo. A cauda 1.03 so existe porque o
+		# validador exige um ultimo segmento aberto; nada e comprado acima da meta.
 		"growthSegments": [
 			{"maxQuantity": 300, "rate": 1.11},
-			{"maxQuantity": 1500, "rate": 1.05},
-			{"maxQuantity": 4000, "rate": 1.012},
-			{"maxQuantity": 0, "rate": 1.008},
+			{"maxQuantity": 1000, "rate": 1.05},
+			{"maxQuantity": 0, "rate": 1.03},
 		],
-		"saintBonus": 0.02,
+		# V3: 0.20 restaura a decisao do PLANO_BALANCEAMENTO_V2 desfeita em 41a518c.
+		# Com 0.02 um 1o prestige de 2-4 Santos valia +4%; com 0.20 vale +40-80%.
+		"saintBonus": 0.20,
 		"prestigeDivisor": 2.0e11,
 		"prophetUnlockQuantity": 25,
 		"prophetCostMultiplier": 10.0,
@@ -36,31 +41,42 @@ const DEFAULT_CONFIG: Dictionary = {
 		"dadivaLadderBaseCost": 10.0,
 		"dadivaLadderCostGrowth": 1.8,
 		"dadivaLadderMultiplier": 1.3,
-		# Poucos marcos, alinhados aos marcos gerais. Cada bonus conquistado ajuda
-		# a financiar o proximo alvo sem formar dezenas de multiplicadores em bloco.
+		# V3: trilho denso ate a META_UNIDADES (1.000), ciclo x1.5 -> x3 -> x7 com o x7
+		# nos numeros redondos (100, 300, 500, 1.000). Produto total ~3.3e6. Nenhum
+		# vao maior que 100 unidades, e a cada 50 na faixa 25-300, onde o growth 1.11
+		# faz o preco subir mais rapido.
+		# A tabela enviada no alpha tinha 9 marcos (x288) e nao pagava a subida:
+		# o gap custo/milestone passava de 1e6 a partir de 100 unidades.
 		"milestones": [
 			{"quantity": 25, "multiplier": 1.5},
-			{"quantity": 50, "multiplier": 1.5},
-			{"quantity": 100, "multiplier": 2.0},
-			{"quantity": 250, "multiplier": 2.0},
-			{"quantity": 500, "multiplier": 2.0},
-			{"quantity": 1000, "multiplier": 2.0},
-			{"quantity": 2500, "multiplier": 2.0},
-			{"quantity": 5000, "multiplier": 2.0},
-			{"quantity": 10000, "multiplier": 2.0},
+			{"quantity": 50, "multiplier": 3.0},
+			{"quantity": 75, "multiplier": 1.5},
+			{"quantity": 100, "multiplier": 7.0},
+			{"quantity": 150, "multiplier": 1.5},
+			{"quantity": 200, "multiplier": 3.0},
+			{"quantity": 250, "multiplier": 1.5},
+			{"quantity": 300, "multiplier": 7.0},
+			{"quantity": 400, "multiplier": 1.5},
+			{"quantity": 500, "multiplier": 7.0},
+			{"quantity": 600, "multiplier": 1.5},
+			{"quantity": 700, "multiplier": 3.0},
+			{"quantity": 800, "multiplier": 1.5},
+			{"quantity": 900, "multiplier": 3.0},
+			{"quantity": 1000, "multiplier": 7.0},
 		],
 		# Marcos gerais: recompensa quando TODOS os geradores da aventura atingem
 		# a quantidade. Multiplicador vale por run; gemas/reliquias pagam 1x (ledger).
+		# V3: o ultimo marco (1.000) e o trofeu da aventura e libera a Alianca. As
+		# recompensas de Reliquia sairam de 1.000/5.000/10.000 (inalcancaveis) para
+		# 250/500/750/1.000 — antes a torneira de Reliquias era literalmente zero.
 		"generalMilestones": [
 			{"quantity": 25, "type": "speed", "multiplier": 1.25, "gems": 0, "relics": 0},
 			{"quantity": 50, "type": "speed", "multiplier": 1.25, "gems": 0, "relics": 0},
 			{"quantity": 100, "type": "prod", "multiplier": 1.5, "gems": 10, "relics": 0},
-			{"quantity": 250, "type": "prod", "multiplier": 1.5, "gems": 0, "relics": 0},
-			{"quantity": 500, "type": "prod", "multiplier": 2.0, "gems": 20, "relics": 0},
-			{"quantity": 1000, "type": "prod", "multiplier": 2.0, "gems": 0, "relics": 25},
-			{"quantity": 2500, "type": "prod", "multiplier": 2.5, "gems": 30, "relics": 0},
-			{"quantity": 5000, "type": "prod", "multiplier": 3.0, "gems": 0, "relics": 50},
-			{"quantity": 10000, "type": "prod", "multiplier": 4.0, "gems": 100, "relics": 100},
+			{"quantity": 250, "type": "prod", "multiplier": 1.5, "gems": 0, "relics": 25},
+			{"quantity": 500, "type": "prod", "multiplier": 2.0, "gems": 20, "relics": 50},
+			{"quantity": 800, "type": "prod", "multiplier": 2.5, "gems": 30, "relics": 75},
+			{"quantity": 1000, "type": "prod", "multiplier": 4.0, "gems": 100, "relics": 150},
 		],
 	},
 	"boosts": {

@@ -120,6 +120,47 @@ func recompute_multiplicadores() -> void:
 			"adventure_gem_discount":
 				_adventure_gem_discount *= value
 
+	# ---- Camadas V3 -------------------------------------------------------
+	# Alianca: nos permanentes da 2a camada de prestigio. Sobrevivem a Ascensao.
+	for node_id in AliancaSystem.nos_comprados():
+		var no: Dictionary = AliancaSystem.no_data(str(node_id))
+		if no.is_empty():
+			continue
+		var valor := float(no.valor)
+		match str(no.tipo):
+			"global_prod":
+				_global_prod *= valor
+			"global_speed":
+				for i in range(1, Geradores.count() + 1):
+					_tempo_gen[i] = _tempo_gen.get(i, 1.0) * valor
+			"offline_mult":
+				_offline_mult *= valor
+			"offline_cap_bonus":
+				_offline_cap_bonus += valor
+			"saint_bonus":
+				_santo_bonus_extra += valor
+			"adventure_discount":
+				_adventure_fe_discount *= valor
+				_adventure_gem_discount *= valor
+
+	# Provacoes concluidas: bonus permanentes pequenos, um por Provacao distinta.
+	for bonus_value: Variant in ProvacoesSystem.bonus_permanentes():
+		var bonus: Dictionary = bonus_value as Dictionary
+		var valor := float(bonus.valor)
+		match str(bonus.tipo):
+			"global_prod":
+				_global_prod *= valor
+			"global_speed":
+				for i in range(1, Geradores.count() + 1):
+					_tempo_gen[i] = _tempo_gen.get(i, 1.0) * valor
+			"discount":
+				for i in range(1, Geradores.count() + 1):
+					_custo_gen[i] = _custo_gen.get(i, 1.0) * valor
+			"manual_mult":
+				_manual_knowledge_mult *= valor
+			"boost_duration":
+				_boost_duration_mult *= valor
+
 	# Paginas Iluminadas concedem um bonus pequeno apenas a sua era.
 	var pages: Array = GameState.estudo_progresso.get("paginasIluminadas", [])
 	for page_id in pages:
@@ -176,7 +217,7 @@ func is_x100_unlocked() -> bool:
 	return _x100_unlocked
 
 func get_desconto(gen_id: int) -> float:
-	return _custo_gen.get(gen_id, 1.0)
+	return _custo_gen.get(gen_id, 1.0) * ProvacoesSystem.multiplicador_custo()
 
 func get_tempo_ciclo(gen_id: int) -> float:
 	return _get_tempo_ciclo(gen_id, true)
@@ -190,6 +231,7 @@ func _get_tempo_ciclo(gen_id: int, include_temporary_boost: bool) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
 	var tempo: float = data.tempo * _tempo_gen.get(gen_id, 1.0)
 	tempo *= marco_speed_mult(Geradores.get_adventure_for_id(gen_id))
+	tempo *= ProvacoesSystem.multiplicador_tempo()
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
 	if bool(state.get("tem_profeta", false)):
 		tempo *= LiveOps.prophet_speed_multiplier()
@@ -258,6 +300,9 @@ func max_compravel(gen_id: int, fe_disponivel: float, ja_possui: int) -> int:
 	var owned := ja_possui
 	var budget := fe_disponivel
 	var comprado := 0
+	var teto := Geradores.META_UNIDADES - ja_possui
+	if teto <= 0:
+		return 0
 	var unit_factor := growth_factor(owned)
 	for segment_value: Variant in LiveOps.growth_segments():
 		var segment: Dictionary = segment_value as Dictionary
@@ -278,11 +323,13 @@ func max_compravel(gen_id: int, fe_disponivel: float, ja_possui: int) -> int:
 		comprado += teto_trecho
 		owned += teto_trecho
 		unit_factor *= pow(rate, teto_trecho)
+		if comprado >= teto:
+			break
 		# Orcamento esgotado dentro do trecho: fim. Se apenas bateu no teto do
 		# segmento, segue avaliando o proximo (rate menor, unidades mais caras).
 		if teto_trecho >= cabiveis or limit <= 0:
 			break
-	return comprado
+	return mini(comprado, teto)
 
 func receita_ciclo(gen_id: int, unidades: int) -> float:
 	var data: Dictionary = Geradores.get_data(gen_id)
@@ -292,6 +339,8 @@ func receita_por_segundo(gen_id: int, unidades: int, tem_profeta: bool) -> float
 	if unidades <= 0:
 		return 0.0
 	if not tem_profeta:
+		return 0.0
+	if ProvacoesSystem.gerador_silenciado(gen_id):
 		return 0.0
 	var data: Dictionary = Geradores.get_data(gen_id)
 	return data.receita_base * float(unidades) / get_tempo_ciclo(gen_id)
@@ -326,11 +375,12 @@ func marco_min_qtd(adventure_id: String) -> int:
 
 func marco_prod_mult(adventure_id: String) -> float:
 	var minimo := marco_min_qtd(adventure_id)
+	var reforco := AliancaSystem.multiplicador_marcos()
 	var mult := 1.0
 	for marco_value: Variant in LiveOps.general_milestones():
 		var marco: Dictionary = marco_value as Dictionary
 		if minimo >= int(marco.quantity) and str(marco.type) == "prod":
-			mult *= float(marco.multiplier)
+			mult *= float(marco.multiplier) * reforco
 	return mult
 
 func marco_speed_mult(adventure_id: String) -> float:
@@ -368,12 +418,15 @@ func get_multiplicador_global() -> float:
 	return get_multiplicador_global_base() * LiveOps.global_production_multiplier()
 
 
+# O Selo do Dia acompanha os impulsos: temporario, entra aqui e NAO na base
+# persistente. O caminho offline soma o selo por segmento em
+# GameState._offline_weighted_multiplier — incluir nos dois contaria em dobro.
 func get_multiplicador_global_base() -> float:
-	return get_multiplicador_global_persistent_base() * GameState.get_boost_production_multiplier()
+	return get_multiplicador_global_persistent_base() 		* GameState.get_boost_production_multiplier() 		* DevocionalSystem.selo_multiplicador()
 
 
 func get_multiplicador_global_persistent_base() -> float:
-	return get_multiplicador_santos() * _global_prod * _dadiva_ladder_mult
+	return get_multiplicador_santos() * _global_prod * _dadiva_ladder_mult 		* Conquistas.multiplicador()
 
 func get_offline_mult() -> float:
 	return get_offline_mult_base() * LiveOps.offline_production_multiplier()
@@ -403,6 +456,8 @@ func get_adventure_gem_discount() -> float:
 func profeta_disponivel(gen_id: int) -> bool:
 	if Geradores.get_adventure_for_id(gen_id) != GameState.active_adventure:
 		return false
+	if ProvacoesSystem.sem_profetas():
+		return false
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
 	if state.is_empty():
 		return false
@@ -422,14 +477,13 @@ func profeta_pode_comprar(gen_id: int) -> bool:
 	return GameState.get_currency_amount(currency) >= get_profeta_custo(gen_id)
 
 func next_milestone(qtd: int) -> int:
-	var configured := LiveOps.milestones()
-	for milestone_value: Variant in configured:
+	for milestone_value: Variant in LiveOps.milestones():
 		var alvo := int((milestone_value as Dictionary).quantity)
-		if qtd < alvo:
+		if qtd < alvo and alvo <= Geradores.META_UNIDADES:
 			return alvo
-	# Depois do ultimo alvo, o modo MARCO fica indisponivel em vez de prometer
-	# uma quantidade sem bonus configurado.
-	return int((configured[-1] as Dictionary).quantity)
+	# Depois do ultimo alvo o modo MARCO fica indisponivel: devolver o proprio
+	# alvo faria o botao prometer uma compra de zero unidade.
+	return 0
 
 func milestone_bonus(qtd: int) -> float:
 	var mult: float = 1.0

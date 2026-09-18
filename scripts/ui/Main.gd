@@ -62,6 +62,8 @@ var _tab_attention_tags: Dictionary = {}
 var _panel_geradores: VBoxContainer
 var _panel_milagres: VBoxContainer
 var _panel_estudo: StudyPanel
+var _panel_devocional: DevocionalPanel
+var _panel_progresso: ProgressoPanel
 var _panel_santos: VBoxContainer
 var _current_adventure: String = "jornada"
 var _adventure_buttons: Dictionary = {}
@@ -184,9 +186,13 @@ func _build_ui() -> void:
 	_panel_geradores = _build_panel_geradores()
 	_panel_milagres = _build_panel_milagres()
 	_panel_estudo = StudyPanel.new()
+	_panel_devocional = DevocionalPanel.new()
 	_panel_santos = _build_panel_santos()
 	_panel_gemas = _build_panel_gemas()
-	for panel in [_panel_geradores, _panel_milagres, _panel_estudo, _panel_santos, _panel_gemas]:
+	for panel in [
+		_panel_geradores, _panel_milagres, _panel_estudo, _panel_devocional,
+		_panel_santos, _panel_gemas,
+	]:
 		panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 		content.add_child(panel)
 
@@ -1618,6 +1624,24 @@ func _build_panel_santos() -> VBoxContainer:
 	_dadivas_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	santos_scroll_content.add_child(_dadivas_list)
 
+	var camadas_header: Label = Label.new()
+	camadas_header.text = "CAMADAS PERMANENTES"
+	camadas_header.add_theme_font_override("font", ManaTheme.body_semibold())
+	camadas_header.add_theme_font_size_override("font_size", 25)
+	camadas_header.add_theme_color_override("font_color", ManaTheme.SILVER)
+	santos_scroll_content.add_child(camadas_header)
+
+	var camadas_sub: Label = Label.new()
+	camadas_sub.text = "Aliança é a camada acima da Ressurreição. Provações são corridas com modificadores. Conquistas somam um bônus pequeno e permanente."
+	camadas_sub.add_theme_font_size_override("font_size", 20)
+	camadas_sub.add_theme_color_override("font_color", TEXT_DIM)
+	camadas_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	santos_scroll_content.add_child(camadas_sub)
+
+	_panel_progresso = ProgressoPanel.new()
+	_panel_progresso.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	santos_scroll_content.add_child(_panel_progresso)
+
 	var loja_header: Label = Label.new()
 	loja_header.text = "LOJA DE RELÍQUIAS · COSMÉTICOS"
 	loja_header.add_theme_font_override("font", ManaTheme.body_semibold())
@@ -2462,11 +2486,16 @@ func _build_tabbar() -> PanelContainer:
 	hbox.add_theme_constant_override("separation", 8)
 	panel.add_child(hbox)
 
-	for tab in [["geradores", "JORNADA"], ["milagres", "BÊNÇÃOS"], ["estudo", "ESTUDO"], ["santos", "SANTOS"], ["gemas", "TENDA"]]:
+	# Seis abas em 1080 px: os rotulos ficam curtos de proposito e a fonte cai de
+	# 23 para 20 para o texto nao truncar em telas estreitas.
+	for tab in [
+		["geradores", "JORNADA"], ["milagres", "BÊNÇÃOS"], ["devocional", "DIÁRIO"],
+		["estudo", "ESTUDO"], ["santos", "SANTOS"], ["gemas", "TENDA"],
+	]:
 		var btn: Button = Button.new()
 		btn.text = tab[1]
 		btn.add_theme_font_override("font", ManaTheme.body_semibold())
-		btn.add_theme_font_size_override("font_size", 23)
+		btn.add_theme_font_size_override("font_size", 20)
 		btn.custom_minimum_size = Vector2(0, 92)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.pressed.connect(_show_tab.bind(tab[0]))
@@ -2484,12 +2513,12 @@ func _build_tabbar() -> PanelContainer:
 
 func _build_tab_attention_tag() -> Label:
 	var tag := Label.new()
-	tag.text = "!"
+	tag.text = "•"
 	tag.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	tag.offset_left = -32
+	tag.offset_left = -24
 	tag.offset_right = -6
-	tag.offset_top = 7
-	tag.offset_bottom = 33
+	tag.offset_top = 6
+	tag.offset_bottom = 24
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	tag.add_theme_font_override("font", ManaTheme.body_semibold())
@@ -2505,6 +2534,7 @@ func _show_tab(tab: String) -> void:
 	_panel_geradores.visible = tab == "geradores"
 	_panel_milagres.visible = tab == "milagres"
 	_panel_estudo.visible = tab == "estudo"
+	_panel_devocional.visible = tab == "devocional"
 	_panel_santos.visible = tab == "santos"
 	_panel_gemas.visible = tab == "gemas"
 	for t in _tab_buttons:
@@ -2525,8 +2555,12 @@ func _show_tab(tab: String) -> void:
 			_refresh_milagres()
 		"santos":
 			_refresh_santos()
+			if _panel_progresso != null:
+				_panel_progresso.refresh()
 		"estudo":
 			_panel_estudo.refresh()
+		"devocional":
+			_panel_devocional.refresh()
 		"gemas":
 			_refresh_gemas()
 		"geradores":
@@ -2537,6 +2571,7 @@ func _update_tab_badges() -> void:
 	_set_tab_attention("geradores", false)
 	_set_tab_attention("milagres", _has_affordable_blessing())
 	_set_tab_attention("estudo", _has_study_attention())
+	_set_tab_attention("devocional", _has_devocional_attention())
 	_set_tab_attention("santos", _has_saints_attention())
 	_set_tab_attention("gemas", _has_gems_attention())
 
@@ -2566,6 +2601,11 @@ func _has_study_attention() -> bool:
 			return true
 	return false
 
+# A aba DIÁRIO chama atenção quando a leitura do dia está aberta ou quando há
+# meta cumprida esperando resgate — os dois motivos de abrir o app hoje.
+func _has_devocional_attention() -> bool:
+	return not DevocionalSystem.ja_leu_hoje() or MetasSystem.pendentes_para_resgate() > 0
+
 func _has_saints_attention() -> bool:
 	for gift_variant in Dadivas.disponiveis():
 		var gift: Dictionary = gift_variant
@@ -2573,6 +2613,11 @@ func _has_saints_attention() -> bool:
 			return true
 	if GameState.santos >= Dadivas.ladder_cost(GameState.dadiva_frutos_nivel):
 		return true
+	if AliancaSystem.pode_ascender() or MetasSystem.pendentes_para_resgate() > 0:
+		return true
+	for node_value: Variant in AliancaSystem.disponiveis():
+		if AliancaSystem.pode_comprar(str((node_value as Dictionary).id)):
+			return true
 	var incoming_saints := GameState.get_santos_proximo_prestige()
 	if incoming_saints <= 0:
 		return false

@@ -24,6 +24,12 @@ signal boosts_changed()
 signal adventure_currency_changed(currency: String, new_amount: float)
 signal marco_geral_reached(adventure_id: String, quantity: int)
 signal cosmetic_changed()
+signal devocional_changed()
+signal devocional_selo_changed()
+signal achievement_unlocked(achievement_id: String)
+signal alianca_changed()
+signal provacao_changed()
+signal meta_diaria_changed()
 
 # Save online. O payload nunca trafega em sinais de UI: apenas hash/metadados.
 signal game_state_dirty(payload_sha256: String)

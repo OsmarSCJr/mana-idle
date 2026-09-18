@@ -49,13 +49,22 @@ var reward_videos_watched: int = 0
 var daily_boost_video_last_claimed: float = 0.0
 var daily_boost_video_last_reward: String = ""
 var estatisticas: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
+# Camadas do V3. Cada uma tem seu autoload de regras; aqui vive somente o estado
+# persistido, para que o save tenha uma unica fonte de verdade.
+var devocional: Dictionary = {}     # DevocionalSystem
+var conquistas: Array = []          # Conquistas (ids desbloqueadas)
+var alianca: Dictionary = {}        # AliancaSystem (2a camada de prestigio)
+var provacoes: Dictionary = {}      # ProvacoesSystem
+var metas_diarias: Dictionary = {}  # MetasSystem
 var active_adventure: String = "jornada"
 # O facade acima (santos/upgrades/dadivas/boosts/fe_total_vida) representa
 # somente a campanha carregada. As outras ficam congeladas neste cofre.
 var adventure_progress: Dictionary = {}
 
 const ESTATISTICAS_DEFAULT: Dictionary = {"prestiges": 0, "tempo_jogado": 0.0}
-const SAVE_VERSION: int = 10
+const SAVE_VERSION: int = 11
+const MAX_NOTAS_DEVOCIONAL: int = 30
+const MAX_DESTAQUES_DEVOCIONAL: int = 128
 const REWARD_VIDEO_LIMIT: int = 6
 const REWARD_VIDEO_WINDOW_SECONDS: int = 24 * 3600
 const DAILY_BOOST_VIDEO_COOLDOWN: int = 24 * 3600
@@ -250,6 +259,37 @@ func _check_moeda_marcos(adventure_id: String, total: float) -> void:
 		EventBus.toast_requested.emit("Marco alcançado: +" + str(int(marco.relics)) + " Relíquias")
 	moeda_marcos_ledger[adventure_id] = pagos
 
+# --------------------------------------------------- Defaults das camadas V3
+
+func _default_devocional() -> Dictionary:
+	return {
+		"planoId": Devocional.PLANO_PADRAO,
+		"dia": 0,
+		"ultimoDiaLido": -1,
+		"sequencia": 0,
+		"melhorSequencia": 0,
+		"totalLidos": 0,
+		"seloExpiraEm": 0.0,
+		"seloBonus": 0.0,
+		"destaques": [],
+		"notas": {},
+		"planosConcluidos": [],
+		"horaLembrete": -1,
+	}
+
+
+func _default_alianca() -> Dictionary:
+	return {"saldo": 0, "gastas": 0, "total": 0, "nos": [], "ascensoes": 0}
+
+
+func _default_provacoes() -> Dictionary:
+	return {"ativa": "", "iniciadaEm": 0.0, "concluidas": {}}
+
+
+func _default_metas_diarias() -> Dictionary:
+	return {"dia": -1, "metas": [], "progresso": {}, "resgatadas": [], "totalCumpridas": 0}
+
+
 func _default_study_progress() -> Dictionary:
 	return {
 		"desbloqueados": [],
@@ -331,6 +371,22 @@ func _migrate_save(data: Dictionary) -> Dictionary:
 				(gens_saved[gen_key] as Dictionary)["tempo_restante"] = -1.0
 		migrated["geradores"] = gens_saved
 		migrated["version"] = 9
+	if v < 11:
+		# V3: camadas novas comecam vazias. Quantidades acima da META_UNIDADES sao
+		# aparadas porque acima da meta nao existe marco configurado nem softcap
+		# calibrado — o save antigo nao e punido, so deixa de exibir excedente.
+		migrated["devocional"] = _default_devocional()
+		migrated["conquistas"] = []
+		migrated["alianca"] = _default_alianca()
+		migrated["provacoes"] = _default_provacoes()
+		migrated["metasDiarias"] = _default_metas_diarias()
+		var gens_meta: Dictionary = migrated.get("geradores", {})
+		for gen_key in gens_meta:
+			if gens_meta[gen_key] is Dictionary:
+				var gen_state: Dictionary = gens_meta[gen_key]
+				gen_state["qtd"] = mini(int(gen_state.get("qtd", 0)), Geradores.META_UNIDADES)
+		migrated["geradores"] = gens_meta
+		migrated["version"] = 11
 	return migrated
 
 func get_reward_videos_remaining() -> int:
@@ -476,6 +532,9 @@ func use_boost_charge(boost_id: String) -> bool:
 	var available := get_boost_inventory(boost_id)
 	if data.is_empty() or available <= 0:
 		return false
+	if ProvacoesSystem.sem_boosts():
+		EventBus.toast_requested.emit("A Provação em curso é de jejum: sem impulsos")
+		return false
 	if available == 1:
 		boost_inventory.erase(boost_id)
 	else:
@@ -488,6 +547,7 @@ func use_boost_charge(boost_id: String) -> bool:
 	else:
 		_extend_boost(boost_id, float(data.duracao))
 		EventBus.toast_requested.emit(str(data.nome) + " ativado")
+	MetasSystem.registrar("boosts", 1.0)
 	EventBus.boosts_changed.emit()
 	SaveSystem.save_game()
 	return true
@@ -503,6 +563,10 @@ func _ready() -> void:
 	_init_geradores()
 	_init_adventure_progress()
 	_load_adventure_progress("jornada")
+	devocional = _default_devocional()
+	alianca = _default_alianca()
+	provacoes = _default_provacoes()
+	metas_diarias = _default_metas_diarias()
 	Economy.recompute_multiplicadores()
 
 func _init_geradores() -> void:
@@ -560,6 +624,7 @@ func unlock_adventure(adventure_id: String) -> bool:
 	_grant_adventure_starting_currency(adventure_id)
 	EventBus.adventure_unlocked.emit(adventure_id)
 	EventBus.toast_requested.emit("Nova aventura desbloqueada: " + _adventure_display_name(adventure_id))
+	Conquistas.verificar()
 	return true
 
 func _grant_adventure_starting_currency(adventure_id: String) -> void:
@@ -648,6 +713,11 @@ func buy_generator(gen_id: int, amount: int) -> bool:
 	var currency := get_currency_for_gen(gen_id)
 	var saldo := get_currency_amount(currency)
 	var state: Dictionary = geradores[gen_id]
+	# A meta da aventura e o teto duro de unidades: acima dela nao existe marco
+	# configurado, e o softcap de custo deixa de ter calibragem validada.
+	amount = mini(amount, Geradores.META_UNIDADES - int(state.qtd))
+	if amount <= 0:
+		return false
 	var custo: float = Economy.custo_lote(gen_id, amount, state.qtd)
 	if saldo < custo:
 		amount = Economy.max_compravel(gen_id, saldo, state.qtd)
@@ -660,6 +730,8 @@ func buy_generator(gen_id: int, amount: int) -> bool:
 	maior_qtd_gerador[gen_id] = max(int(maior_qtd_gerador.get(gen_id, 0)), int(state.qtd))
 	_check_adventure_completion(gen_id)
 	_check_marcos_gerais(Geradores.get_adventure_for_id(gen_id))
+	MetasSystem.registrar("unidades", float(amount))
+	Conquistas.verificar()
 	EventBus.generator_changed.emit(gen_id)
 	return true
 
@@ -758,6 +830,9 @@ func _check_marcos_gerais(adventure_id: String) -> void:
 		EventBus.toast_requested.emit("Marco geral: todos em " + str(alvo) + "!  " + "  ·  ".join(partes))
 		Economy.recompute_multiplicadores()
 	marcos_ledger[adventure_id] = pagos
+	# Uma Provacao termina ao cruzar o objetivo, sem botao extra para esquecer.
+	ProvacoesSystem.verificar_conclusao()
+	Conquistas.verificar()
 
 func _check_adventure_completion(gen_id: int) -> void:
 	var adventure_id := ""
@@ -778,9 +853,15 @@ func _check_adventure_completion(gen_id: int) -> void:
 	EventBus.toast_requested.emit("Aventura concluída: +" + str(relic_reward) + " Relíquias")
 	# Gemas por conclusao: fonte gratuita principal da moeda premium.
 	add_gemas(LiveOps.scale_free_gem_reward(50 if adventure_id == "vida_cristo" else 100), "aventura concluída")
+	Conquistas.verificar()
 
 func buy_prophet(gen_id: int) -> bool:
 	if Geradores.get_adventure_for_id(gen_id) != active_adventure:
+		return false
+	# Provacoes como o Deserto proibem automacao: o botao fica visivel, explicado
+	# na aba de Provacoes, mas a compra nao acontece.
+	if ProvacoesSystem.sem_profetas():
+		EventBus.toast_requested.emit("A Provação em curso não permite automação")
 		return false
 	if not Economy.profeta_disponivel(gen_id):
 		return false
@@ -795,7 +876,11 @@ func buy_prophet(gen_id: int) -> bool:
 		state.tempo_restante = Economy.get_tempo_ciclo(gen_id)
 	geradores[gen_id] = state
 	EventBus.prophet_changed.emit(gen_id)
-	EventBus.toast_requested.emit("Profeta contratado: " + data.profeta_nome + "  ·  ciclos 25% mais rápidos")
+	var aceleracao := roundi((1.0 - LiveOps.prophet_speed_multiplier()) * 100.0)
+	EventBus.toast_requested.emit(
+		"Profeta contratado: " + data.profeta_nome + "  ·  ciclos " + str(aceleracao) + "% mais rápidos"
+	)
+	Conquistas.verificar()
 	return true
 
 func buy_upgrade(upgrade_id: String) -> bool:
@@ -851,7 +936,13 @@ func buy_dadiva_frutos() -> bool:
 func can_claim_star_gem() -> bool:
 	return LiveOps.server_adjusted_now() - nova_star_last_gem_claim >= 24 * 3600
 
+func nova_star_permitida() -> bool:
+	return not ProvacoesSystem.sem_boosts()
+
+
 func claim_nova_star(current_adventure: String) -> Dictionary:
+	if not nova_star_permitida():
+		return {"currency": "fe", "amount": 0.0, "gems": 0, "bloqueada": true}
 	# Recompensa base: alguns minutos da producao atual da aventura em foco
 	# (fallback fixo no comeco do jogo, quando a renda ainda e zero).
 	var currency := str(ADVENTURES.get(current_adventure, {}).get("generator_currency", "fe"))
@@ -871,6 +962,8 @@ func claim_nova_star(current_adventure: String) -> Dictionary:
 			nova_star_last_gem_claim = LiveOps.server_adjusted_now()
 			add_gemas(gems, "Estrela Nova")
 			resultado.gems = gems
+	MetasSystem.registrar("estrelas", 1.0)
+	Conquistas.verificar()
 	SaveSystem.save_game()
 	return resultado
 
@@ -891,6 +984,7 @@ func buy_cosmetic(cosmetic_id: String) -> bool:
 	EventBus.relics_changed.emit(reliquias)
 	EventBus.cosmetic_changed.emit()
 	EventBus.toast_requested.emit("Cosmético adquirido: " + str(data.nome))
+	Conquistas.verificar()
 	SaveSystem.save_game()
 	return true
 
@@ -997,11 +1091,93 @@ func prestige() -> int:
 		}
 	upgrades_comprados.clear()
 	_apply_start_units()
+	_apply_alianca_largada()
 	_sync_active_adventure()
 	Economy.recompute_multiplicadores()
 	EventBus.prestige_done.emit()
 	EventBus.toast_requested.emit("Ressurreição! +" + str(ganhos) + " " + get_prestige_name())
+	Conquistas.verificar()
 	return ganhos
+
+
+# Nos de Alianca que encurtam a largada: unidades iniciais em todos os geradores
+# da campanha e profetas ja contratados nos primeiros. Sao QoL de alto valor,
+# comprados com a moeda da camada de cima — nunca vendidos por gema.
+func _apply_alianca_largada() -> void:
+	var adventure: Dictionary = ADVENTURES[active_adventure]
+	var primeiro := int(adventure.first_generator)
+	var ultimo := int(adventure.last_generator)
+	var unidades := AliancaSystem.unidades_iniciais()
+	var profetas := AliancaSystem.profetas_iniciais()
+	if unidades <= 0 and profetas <= 0:
+		return
+	for gen_id in range(primeiro, ultimo + 1):
+		if not geradores.has(gen_id):
+			continue
+		var state: Dictionary = geradores[gen_id]
+		if unidades > 0 and int(state.qtd) < unidades:
+			state.qtd = mini(unidades, Geradores.META_UNIDADES)
+			maior_qtd_gerador[gen_id] = maxi(int(maior_qtd_gerador.get(gen_id, 0)), int(state.qtd))
+		# Profeta gratuito exige a quantidade minima de liberacao, como na compra.
+		if gen_id - primeiro < profetas and int(state.qtd) >= LiveOps.prophet_unlock_quantity() \
+				and not ProvacoesSystem.sem_profetas():
+			state.tem_profeta = true
+			if float(state.tempo_restante) < 0.0:
+				state.tempo_restante = Economy.get_tempo_ciclo(gen_id)
+		geradores[gen_id] = state
+
+
+## Ascensão (Aliança): zera Santos, Dádivas, Frutos, geradores, bênçãos e moedas
+## de TODAS as campanhas. Preserva Relíquias, cosméticos, Conhecimentos,
+## Sabedoria, conquistas, devocional e Provações. Chamado por AliancaSystem.
+func reset_para_ascensao() -> void:
+	_sync_active_adventure()
+	for adventure_id in ADVENTURES:
+		adventure_progress[adventure_id] = _new_adventure_progress()
+	_init_geradores()
+	maior_qtd_gerador.clear()
+	marcos_ledger.clear()
+	upgrades_comprados.clear()
+	dadivas_compradas.clear()
+	santos = 0
+	santos_gastos = 0
+	dadiva_frutos_nivel = 0
+	fe_total_vida = 0.0
+	boosts.clear()
+	estatisticas.prestiges = 0
+	# As moedas voltam à largada de cada campanha; o total histórico permanece
+	# como recibo (é ele que autoriza a largada única e os marcos de moeda).
+	for adventure_id in ADVENTURES:
+		var currency := str((ADVENTURES[adventure_id] as Dictionary).get("generator_currency", "fe"))
+		_set_currency_amount(currency, float((ADVENTURES[adventure_id] as Dictionary).get("starting_currency", FE_INICIAL)))
+	fe = FE_INICIAL
+	active_adventure = "jornada"
+	_load_adventure_progress(active_adventure)
+	_apply_start_units()
+	_apply_alianca_largada()
+	_sync_active_adventure()
+	Economy.recompute_multiplicadores()
+	EventBus.faith_changed.emit(fe)
+	EventBus.ui_needs_update.emit()
+
+
+## Reinício de run usado ao entrar e ao sair de uma Provação: a campanha ativa
+## volta ao começo sem pagar prestígio. Dádivas e Santos ficam.
+func reset_run_para_provacao() -> void:
+	var adventure: Dictionary = ADVENTURES[active_adventure]
+	_set_currency_amount(
+		str(adventure.generator_currency),
+		float(adventure.get("starting_currency", FE_INICIAL))
+	)
+	fe_total_vida = 0.0
+	for gen_id in range(int(adventure.first_generator), int(adventure.last_generator) + 1):
+		if geradores.has(gen_id):
+			geradores[gen_id] = {"qtd": 0, "tem_profeta": false, "tempo_restante": -1.0}
+	upgrades_comprados.clear()
+	_apply_start_units()
+	_apply_alianca_largada()
+	_sync_active_adventure()
+	EventBus.ui_needs_update.emit()
 
 # Dadivas "Primicias": apos o prestige, comeca com N unidades dos geradores da
 # faixa. Usa o maior valor entre as dadivas possuidas para cada gerador.
@@ -1081,6 +1257,11 @@ func get_save_data() -> Dictionary:
 		"dailyBoostVideoLastClaimed": daily_boost_video_last_claimed,
 		"dailyBoostVideoLastReward": daily_boost_video_last_reward,
 		"estatisticas": estatisticas.duplicate(true),
+		"devocional": devocional.duplicate(true),
+		"conquistas": conquistas.duplicate(),
+		"alianca": alianca.duplicate(true),
+		"provacoes": provacoes.duplicate(true),
+		"metasDiarias": metas_diarias.duplicate(true),
 	}
 
 func _reset_alpha_progress() -> void:
@@ -1118,6 +1299,11 @@ func _reset_alpha_progress() -> void:
 	daily_boost_video_last_claimed = 0.0
 	daily_boost_video_last_reward = ""
 	estatisticas = ESTATISTICAS_DEFAULT.duplicate()
+	devocional = _default_devocional()
+	conquistas.clear()
+	alianca = _default_alianca()
+	provacoes = _default_provacoes()
+	metas_diarias = _default_metas_diarias()
 	active_adventure = "jornada"
 	_init_geradores()
 	maior_qtd_gerador.clear()
@@ -1221,6 +1407,7 @@ func load_save_data(data: Dictionary) -> void:
 	var stats_save: Dictionary = data.get("estatisticas", {})
 	estatisticas.prestiges = int(stats_save.get("prestiges", 0))
 	estatisticas.tempo_jogado = float(stats_save.get("tempo_jogado", 0.0))
+	_load_camadas_v3(data)
 	var gens_save: Dictionary = data.get("geradores", {})
 	for gen_id_str in gens_save:
 		var gen_id: int = int(gen_id_str)
@@ -1260,6 +1447,93 @@ func load_save_data(data: Dictionary) -> void:
 	EventBus.wisdom_changed.emit(sabedoria)
 	EventBus.cosmetic_changed.emit()
 
+# Carrega as camadas do V3 saneando cada campo: um save adulterado nunca deve
+# conceder um no de Alianca, uma conquista ou um Selo do Dia que nao existem.
+func _load_camadas_v3(data: Dictionary) -> void:
+	var dev_save: Dictionary = data.get("devocional", {})
+	devocional = _default_devocional()
+	var plano_id := str(dev_save.get("planoId", Devocional.PLANO_PADRAO))
+	devocional.planoId = plano_id if Devocional.exists(plano_id) else Devocional.PLANO_PADRAO
+	var total_dias := Devocional.dias(devocional.planoId)
+	devocional.dia = clampi(int(dev_save.get("dia", 0)), 0, maxi(total_dias - 1, 0))
+	devocional.ultimoDiaLido = maxi(-1, int(dev_save.get("ultimoDiaLido", -1)))
+	devocional.sequencia = maxi(0, int(dev_save.get("sequencia", 0)))
+	devocional.melhorSequencia = maxi(int(devocional.sequencia), int(dev_save.get("melhorSequencia", 0)))
+	devocional.totalLidos = maxi(0, int(dev_save.get("totalLidos", 0)))
+	devocional.seloExpiraEm = maxf(0.0, float(dev_save.get("seloExpiraEm", 0.0)))
+	# O teto do Selo cresce com o no "Selo Firme": o clamp usa o maximo vigente.
+	devocional.seloBonus = clampf(
+		float(dev_save.get("seloBonus", 0.0)), 0.0, DevocionalSystem.selo_maximo()
+	)
+	var destaques := _unique_string_array(dev_save.get("destaques", []))
+	devocional.destaques = destaques.slice(0, MAX_DESTAQUES_DEVOCIONAL)
+	var notas_save: Dictionary = dev_save.get("notas", {})
+	var notas: Dictionary = {}
+	for referencia_key: Variant in notas_save:
+		if notas.size() >= MAX_NOTAS_DEVOCIONAL:
+			break
+		var texto := str(notas_save[referencia_key]).strip_edges()
+		if not texto.is_empty():
+			notas[str(referencia_key)] = texto.substr(0, DevocionalSystem.MAX_NOTA_CARACTERES)
+	devocional.notas = notas
+	var planos_concluidos: Array = []
+	for plano_key in _unique_string_array(dev_save.get("planosConcluidos", [])):
+		if Devocional.exists(str(plano_key)):
+			planos_concluidos.append(str(plano_key))
+	devocional.planosConcluidos = planos_concluidos
+	devocional.horaLembrete = clampi(int(dev_save.get("horaLembrete", -1)), -1, 23)
+
+	conquistas = []
+	for achievement_id in _unique_string_array(data.get("conquistas", [])):
+		if Conquistas.exists(str(achievement_id)):
+			conquistas.append(str(achievement_id))
+
+	var alianca_save: Dictionary = data.get("alianca", {})
+	alianca = _default_alianca()
+	alianca.saldo = maxi(0, int(alianca_save.get("saldo", 0)))
+	alianca.gastas = maxi(0, int(alianca_save.get("gastas", 0)))
+	alianca.total = maxi(int(alianca.saldo) + int(alianca.gastas), int(alianca_save.get("total", 0)))
+	alianca.ascensoes = maxi(0, int(alianca_save.get("ascensoes", 0)))
+	var nos: Array = []
+	for node_id in _unique_string_array(alianca_save.get("nos", [])):
+		if AliancaSystem.no_existe(str(node_id)):
+			nos.append(str(node_id))
+	alianca.nos = nos
+
+	var provacoes_save: Dictionary = data.get("provacoes", {})
+	provacoes = _default_provacoes()
+	var ativa := str(provacoes_save.get("ativa", ""))
+	provacoes.ativa = ativa if ProvacoesSystem.existe(ativa) else ""
+	provacoes.iniciadaEm = maxf(0.0, float(provacoes_save.get("iniciadaEm", 0.0)))
+	var concluidas_save: Dictionary = provacoes_save.get("concluidas", {})
+	var concluidas: Dictionary = {}
+	for provacao_key: Variant in concluidas_save:
+		if ProvacoesSystem.existe(str(provacao_key)):
+			concluidas[str(provacao_key)] = maxi(0, int(concluidas_save[provacao_key]))
+	provacoes.concluidas = concluidas
+
+	var metas_save: Dictionary = data.get("metasDiarias", {})
+	metas_diarias = _default_metas_diarias()
+	metas_diarias.dia = int(metas_save.get("dia", -1))
+	var metas: Array = []
+	for meta_id in _unique_string_array(metas_save.get("metas", [])):
+		if MetasSystem.existe(str(meta_id)):
+			metas.append(str(meta_id))
+	metas_diarias.metas = metas
+	var progresso_save: Dictionary = metas_save.get("progresso", {})
+	var progresso: Dictionary = {}
+	for meta_key: Variant in progresso_save:
+		if str(meta_key) in metas:
+			progresso[str(meta_key)] = maxf(0.0, float(progresso_save[meta_key]))
+	metas_diarias.progresso = progresso
+	var resgatadas: Array = []
+	for meta_id in _unique_string_array(metas_save.get("resgatadas", [])):
+		if meta_id in metas:
+			resgatadas.append(str(meta_id))
+	metas_diarias.resgatadas = resgatadas
+	metas_diarias.totalCumpridas = maxi(0, int(metas_save.get("totalCumpridas", 0)))
+
+
 func _boost_active_at_adjusted_time(boost_id: String, at_time: float) -> bool:
 	var local_expiry := float(boosts.get(boost_id, 0.0))
 	var adjusted_expiry := local_expiry + LiveOps.server_time_offset_seconds()
@@ -1280,6 +1554,11 @@ func _offline_weighted_multiplier(start_at: float, end_at: float, generator_id: 
 			var expiry := float(boosts.get(boost_id, 0.0)) + LiveOps.server_time_offset_seconds()
 			if expiry > segment_start and expiry < segment_end:
 				boundaries.append(expiry)
+		# O Selo do Dia vale offline e pode vencer no meio da janela: entra como
+		# fronteira propria para nao creditar bonus depois de expirado.
+		var selo_expiry := DevocionalSystem.selo_expira_em()
+		if selo_expiry > segment_start and selo_expiry < segment_end:
+			boundaries.append(selo_expiry)
 		boundaries.sort()
 		for index in range(boundaries.size() - 1):
 			var part_start := boundaries[index]
@@ -1298,6 +1577,8 @@ func _offline_weighted_multiplier(start_at: float, end_at: float, generator_id: 
 				multiplier *= LiveOps.pentecost_production_multiplier()
 			if _boost_active_at_adjusted_time("passo_ligeiro", midpoint):
 				multiplier *= 1.0 / LiveOps.swift_step_time_multiplier()
+			if selo_expiry > 0.0 and midpoint < selo_expiry:
+				multiplier *= 1.0 + float(devocional.get("seloBonus", 0.0))
 			multiplier = minf(multiplier, LiveOps.MAX_EFFECTIVE_PRODUCTION_MULTIPLIER)
 			weighted += (part_end - part_start) * multiplier
 	return weighted / total_duration

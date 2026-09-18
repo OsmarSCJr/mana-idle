@@ -1,6 +1,6 @@
-export function makeSaveV10(fe = 10): Record<string, unknown> {
+export function makeSaveV11(fe = 10): Record<string, unknown> {
   return {
-    version: 10,
+    version: 11,
     lastSeen: Math.floor(Date.now() / 1000),
     activeAdventure: "jornada",
     adventureProgress: {
@@ -58,5 +58,23 @@ export function makeSaveV10(fe = 10): Record<string, unknown> {
     dailyBoostVideoLastClaimed: 0,
     dailyBoostVideoLastReward: "",
     estatisticas: { prestiges: 0, tempo_jogado: 0 },
+    devocional: {
+      planoId: "sete_dias",
+      dia: 0,
+      ultimoDiaLido: -1,
+      sequencia: 0,
+      melhorSequencia: 0,
+      totalLidos: 0,
+      seloExpiraEm: 0,
+      seloBonus: 0,
+      destaques: [],
+      notas: {},
+      planosConcluidos: [],
+      horaLembrete: -1,
+    },
+    conquistas: [],
+    alianca: { saldo: 0, gastas: 0, total: 0, nos: [], ascensoes: 0 },
+    provacoes: { ativa: "", iniciadaEm: 0, concluidas: {} },
+    metasDiarias: { dia: -1, metas: [], progresso: {}, resgatadas: [], totalCumpridas: 0 },
   };
 }

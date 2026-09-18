@@ -23,6 +23,8 @@ func _ready() -> void:
 	var all_tabs_mobile_ok := false
 	var blessing_buyer_ok := false
 	var adventure_transition_ok := false
+	var devocional_ok := false
+	var progresso_ok := false
 	if main != null:
 		var items: Dictionary = main.get("_items")
 		var tabs: Dictionary = main.get("_tab_buttons")
@@ -32,7 +34,9 @@ func _ready() -> void:
 		tab_count = tabs.size()
 		adventure_count = adventures.size()
 		ok = ok and item_count == 36
-		ok = ok and tab_count == 5
+		# Seis abas no V3: JORNADA, BENCAOS, DIARIO, ESTUDO, SANTOS, TENDA.
+		ok = ok and tab_count == 6
+		ok = ok and "devocional" in tabs
 		ok = ok and adventure_count == 3
 		ok = ok and study_panel != null
 		ok = ok and study_panel.get("_bible_reader") != null
@@ -91,6 +95,7 @@ func _ready() -> void:
 			"geradores": main.get("_panel_geradores"),
 			"milagres": main.get("_panel_milagres"),
 			"estudo": study_panel,
+			"devocional": main.get("_panel_devocional"),
 			"santos": santos_panel,
 			"gemas": main.get("_panel_gemas"),
 		}
@@ -206,6 +211,33 @@ func _ready() -> void:
 			and not journey_item.visible and christ_item.visible \
 			and str((main.get("_prestige_caption") as Label).text) == "TESTEMUNHOS"
 		ok = ok and adventure_transition_ok
+
+		# A aba DIARIO monta a leitura do dia com texto biblico real, as metas do
+		# dia e o botao de conclusao; concluir liga o Selo do Dia.
+		main.call("_show_tab", "devocional")
+		await get_tree().process_frame
+		var devocional_panel: DevocionalPanel = main.get("_panel_devocional")
+		var leitura := DevocionalSystem.leitura_de_hoje()
+		var selo_antes := Economy.get_multiplicador_global_base()
+		var concluiu := DevocionalSystem.concluir_leitura()
+		var selo_depois := Economy.get_multiplicador_global_base()
+		var repetiu := DevocionalSystem.concluir_leitura()
+		devocional_ok = devocional_panel != null 			and not leitura.is_empty() 			and not (leitura.versos as Array).is_empty() 			and not str(leitura.referencia).is_empty() 			and MetasSystem.metas_ativas().size() == MetasSystem.METAS_POR_DIA 			and bool(concluiu.get("ok", false)) 			and not bool(repetiu.get("ok", true)) 			and DevocionalSystem.selo_ativo() 			and DevocionalSystem.sequencia() == 1 			and selo_depois > selo_antes 			and _tree_has_text(devocional_panel, "Selo do Dia")
+		ok = ok and devocional_ok
+
+		# A aba SANTOS hospeda as camadas permanentes. Alianca comeca bloqueada, e
+		# as conquistas de abertura ja entraram durante os testes acima.
+		main.call("_show_tab", "santos")
+		await get_tree().process_frame
+		var progresso_panel: ProgressoPanel = main.get("_panel_progresso")
+		progresso_panel.call("show_section", "conquistas")
+		await get_tree().process_frame
+		var conquistas_visiveis := Conquistas.desbloqueadas() > 0
+		progresso_panel.call("show_section", "alianca")
+		await get_tree().process_frame
+		progresso_ok = progresso_panel != null 			and not AliancaSystem.liberada() 			and not ProvacoesSystem.liberadas() 			and conquistas_visiveis 			and Conquistas.multiplicador() > 1.0 			and _tree_has_text(progresso_panel, "Aliança")
+		ok = ok and progresso_ok
+	print("[UI] devocional=", devocional_ok, " progresso=", progresso_ok)
 	print("[UI] geradores=", item_count, " abas=", tab_count, " aventuras=", adventure_count)
 	print("[UI] lateral=", boost_space_ok, " cloud=", cloud_ui_ok, " cloud_scroll=", cloud_scroll_ok, " ciclo_rapido=", fast_cycle_ok)
 	print("[UI] santos_mobile=", santos_mobile_ok)

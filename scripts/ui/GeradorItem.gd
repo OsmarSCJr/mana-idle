@@ -557,12 +557,16 @@ func _play_completion_feedback() -> void:
 func _calc_amount() -> int:
 	var state: Dictionary = GameState.geradores.get(gen_id, {})
 	var qtd: int = state.get("qtd", 0)
+	# Todo modo respeita a meta da aventura: em 980 unidades, "x100" oferece 20.
+	var teto: int = Geradores.META_UNIDADES - qtd
+	if teto <= 0:
+		return 0
 	match _modo_compra:
 		"x1": return 1
-		"x10": return 10
-		"x100": return 100
-		"Next": return max(0, Economy.next_milestone(qtd) - qtd)
-		"Max": return max(0, Economy.max_compravel(gen_id, GameState.get_currency_amount(GameState.get_currency_for_gen(gen_id)), qtd))
+		"x10": return mini(10, teto)
+		"x100": return mini(100, teto)
+		"Next": return mini(max(0, Economy.next_milestone(qtd) - qtd), teto)
+		"Max": return mini(max(0, Economy.max_compravel(gen_id, GameState.get_currency_amount(GameState.get_currency_for_gen(gen_id)), qtd)), teto)
 		_: return 1
 
 func _set_qty_text(t: String) -> void:
@@ -734,10 +738,10 @@ func update() -> void:
 	var pode_comprar: bool = amount > 0 and saldo_moeda >= custo
 
 	if amount > 0:
-		if qtd <= 0:
-			_set_buy_text("x" + str(amount) + "\n" + NumberFormat.format(custo))
-		else:
-			_set_buy_text("x" + str(amount) + "\n" + NumberFormat.format(custo))
+		_set_buy_text("x" + str(amount) + "\n" + NumberFormat.format(custo))
+	elif qtd >= Geradores.META_UNIDADES:
+		# Meta da aventura concluida neste gerador: estado de conquista, nao de falta.
+		_set_buy_text("META\n" + str(Geradores.META_UNIDADES) + " UNIDADES")
 	else:
 		_set_buy_text("MAX\nINDISPONÍVEL")
 

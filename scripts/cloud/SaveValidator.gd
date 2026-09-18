@@ -228,6 +228,121 @@ static func validate_save_data(data: Dictionary, require_current_version: bool =
 	for boost_id: Variant in (inventory as Dictionary):
 		if not GameState.BOOSTS.has(str(boost_id)) or int((inventory as Dictionary)[boost_id]) < 0:
 			return _invalid("INVALID_BOOST", "O inventario contem um impulso invalido.")
+
+	var camadas_error: Dictionary = _validate_camadas_v3(data)
+	if not bool(camadas_error.get("ok", true)):
+		return camadas_error
+	return {"ok": true}
+
+
+# Camadas do V3: devocional, conquistas, Alianca, Provacoes e metas diarias.
+# Cada id e conferido contra o catalogo, e cada contador contra o seu teto — um
+# save adulterado nunca deve valer um no de Alianca ou um Selo fora da escala.
+static func _validate_camadas_v3(data: Dictionary) -> Dictionary:
+	var devotional: Variant = data.get("devocional", {})
+	if devotional is not Dictionary:
+		return _invalid("INVALID_DEVOTIONAL", "O progresso devocional e invalido.")
+	var devotional_map: Dictionary = devotional as Dictionary
+	if not Devocional.exists(str(devotional_map.get("planoId", ""))):
+		return _invalid("UNKNOWN_ID", "O save contem um plano devocional desconhecido.")
+	for field: String in ["dia", "sequencia", "melhorSequencia", "totalLidos"]:
+		if int(devotional_map.get(field, 0)) < 0:
+			return _invalid("INVALID_DEVOTIONAL", "O campo devocional %s e invalido." % field)
+	if int(devotional_map.get("sequencia", 0)) > int(devotional_map.get("melhorSequencia", 0)):
+		return _invalid("INVALID_DEVOTIONAL", "A sequencia devocional excede o recorde.")
+	if not _is_non_negative_number(devotional_map.get("seloExpiraEm", 0.0)):
+		return _invalid("INVALID_DEVOTIONAL", "A validade do Selo do Dia e invalida.")
+	var selo_bonus: Variant = devotional_map.get("seloBonus", 0.0)
+	if not _is_non_negative_number(selo_bonus) or float(selo_bonus) > DevocionalSystem.selo_maximo() + 0.001:
+		return _invalid("INVALID_DEVOTIONAL", "O bonus do Selo do Dia esta fora da escala.")
+	var hora: int = int(devotional_map.get("horaLembrete", -1))
+	if hora < -1 or hora > 23:
+		return _invalid("INVALID_DEVOTIONAL", "A hora do lembrete e invalida.")
+	var destaques: Variant = devotional_map.get("destaques", [])
+	if destaques is not Array or (destaques as Array).size() > GameState.MAX_DESTAQUES_DEVOCIONAL \
+			or not _has_unique_strings(destaques as Array):
+		return _invalid("INVALID_DEVOTIONAL", "A lista de destaques e invalida.")
+	var notas: Variant = devotional_map.get("notas", {})
+	if notas is not Dictionary or (notas as Dictionary).size() > GameState.MAX_NOTAS_DEVOCIONAL:
+		return _invalid("INVALID_DEVOTIONAL", "As anotacoes devocionais sao invalidas.")
+	for nota_key: Variant in (notas as Dictionary):
+		if str((notas as Dictionary)[nota_key]).length() > DevocionalSystem.MAX_NOTA_CARACTERES:
+			return _invalid("INVALID_DEVOTIONAL", "Uma anotacao excede o limite de caracteres.")
+	var planos: Variant = devotional_map.get("planosConcluidos", [])
+	if planos is not Array or not _has_unique_strings(planos as Array):
+		return _invalid("INVALID_DEVOTIONAL", "A lista de planos concluidos e invalida.")
+	for plano_id: Variant in (planos as Array):
+		if not Devocional.exists(str(plano_id)):
+			return _invalid("UNKNOWN_ID", "O save contem um plano devocional desconhecido.")
+
+	var achievements: Variant = data.get("conquistas", [])
+	if achievements is not Array or (achievements as Array).size() > Conquistas.total() \
+			or not _has_unique_strings(achievements as Array):
+		return _invalid("INVALID_ACHIEVEMENTS", "A lista de conquistas e invalida.")
+	for achievement_id: Variant in (achievements as Array):
+		if not Conquistas.exists(str(achievement_id)):
+			return _invalid("UNKNOWN_ID", "O save contem uma conquista desconhecida.")
+
+	var covenant: Variant = data.get("alianca", {})
+	if covenant is not Dictionary:
+		return _invalid("INVALID_COVENANT", "O estado da Alianca e invalido.")
+	var covenant_map: Dictionary = covenant as Dictionary
+	for field: String in ["saldo", "gastas", "total", "ascensoes"]:
+		if int(covenant_map.get(field, 0)) < 0:
+			return _invalid("INVALID_COVENANT", "O campo %s da Alianca e invalido." % field)
+	if int(covenant_map.get("saldo", 0)) + int(covenant_map.get("gastas", 0)) > int(covenant_map.get("total", 0)):
+		return _invalid("INVALID_COVENANT", "O saldo da Alianca excede o total ganho.")
+	var covenant_nodes: Variant = covenant_map.get("nos", [])
+	if covenant_nodes is not Array or (covenant_nodes as Array).size() > AliancaSystem.total_nos() \
+			or not _has_unique_strings(covenant_nodes as Array):
+		return _invalid("INVALID_COVENANT", "A lista de nos da Alianca e invalida.")
+	for node_id: Variant in (covenant_nodes as Array):
+		if not AliancaSystem.no_existe(str(node_id)):
+			return _invalid("UNKNOWN_ID", "O save contem um no de Alianca desconhecido.")
+
+	var trials: Variant = data.get("provacoes", {})
+	if trials is not Dictionary:
+		return _invalid("INVALID_TRIALS", "O estado das Provacoes e invalido.")
+	var trials_map: Dictionary = trials as Dictionary
+	var active_trial := str(trials_map.get("ativa", ""))
+	if not active_trial.is_empty() and not ProvacoesSystem.existe(active_trial):
+		return _invalid("UNKNOWN_ID", "O save contem uma Provacao desconhecida.")
+	if not _is_non_negative_number(trials_map.get("iniciadaEm", 0.0)):
+		return _invalid("INVALID_TRIALS", "O inicio da Provacao e invalido.")
+	var completed_trials: Variant = trials_map.get("concluidas", {})
+	if completed_trials is not Dictionary or (completed_trials as Dictionary).size() > ProvacoesSystem.DADOS.size():
+		return _invalid("INVALID_TRIALS", "O registro de Provacoes e invalido.")
+	for trial_key: Variant in (completed_trials as Dictionary):
+		if not ProvacoesSystem.existe(str(trial_key)) or int((completed_trials as Dictionary)[trial_key]) < 0:
+			return _invalid("INVALID_TRIALS", "O registro de Provacoes contem entrada invalida.")
+
+	var goals: Variant = data.get("metasDiarias", {})
+	if goals is not Dictionary:
+		return _invalid("INVALID_GOALS", "As metas diarias sao invalidas.")
+	var goals_map: Dictionary = goals as Dictionary
+	if int(goals_map.get("totalCumpridas", 0)) < 0:
+		return _invalid("INVALID_GOALS", "O total de metas cumpridas e invalido.")
+	var goal_ids: Variant = goals_map.get("metas", [])
+	if goal_ids is not Array or (goal_ids as Array).size() > MetasSystem.METAS_POR_DIA \
+			or not _has_unique_strings(goal_ids as Array):
+		return _invalid("INVALID_GOALS", "A lista de metas do dia e invalida.")
+	for goal_id: Variant in (goal_ids as Array):
+		if not MetasSystem.existe(str(goal_id)):
+			return _invalid("UNKNOWN_ID", "O save contem uma meta diaria desconhecida.")
+	var goal_progress: Variant = goals_map.get("progresso", {})
+	if goal_progress is not Dictionary or (goal_progress as Dictionary).size() > MetasSystem.METAS_POR_DIA:
+		return _invalid("INVALID_GOALS", "O progresso das metas e invalido.")
+	for goal_key: Variant in (goal_progress as Dictionary):
+		if str(goal_key) not in (goal_ids as Array) \
+				or not _is_non_negative_number((goal_progress as Dictionary)[goal_key]):
+			return _invalid("INVALID_GOALS", "O progresso das metas contem entrada invalida.")
+	var claimed_goals: Variant = goals_map.get("resgatadas", [])
+	if claimed_goals is not Array or (claimed_goals as Array).size() > MetasSystem.METAS_POR_DIA \
+			or not _has_unique_strings(claimed_goals as Array):
+		return _invalid("INVALID_GOALS", "A lista de metas resgatadas e invalida.")
+	for goal_id: Variant in (claimed_goals as Array):
+		if str(goal_id) not in (goal_ids as Array):
+			return _invalid("INVALID_GOALS", "Uma meta resgatada nao pertence ao dia.")
 	return {"ok": true}
 
 

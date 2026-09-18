@@ -57,10 +57,13 @@ func _ready() -> void:
 	var global_antes := Economy.get_multiplicador_global()
 	var comprou_dad := GameState.buy_dadiva("d_evangelismo")
 	var global_depois := Economy.get_multiplicador_global()
-	print("[T6] d_evangelismo=", comprou_dad, " santos=", GameState.santos, " global ", global_antes, " -> ", global_depois)
-	# O bônus conta santos TOTAIS ganhos (saldo + gastos): investir não reduz.
-	# Esperado: (1 + 30*0.02) * 1.25 = 2.0.
-	ok = ok and comprou_dad and GameState.santos == 5 and is_equal_approx(global_depois, 2.0)
+	# O bônus conta santos TOTAIS ganhos (saldo + gastos): investir não reduz — o
+	# global antes da compra já vale (1 + 30 * saintBonus). A verificação é pela
+	# RAZÃO, não pelo valor absoluto: conquistas e Selo do Dia também multiplicam a
+	# produção global, e o teste não deve travar quando um deles muda.
+	var global_esperado := global_antes * 1.25
+	print("[T6] d_evangelismo=", comprou_dad, " santos=", GameState.santos, " global ", global_antes, " -> ", global_depois, " esperado=", global_esperado)
+	ok = ok and comprou_dad and GameState.santos == 5 		and is_equal_approx(global_antes, (1.0 + 30.0 * LiveOps.saint_bonus()) * Conquistas.multiplicador()) 		and is_equal_approx(global_depois, global_esperado)
 
 	# 7) Dadiva offline: Jo I (+50%) e Jo II (teto 16h)
 	GameState.santos = 100
@@ -162,24 +165,55 @@ func _ready() -> void:
 	print("[T14] save antigo recebe moedas iniciais=", legacy_seeded)
 	ok = ok and legacy_seeded
 
-	# 15) Marcos individuais e gerais compartilham nove alvos. Cada marco reduz
-	# o esforco relativo ate o seguinte ao elevar o multiplicador acumulado.
+	# 15) Marcos individuais cobrem a corrida ate a meta sem vao maior que 100
+	# unidades, cada marco eleva o multiplicador, e todo marco geral cai sobre um
+	# marco individual (a barra de gargalo e o trilho de compra ficam alinhados).
+	# Passada a meta o modo MARCO fica indisponivel (next_milestone devolve 0).
 	var milestones := LiveOps.milestones()
 	var general_milestones := LiveOps.general_milestones()
-	var milestones_ok := milestones.size() == 9 and general_milestones.size() == 9
-	for index in range(milestones.size()):
-		var target := int((milestones[index] as Dictionary).quantity)
+	var individual_targets: Array[int] = []
+	var milestones_ok := not milestones.is_empty() and not general_milestones.is_empty()
+	var previous_target := 0
+	for milestone_value: Variant in milestones:
+		var target := int((milestone_value as Dictionary).quantity)
+		individual_targets.append(target)
 		milestones_ok = milestones_ok \
-			and target == int((general_milestones[index] as Dictionary).quantity) \
+			and target - previous_target <= 100 \
+			and target <= Geradores.META_UNIDADES \
 			and Economy.next_milestone(target - 1) == target \
 			and Economy.milestone_bonus(target) > Economy.milestone_bonus(target - 1)
+		previous_target = target
+	for marco_value: Variant in general_milestones:
+		milestones_ok = milestones_ok and int((marco_value as Dictionary).quantity) in individual_targets
 	milestones_ok = milestones_ok \
-		and Economy.next_milestone(int((milestones[-1] as Dictionary).quantity)) \
-			== int((milestones[-1] as Dictionary).quantity)
-	print("[T15] milestones alinhados e progressivos=", milestones_ok, " total=", milestones.size())
+		and previous_target == Geradores.META_UNIDADES \
+		and int((general_milestones[-1] as Dictionary).quantity) == Geradores.META_UNIDADES \
+		and Economy.next_milestone(Geradores.META_UNIDADES) == 0
+	print("[T15] marcos cobrem a meta e alinham com os gerais=", milestones_ok,
+		" individuais=", milestones.size(), " gerais=", general_milestones.size(),
+		" meta=", Geradores.META_UNIDADES)
 	ok = ok and milestones_ok
 
-	# 16) Dez Santos base equivalem a +20%, inclusive apos concluir Cristo.
+	# 15b) A meta e teto duro de unidades: comprar acima dela nao acontece, e o
+	# saldo nao e debitado.
+	GameState._reset_alpha_progress()
+	GameState.fe = 1.0e120
+	GameState.geradores[1].qtd = Geradores.META_UNIDADES
+	var saldo_antes := GameState.fe
+	var acima_bloqueado := not GameState.buy_generator(1, 10) \
+		and is_equal_approx(GameState.fe, saldo_antes) \
+		and int(GameState.geradores[1].qtd) == Geradores.META_UNIDADES
+	GameState.geradores[1].qtd = Geradores.META_UNIDADES - 3
+	var lote_aparado := GameState.buy_generator(1, 50) \
+		and int(GameState.geradores[1].qtd) == Geradores.META_UNIDADES \
+		and Economy.max_compravel(1, 1.0e120, Geradores.META_UNIDADES) == 0
+	print("[T15b] meta e teto duro=", acima_bloqueado and lote_aparado)
+	ok = ok and acima_bloqueado and lote_aparado
+	GameState._reset_alpha_progress()
+
+	# 16) Dez Santos valem dez vezes o bonus configurado, inclusive apos concluir
+	# Cristo (concluir campanha nao injeta poder em outra). O V3 usa 0.20, mas o
+	# teste le a constante: quem ajustar o LiveOps nao precisa mexer aqui.
 	GameState.santos = 10
 	GameState.santos_gastos = 0
 	GameState.dadivas_compradas.clear()
@@ -187,9 +221,11 @@ func _ready() -> void:
 	GameState.conhecimentos_ativos.clear()
 	GameState.aventuras_concluidas = ["vida_cristo"]
 	Economy.recompute_multiplicadores()
-	var santo_dois_pct := is_equal_approx(Economy.get_multiplicador_santos(), 1.2)
-	print("[T16] dez Santos em 2% cada=", santo_dois_pct)
-	ok = ok and santo_dois_pct
+	var bonus_por_santo := LiveOps.saint_bonus()
+	var santo_bonus_ok := bonus_por_santo >= 0.2 		and is_equal_approx(Economy.get_multiplicador_santos(), 1.0 + 10.0 * bonus_por_santo)
+	print("[T16] dez Santos a ", bonus_por_santo, " cada=", santo_bonus_ok,
+		" multiplicador=", Economy.get_multiplicador_santos())
+	ok = ok and santo_bonus_ok
 
 	# 17) A Mordomia custa mais de 100 Santos e persiste como Dadiva permanente.
 	GameState.santos = 150

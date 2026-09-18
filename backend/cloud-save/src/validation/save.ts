@@ -38,6 +38,11 @@ const ROOT_KEYS = new Set([
   "dailyBoostVideoLastClaimed",
   "dailyBoostVideoLastReward",
   "estatisticas",
+  "devocional",
+  "conquistas",
+  "alianca",
+  "provacoes",
+  "metasDiarias",
 ]);
 
 const REQUIRED_ROOT_KEYS = [
@@ -73,6 +78,11 @@ const REQUIRED_ROOT_KEYS = [
   "boosts",
   "boostInventory",
   "estatisticas",
+  "devocional",
+  "conquistas",
+  "alianca",
+  "provacoes",
+  "metasDiarias",
 ] as const;
 
 const DADIVA_IDS = new Set([
@@ -103,6 +113,31 @@ const COSMETIC_CATEGORIES = new Map([
   ["moldura_templo", "moldura"], ["efeito_pombas", "efeito"],
   ["tema_leitor_pergaminho", "tema_leitor"],
 ]);
+const DEVOTIONAL_PLAN_IDS = new Set(["sete_dias", "jornada_completa", "palavra_do_dia"]);
+
+const COVENANT_NODE_IDS = new Set([
+  "a_alicerce", "a_vigilia_longa", "a_primeiro_chamado", "a_maos_abertas", "a_selo_firme",
+  "a_entendimento", "a_slots", "a_marcos_maiores", "a_primicias_eternas", "a_porta_aberta",
+  "a_escada_suave", "a_sopro_constante", "a_colheita_dobrada", "a_coroa_de_luz",
+]);
+
+const TRIAL_IDS = new Set([
+  "p_deserto", "p_cativeiro", "p_sarepta", "p_jejum", "p_viuva_duas_moedas", "p_fornalha",
+]);
+
+// Conquistas e metas diárias são muitas e mudam de catálogo com frequência. Como
+// nos upgrades, o Worker valida o formato do id e o teto de quantidade; a
+// autoridade sobre o catálogo é do jogo. O Worker nunca lê o conteúdo do save
+// para dar recompensa, então um id novo não vira poder — só ocupa bytes.
+const ACHIEVEMENT_ID = /^c_[a-z0-9_]{1,40}$/u;
+const DAILY_GOAL_ID = /^m_[a-z0-9_]{1,40}$/u;
+const MAX_ACHIEVEMENTS = 200;
+const MAX_DAILY_GOALS = 3;
+const MAX_DEVOTIONAL_HIGHLIGHTS = 128;
+const MAX_DEVOTIONAL_NOTES = 30;
+const MAX_DEVOTIONAL_NOTE_CHARS = 180;
+const MAX_SELO_BONUS = 2;
+
 const BOOST_IDS = new Set(["fervor", "pentecoste", "colheita", "passo_ligeiro", "maos_santas"]);
 const KNOWLEDGE_IDS = new Set([
   "knowledge_good_seed",
@@ -367,6 +402,81 @@ function validateStudy(value: unknown): void {
   }
 }
 
+function validateDevotional(value: unknown): void {
+  const devotional = objectAt(value, "$.devocional");
+  const planId = devotional.planoId;
+  if (typeof planId !== "string" || !DEVOTIONAL_PLAN_IDS.has(planId)) {
+    fail("$.devocional.planoId", "plano desconhecido");
+  }
+  for (const key of ["dia", "sequencia", "melhorSequencia", "totalLidos"] as const) {
+    integerNonNegative(devotional[key], `$.devocional.${key}`);
+  }
+  if (Number(devotional.sequencia) > Number(devotional.melhorSequencia)) {
+    fail("$.devocional.sequencia", "sequência acima do recorde");
+  }
+  finiteNonNegative(devotional.seloExpiraEm, "$.devocional.seloExpiraEm");
+  const seloBonus = finiteNonNegative(devotional.seloBonus, "$.devocional.seloBonus");
+  if (seloBonus > MAX_SELO_BONUS) fail("$.devocional.seloBonus", "bônus fora da escala");
+  const hora = devotional.horaLembrete;
+  if (typeof hora !== "number" || !Number.isInteger(hora) || hora < -1 || hora > 23) {
+    fail("$.devocional.horaLembrete", "hora inválida");
+  }
+  uniqueStrings(devotional.destaques, "$.devocional.destaques", MAX_DEVOTIONAL_HIGHLIGHTS);
+  const notas = objectAt(devotional.notas, "$.devocional.notas");
+  if (Object.keys(notas).length > MAX_DEVOTIONAL_NOTES) fail("$.devocional.notas", "anotações demais");
+  for (const [referencia, texto] of Object.entries(notas)) {
+    if (typeof texto !== "string" || texto.length > MAX_DEVOTIONAL_NOTE_CHARS) {
+      fail(`$.devocional.notas.${referencia}`, "anotação inválida");
+    }
+  }
+  const planos = uniqueStrings(devotional.planosConcluidos, "$.devocional.planosConcluidos", DEVOTIONAL_PLAN_IDS.size);
+  if (planos.some((id) => !DEVOTIONAL_PLAN_IDS.has(id))) {
+    fail("$.devocional.planosConcluidos", "plano desconhecido");
+  }
+}
+
+function validateCovenant(value: unknown): void {
+  const covenant = objectAt(value, "$.alianca");
+  const saldo = integerNonNegative(covenant.saldo, "$.alianca.saldo");
+  const gastas = integerNonNegative(covenant.gastas, "$.alianca.gastas");
+  const total = integerNonNegative(covenant.total, "$.alianca.total");
+  integerNonNegative(covenant.ascensoes, "$.alianca.ascensoes");
+  if (saldo + gastas > total) fail("$.alianca.total", "saldo acima do total ganho");
+  const nodes = uniqueStrings(covenant.nos, "$.alianca.nos", COVENANT_NODE_IDS.size);
+  if (nodes.some((id) => !COVENANT_NODE_IDS.has(id))) fail("$.alianca.nos", "nó desconhecido");
+}
+
+function validateTrials(value: unknown): void {
+  const trials = objectAt(value, "$.provacoes");
+  const active = trials.ativa;
+  if (typeof active !== "string" || (active !== "" && !TRIAL_IDS.has(active))) {
+    fail("$.provacoes.ativa", "provação desconhecida");
+  }
+  finiteNonNegative(trials.iniciadaEm, "$.provacoes.iniciadaEm");
+  const completed = objectAt(trials.concluidas, "$.provacoes.concluidas");
+  if (Object.keys(completed).length > TRIAL_IDS.size) fail("$.provacoes.concluidas", "entradas demais");
+  for (const [id, vezes] of Object.entries(completed)) {
+    if (!TRIAL_IDS.has(id)) fail(`$.provacoes.concluidas.${id}`, "provação desconhecida");
+    integerNonNegative(vezes, `$.provacoes.concluidas.${id}`);
+  }
+}
+
+function validateDailyGoals(value: unknown): void {
+  const goals = objectAt(value, "$.metasDiarias");
+  if (typeof goals.dia !== "number" || !Number.isInteger(goals.dia)) fail("$.metasDiarias.dia", "dia inválido");
+  integerNonNegative(goals.totalCumpridas, "$.metasDiarias.totalCumpridas");
+  const ids = uniqueStrings(goals.metas, "$.metasDiarias.metas", MAX_DAILY_GOALS);
+  if (ids.some((id) => !DAILY_GOAL_ID.test(id))) fail("$.metasDiarias.metas", "meta desconhecida");
+  const progress = objectAt(goals.progresso, "$.metasDiarias.progresso");
+  if (Object.keys(progress).length > MAX_DAILY_GOALS) fail("$.metasDiarias.progresso", "entradas demais");
+  for (const [id, valor] of Object.entries(progress)) {
+    if (!ids.includes(id)) fail(`$.metasDiarias.progresso.${id}`, "meta fora do dia");
+    finiteNonNegative(valor, `$.metasDiarias.progresso.${id}`);
+  }
+  const claimed = uniqueStrings(goals.resgatadas, "$.metasDiarias.resgatadas", MAX_DAILY_GOALS);
+  if (claimed.some((id) => !ids.includes(id))) fail("$.metasDiarias.resgatadas", "meta fora do dia");
+}
+
 export interface ValidatedSaveMetadata {
   bytes: number;
   lastSeen: number;
@@ -438,5 +548,11 @@ export function validateSavePayload(
   if (Object.keys(stats).some((key) => !["prestiges", "tempo_jogado"].includes(key))) fail("$.estatisticas", "campo desconhecido");
   integerNonNegative(stats.prestiges, "$.estatisticas.prestiges");
   finiteNonNegative(stats.tempo_jogado, "$.estatisticas.tempo_jogado");
+  validateDevotional(root.devocional);
+  const achievements = uniqueStrings(root.conquistas, "$.conquistas", MAX_ACHIEVEMENTS);
+  if (achievements.some((id) => !ACHIEVEMENT_ID.test(id))) fail("$.conquistas", "conquista desconhecida");
+  validateCovenant(root.alianca);
+  validateTrials(root.provacoes);
+  validateDailyGoals(root.metasDiarias);
   return { bytes, lastSeen };
 }
